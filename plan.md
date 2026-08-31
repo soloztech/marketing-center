@@ -58,11 +58,15 @@ Segundo corte implantado no servidor05:
   reconciliados, sem job falho;
 - evidência canônica do release:
   `scans/raw/20260829-odoo16-marketing-center-first-slice/release/20260831T022305825981Z`.
+- `meta_api_base` `16.0.1.0.0` foi extraído para o repositório técnico independente
+  `integration-core`, passou 23/23 testes, instalação e replay de upgrade, e está
+  instalado isoladamente no servidor05. Ele ainda não substitui o facade do
+  `contact_center_meta` neste corte.
 
 Pendências imediatas, em ordem:
 
-1. extrair `meta_api_base` técnico compartilhado sem alterar os contratos públicos do
-   `contact_center_meta`;
+1. adaptar o `contact_center_meta` como facade compatível do `meta_api_base` e provar a
+   suíte integrada sem regressão;
 2. criar `marketing_center_meta` read-only para descoberta de sources, catálogo e
    Lead Ads;
 3. adicionar fatos de métrica/revisão e o conector de Insights;
