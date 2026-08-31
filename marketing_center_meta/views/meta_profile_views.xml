@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_marketing_center_meta_profile_tree" model="ir.ui.view">
+        <field name="name">marketing.center.meta.profile.tree</field>
+        <field name="model">marketing.center.meta.profile</field>
+        <field name="arch" type="xml">
+            <tree delete="false">
+                <field name="name" />
+                <field name="external_app_id" />
+                <field name="graph_version" />
+                <field name="credential_backend" />
+                <field name="health_state" />
+                <field name="verified_at" />
+                <field name="profile_revision" />
+                <field name="company_id" />
+                <field name="active" />
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_marketing_center_meta_profile_form" model="ir.ui.view">
+        <field name="name">marketing.center.meta.profile.form</field>
+        <field name="model">marketing.center.meta.profile</field>
+        <field name="arch" type="xml">
+            <form delete="false">
+                <header>
+                    <button
+            name="action_enqueue_validation"
+            string="Validate"
+            type="object"
+            class="oe_highlight"
+          />
+                    <button
+            name="action_enqueue_discovery"
+            string="Discover ad accounts"
+            type="object"
+          />
+                    <field
+            name="health_state"
+            widget="statusbar"
+            statusbar_visible="unknown,healthy,degraded,unhealthy"
+          />
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name" />
+                            <field name="company_id" />
+                            <field name="external_app_id" />
+                            <field name="graph_version" />
+                            <field name="required_scopes" />
+                            <field name="active" />
+                        </group>
+                        <group>
+                            <field name="public_ref" />
+                            <field name="profile_revision" />
+                            <field name="verified_at" />
+                            <field name="token_type" />
+                            <field name="token_expires_at" />
+                            <field name="data_access_expires_at" />
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Credential references">
+                            <group>
+                                <field name="credential_backend" />
+                                <field name="app_secret_ref" />
+                                <field name="access_token_ref" />
+                            </group>
+                            <p class="text-muted">
+                                These fields contain only external references. App secrets
+                                and access tokens are never stored in Odoo.
+                            </p>
+                        </page>
+                        <page string="Validation">
+                            <group>
+                                <field name="verified_scopes_json" />
+                                <field name="last_error_class" />
+                                <field name="last_error_message" />
+                            </group>
+                        </page>
+                        <page string="Connections">
+                            <field name="connection_ids" nolabel="1">
+                                <tree create="false" edit="false" delete="false">
+                                    <field name="name" />
+                                    <field name="source_id" />
+                                    <field name="state" />
+                                    <field name="health_state" />
+                                    <field name="profile_revision" />
+                                    <field name="binding_revision" />
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_marketing_center_meta_profiles" model="ir.actions.act_window">
+        <field name="name">Meta Reader Profiles</field>
+        <field name="res_model">marketing.center.meta.profile</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <menuitem
+    id="menu_marketing_center_meta_profiles"
+    name="Meta Reader Profiles"
+    parent="marketing_center_base.menu_marketing_center_configuration"
+    action="action_marketing_center_meta_profiles"
+    sequence="25"
+    groups="marketing_center_base.group_marketing_center_admin"
+  />
+</odoo>

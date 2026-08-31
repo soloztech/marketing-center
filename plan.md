@@ -1,8 +1,8 @@
 # Marketing Center — plano de arquitetura e implementação
 
-> Status: arquitetura fechada; fundação de atribuição, bridge com o Contact Center e
-> núcleo operacional read-only do `marketing_center_base` implementados e validados
-> no laboratório `odoo16-teste.soloz.com.br` em 2026-08-30.
+> Status: arquitetura fechada; fundação de atribuição, bridge com o Contact Center,
+> núcleo operacional read-only e primeiro conector Meta implementados e validados no
+> laboratório `odoo16-teste.soloz.com.br` em 2026-08-31.
 > Criado em 2026-08-28; arquitetura revisada em 2026-08-29.
 >
 > Escopo: Odoo 16 Industrial, Meta Ads, Meta Conversions API, Google Ads, Google
@@ -63,14 +63,39 @@ Segundo corte implantado no servidor05:
   instalado isoladamente no servidor05. Ele ainda não substitui o facade do
   `contact_center_meta` neste corte.
 
+## Estado implementado — 2026-08-31
+
+Terceiro corte implantado no servidor05:
+
+- `contact_center_meta` `16.0.1.10.0` passou a consumir `meta_api_base` por uma
+  facade compatível, sem mudar o contrato de mensageria; 355 testes do base e 701
+  integrados passaram antes do release;
+- `marketing_center_meta` `16.0.1.0.0` implementa o primeiro reader Meta: perfil
+  administrativo multiempresa, referências externas a segredos, validação de App e
+  scopes, descoberta paginada e limitada de ad accounts e projeção idempotente em
+  `marketing.center.source`/`marketing.center.connection`;
+- chamadas Graph usam o transporte comum de `meta_api_base`; perfil, autorização,
+  estado e jobs de Marketing permanecem no addon consumidor porque ainda não há um
+  segundo contrato persistente comprovadamente comum;
+- o corte é estritamente read-only e não sincroniza ainda campanha, ad set, anúncio,
+  criativo, formulário, Insights ou Lead Ads;
+- o gate encontrou e corrigiu a pesquisa de conexão arquivada: o discovery agora usa
+  `active_test=False` e preserva a conexão sem recriá-la ou reativá-la;
+- instalação limpa: 39/39 testes do base e 64/64 integrados; instalação na base
+  neutralizada e replay dos três addons foram idempotentes;
+- `marketing_center_meta` ficou instalado no servidor05, com HTTP privado e público
+  200 e restauração byte a byte da rota de teste;
+- evidência canônica do release:
+  `scans/raw/20260829-odoo16-marketing-center-first-slice/release/20260831T035525832765Z`.
+
 Pendências imediatas, em ordem:
 
-1. adaptar o `contact_center_meta` como facade compatível do `meta_api_base` e provar a
-   suíte integrada sem regressão;
-2. criar `marketing_center_meta` read-only para descoberta de sources, catálogo e
-   Lead Ads;
+1. provisionar um perfil Meta reader próprio para Ads, comprovar `ads_read` e executar
+   discovery real das ad accounts permitidas;
+2. implementar catálogo Meta de campaign/adset/ad/creative/form/dataset;
 3. adicionar fatos de métrica/revisão e o conector de Insights;
-4. fazer o spike do runtime Google e então criar `google_api_base` e
+4. implementar Lead Ads por webhook e pull reconciliador;
+5. fazer o spike do runtime Google e então criar `google_api_base` e
    `marketing_center_google`.
 
 ## Objetivo
@@ -351,21 +376,24 @@ obrigatória porque:
 - CAPI usa dataset/pixel e outro conjunto de eventos.
 - rate limit, health, escopos e risco de escrita são diferentes por perfil/conexão.
 
-`meta_api_base` possuirá:
+O primeiro release de `meta_api_base` é propositalmente stateless e possui somente
+o contrato técnico comprovadamente comum: Graph versionado, `appsecret_proof`,
+limites de resposta, assinatura/HMAC e taxonomia neutra de erros. Apps, referências
+de credencial, capabilities, health, jobs e deliveries continuam pertencendo a cada
+consumidor.
 
-- Apps, autorizações e perfis de credencial;
-- Graph versionado, `appsecret_proof`, paginação, limites de resposta e erros seguros;
-- capabilities e health por conexão;
-- endpoint comum de verificação/assinatura de webhook e registry de consumidores;
-- ledger técnico de deliveries sanitizados e roteamento assíncrono.
+Perfis persistentes, registry de consumidores e ledger técnico só migram para o
+shared core de forma aditiva quando pelo menos dois consumidores demonstrarem a
+mesma semântica, lifecycle e ACL. Até lá, compartilhar esses modelos criaria
+acoplamento entre Messaging, Ads e CAPI em vez de reuso técnico.
 
 O ledger de delivery não substitui o ledger de atribuição: o primeiro prova que um
-POST externo chegou; o segundo guarda o fato de negócio normalizado. O
-`contact_center_meta` registrará consumidores de mensageria e emitirá `EventDTO` e
-`AttributionDTO` do Contact Center. O `marketing_center_meta` registrará Lead Ads e
-outros eventos de marketing e emitirá `MarketingTouchpointDTO`. Cada consumidor
-responde por seu próprio estado de processamento; a tradução da evidência operacional
-do Contact Center cabe somente ao bridge.
+POST externo chegou; o segundo guarda o fato de negócio normalizado. No contrato
+vigente, cada consumidor possui seu controller, dedupe, ledger, fila e estado de
+processamento. O `contact_center_meta` emite `EventDTO` e `AttributionDTO` do Contact
+Center; o `marketing_center_meta` emitirá `MarketingTouchpointDTO` quando o fluxo de
+Lead Ads for implementado. A tradução da evidência operacional do Contact Center
+cabe somente ao bridge.
 
 ## Addons Previstos
 
@@ -392,13 +420,15 @@ Infraestrutura Meta compartilhável por mensageria e marketing.
 
 Responsabilidades:
 
-- App, authorization profile e asset grants;
-- cliente Graph versionado, `appsecret_proof`, paginação e request IDs;
-- classificação de falhas, quota, cooldown, capabilities e health;
-- verificação de webhook, assinatura, delivery ledger sanitizado e consumer registry;
-- referência a segredo externo, nunca exposição em chatter/log.
+- cliente HTTP Graph versionado e bounded;
+- `appsecret_proof` e extração segura de request metadata;
+- classificação neutra de falhas, `Retry-After` e respostas malformadas;
+- primitives de assinatura/HMAC para uso pelos controllers consumidores.
 
-Não possui conversa, campanha, lead, touchpoint ou regra comercial.
+Não possui App/perfil persistente, segredo, job, paginação específica de recurso,
+capability, health, webhook público, delivery ledger, conversa, campanha, lead,
+touchpoint ou regra comercial. Esses elementos permanecem no consumidor até existir
+um contrato aditivo realmente comum.
 
 Hospedagem: repositório técnico compartilhado `integration-core`. Tanto o Contact
 Center quanto o Marketing Center o consomem como dependência externa versionada;
@@ -536,6 +566,16 @@ MVP. O conector os trata como capability experimental isolada.
 
 Conector Meta Marketing API.
 
+Estado entregue no primeiro corte:
+
+- perfil reader consumer-specific com referências externas a segredos;
+- validação de App/token/scopes;
+- discovery paginado e bounded de `GET /me/adaccounts`;
+- projeção idempotente de ad account em source/connection;
+- nenhuma mutação e nenhum processamento de Lead Ads.
+
+Roadmap do addon:
+
 Responsabilidades:
 
 - inventario de Business, ad accounts, campaigns, ad sets, ads, creatives, forms,
@@ -549,9 +589,9 @@ Responsabilidades:
 Cliente preferido: cliente Graph fino de `meta_api_base`; o Business SDK oficial pode
 ser usado quando reduzir complexidade sem duplicar autenticação, retry e diagnóstico.
 
-Uso inicial:
+Uso inicial após completar o roadmap read-only:
 
-- leitura e Lead Ads;
+- leitura, Insights e Lead Ads;
 - escrita somente por proposta aprovada;
 - objetos novos `PAUSED`;
 - `appsecret_proof` em chamadas servidor-servidor quando suportado.
@@ -717,7 +757,9 @@ Topologia de release obrigatória:
 - repositório `contact-center`: somente `contact_center_*`;
 - repositório `marketing-center`: `marketing_center_*`;
 - releases autônomos de Contact Center e Marketing Center dependem somente das bases
-  técnicas que efetivamente utilizarem, pinadas em `oca_dependencies.txt`;
+  técnicas que efetivamente utilizarem. Addons OCA permanecem em
+  `oca_dependencies.txt`; repositórios internos são pinados por commit/versão no
+  manifesto e no script de release, com source e versão instalados verificados;
 - um perfil integrado instala os dois repositórios e
   `marketing_center_contact_center`, sem transformar o bridge em dependência de core;
 - `setup/`, CI, `addons_path`, script de deploy e manifesto de release registram cada
@@ -739,7 +781,9 @@ Regra de namespace:
 
 - `marketing.attribution.*`: atribuição e evidência first-party pertencentes ao
   `marketing_center_base`;
-- `meta.api.*` / `google.api.*`: transporte, credencial e diagnóstico técnico;
+- `meta.api.*` / `google.api.*`: namespace reservado apenas para persistência técnica
+  futura que seja realmente compartilhada; o primeiro `meta_api_base` não cria
+  modelos;
 - `marketing.center.*`: domínio de campanha, métrica, sync e operação;
 - `marketing.business.*` / `marketing.conversion.*`: fatos internos e deliveries;
 - modelos bridge mantêm o prefixo do domínio que os possui.
@@ -752,8 +796,9 @@ para `grain`, não persistido como um terceiro conceito equivalente.
 
 - `marketing.center.source`: fonte lógica por empresa, serviço e conta externa; guarda
   moeda, timezone, capabilities efetivas e flags independentes de leitura/escrita.
-- `marketing.center.connection`: liga a fonte a um perfil técnico do
-  `meta_api_base`/`google_api_base`; trocar token não cria nova fonte de negócio.
+- `marketing.center.connection`: guarda identidade/revisão opacas do perfil técnico;
+  o addon provider cria a FK concreta consumer-specific, como
+  `marketing.center.meta.profile`. Trocar token não cria nova fonte de negócio.
 - `marketing.center.external.entity`: projeção atual de account, campaign, group/adset,
   ad, creative, asset, form, conversion action, dataset/pixel ou outra entidade.
 - `marketing.center.external.entity.revision`: observação append-only dos campos
@@ -1176,10 +1221,11 @@ Data Manager, Meta app secret ou token de mensageria. O perfil guarda somente:
 - metadados de rotação, nunca o valor.
 
 O MVP suporta secret file/`EnvironmentFile` montado read-only e modo `0600`; um cofre
-pode implementar o mesmo resolver. Jobs recebem apenas `credential_profile_id`,
-validam empresa/capability/revision e resolvem o valor server-side no instante de uso.
-O segredo nunca entra em argumento do `queue_job`, RPC, chatter, log ou diagnóstico.
-Toda resolução registra perfil, job, finalidade e resultado, sem registrar o valor.
+pode implementar o mesmo resolver. Jobs carregam somente a identidade do registro e
+a revisão esperada, validam empresa/capability/revision e resolvem o valor server-side
+no instante de uso. O segredo nunca entra em argumento do `queue_job`, RPC, chatter,
+log ou diagnóstico. Um ledger específico de resolução de credenciais ainda é
+backlog; não faz parte do corte entregue.
 
 Webhook síncrono usa backend local montado/read-only ou cache seguro para não depender
 de I/O remoto antes da verificação. Writer nunca tem fallback em campo `Char`. Os
@@ -1208,17 +1254,20 @@ capturar conversões tardias; a janela histórica é reaberta por job explícito
 ### Webhook Meta
 
 ```text
-POST Meta
-    -> meta_api_base verifica assinatura/tamanho/app
-    -> persiste delivery sanitizada e deduplicada
+POST no controller do consumer Meta
+    -> consumer limita tamanho e seleciona seu App/perfil
+    -> meta_api_base fornece verificação HMAC
+    -> consumer persiste delivery sanitizada e deduplicada
     -> commit + 2xx
-    -> queue_job de roteamento
-        -> contact_center_meta: EventDTO + AttributionDTO do Contact Center
+    -> queue_job do próprio consumer
+        -> contact_center_meta: EventDTO + AttributionDTO do Contact Center; ou
         -> marketing_center_meta: MarketingTouchpointDTO / Lead Ads
 ```
 
 Nenhum consumer faz I/O lento antes do acknowledge. Evento desconhecido permanece
 `unrouted` para diagnóstico; não é descartado nem convertido em touchpoint genérico.
+Um ingress/registry Meta compartilhado exige ADR e contrato aditivo futuro; não é
+responsabilidade vigente do `meta_api_base`.
 
 ### Conversão server-side
 
@@ -1559,22 +1608,29 @@ Aceite:
 
 ### Fase 1 - Fundações compartilhadas
 
+Status: **parcialmente entregue**. `meta_api_base` stateless foi instalado e a
+facade do `contact_center_meta` foi migrada sem regressão. O runtime Google, o
+spike de um eventual ingress compartilhado e qualquer contrato persistente comum
+continuam pendentes.
+
 Entregas:
 
 - scaffold de `meta_api_base` e `google_api_base` no repositório
   `integration-core`;
-- extração do cliente Graph e do roteamento técnico hoje presentes em
-  `contact_center_meta`, preservando seus contratos públicos;
+- extração do transporte Graph e HMAC hoje presentes em `contact_center_meta`,
+  preservando seus contratos públicos; roteamento e ledger continuam no consumer;
 - spike real do SDK Google Ads no mesmo runtime do Odoo 16/OCB;
-- resolver de secret file/`EnvironmentFile`, perfis reader/writer, capability, fencing
-  e health sem segredo no banco/log;
-- atualizar `setup/`, CI, `oca_dependencies.txt`, addons paths, deploy e manifesto de
-  release dos três repositórios e dos perfis autônomos/integrado.
+- resolvers, perfis reader/writer, capability, fencing e health consumer-specific sem
+  segredo no banco/log;
+- atualizar `setup/`, CI, addons paths, deploy e manifesto de release dos três
+  repositórios e dos perfis autônomos/integrado; usar `oca_dependencies.txt` somente
+  para dependências OCA.
 
 Aceite:
 
 - Contact Center continua recebendo/enviando Meta Messaging sem regressão;
-- Meta webhook de mensageria e Lead Ads pode ser roteado a consumers diferentes;
+- Meta webhook de mensageria e Lead Ads pertence e é roteado pelo respectivo
+  consumer; um ingress comum só entra por ADR futuro;
 - nenhuma base técnica compartilhada depende de Contact Center, Marketing Center,
   CRM ou Website;
 - decisão documentada entre SDK Google no worker Odoo ou adapter isolado;
@@ -1650,6 +1706,10 @@ Aceite:
 - nenhuma mutacao executada.
 
 ### Fase 4 - Meta Ads read-only e Lead Ads
+
+Status: **parcialmente entregue**. Perfil reader, validação de App/scopes,
+discovery de ad accounts e projeção provider-neutral foram implantados. Catálogo,
+Insights e Lead Ads permanecem pendentes.
 
 Entregas:
 

@@ -1,0 +1,2 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_marketing_center_meta_profile_admin,marketing.center.meta.profile administrator,model_marketing_center_meta_profile,marketing_center_base.group_marketing_center_admin,1,1,1,0
