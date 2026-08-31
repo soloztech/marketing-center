@@ -81,7 +81,11 @@
                         </page>
                         <page string="Connections">
                             <field name="connection_ids" nolabel="1">
-                                <tree create="false" edit="false" delete="false">
+                                <tree
+                  create="false"
+                  edit="false"
+                  delete="false"
+                >
                                     <field name="name" />
                                     <field name="source_id" />
                                     <field name="state" />
@@ -97,7 +101,10 @@
         </field>
     </record>
 
-    <record id="action_marketing_center_meta_profiles" model="ir.actions.act_window">
+    <record
+    id="action_marketing_center_meta_profiles"
+    model="ir.actions.act_window"
+  >
         <field name="name">Meta Reader Profiles</field>
         <field name="res_model">marketing.center.meta.profile</field>
         <field name="view_mode">tree,form</field>

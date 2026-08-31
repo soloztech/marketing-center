@@ -1,2 +1,3 @@
-Provides credential-safe, asynchronous validation and discovery for Meta Ads without
-adding Meta-specific fields to the Marketing Center core domain.
+Provides credential-safe, asynchronous validation, account discovery and a bounded
+read-only Meta Ads catalog sweep without adding provider fields to the Marketing
+Center core domain.

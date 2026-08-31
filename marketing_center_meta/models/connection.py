@@ -1,3 +1,5 @@
+import uuid
+
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 
@@ -186,6 +188,34 @@ class MarketingCenterConnection(models.Model):
 
 class MarketingCenterSource(models.Model):
     _inherit = "marketing.center.source"
+
+    def action_enqueue_meta_catalog_sync(self):
+        self.ensure_one()
+        self.check_access_rights("write")
+        self.check_access_rule("write")
+        if not self.env.user.has_group(
+            "marketing_center_base.group_marketing_center_admin"
+        ):
+            raise AccessError(_("Only Marketing Center administrators can sync Meta."))
+        service = self.env["marketing.center.meta.catalog.service"]
+        connection = service._reader_connection(self)
+        run = service._plan_sweep(
+            self,
+            connection,
+            trigger_kind="manual",
+            trigger_ref="manual:%s" % uuid.uuid4(),
+        )
+        service._enqueue_page(run, service._cursor_snapshot(run)[0])
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": _("Meta catalog"),
+                "message": _("The read-only Meta catalog sync was queued."),
+                "type": "info",
+                "sticky": False,
+            },
+        }
 
     def write(self, values):
         identity_fields = {"service", "external_account_ref"}.intersection(values)

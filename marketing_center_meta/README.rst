@@ -4,6 +4,8 @@ Marketing Center - Meta
 Read-only Meta Marketing API connector for ``marketing_center_base``. It uses the
 shared ``meta_api_base`` transport, validates a reader token asynchronously and
 discovers Meta ad accounts into the provider-neutral source and connection models.
+Each discovered account can enqueue a read-only catalog sweep into the canonical
+``marketing.center.sync.run``, cursor and external-entity ledgers.
 
 No App secret or access token is stored in PostgreSQL. A profile stores two opaque
 references using one of these backends:
@@ -13,6 +15,12 @@ references using one of these backends:
 * ``file``: filenames below the directory named by ``ODOO_META_API_SECRET_DIR``.
   Files must be regular, non-symlink files without group/world permissions.
 
-The first release exposes only ``GET`` discovery. UI buttons enqueue OCA jobs; no
-Meta request runs in the browser request transaction. Campaign mutation, Insights,
-Lead Ads ingestion and CAPI remain disabled.
+The catalog uses one ordered, cursor-fenced run per account: campaign, ad set
+(``group`` / ``meta_adset``), ad and reusable creative. Each job fetches one bounded
+page with fixed ``GET`` fields, and the opaque ``after`` cursor is wrapped in a
+versioned local stage envelope. The provider ``paging.next`` URL is never followed or
+persisted. Missing objects are not tombstoned by this first sweep because a page scan
+alone is not yet authoritative deletion evidence.
+
+UI buttons enqueue OCA jobs; no Meta request runs in the browser request transaction.
+Campaign mutation, Insights, Lead Ads ingestion and CAPI remain disabled.

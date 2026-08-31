@@ -23,6 +23,7 @@
         <field name="model">marketing.center.source</field>
         <field name="arch" type="xml">
             <form delete="false">
+                <header />
                 <sheet>
                     <group>
                         <group>

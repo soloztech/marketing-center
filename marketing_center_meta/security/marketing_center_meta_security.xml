@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <odoo>
-    <record id="rule_marketing_center_meta_profile_admin_company" model="ir.rule">
+    <record
+    id="rule_marketing_center_meta_profile_admin_company"
+    model="ir.rule"
+  >
         <field name="name">Meta reader profiles by administrator company</field>
         <field name="model_id" ref="model_marketing_center_meta_profile" />
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>

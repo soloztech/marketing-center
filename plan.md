@@ -88,11 +88,34 @@ Terceiro corte implantado no servidor05:
 - evidência canônica do release:
   `scans/raw/20260829-odoo16-marketing-center-first-slice/release/20260831T035525832765Z`.
 
+Quarto corte implantado no servidor05:
+
+- `marketing_center_base` `16.0.1.2.1` ganhou um ponto de extensão neutro no header
+  da fonte, reutilizável por Meta, Google e outros providers;
+- `marketing_center_meta` `16.0.1.1.0` sincroniza campaign, ad set
+  (`group/meta_adset`), ad e creative em um único run ordenado por ad account;
+- cada job lê uma página bounded com allow-list fixa, persiste somente o cursor
+  opaco `after` dentro de um envelope local versionado e nunca segue/persiste
+  `paging.next`;
+- o cursor usa o CAS do core; UUID do job e revisões de source, connection e profile
+  cercam o I/O. Retry é limitado a oito tentativas por página e fecha o run no teto;
+- autorização revogada pausa profile/connections e torna o run stale sem projetar a
+  página; erro no enqueue sucessor reverte entidade, revisão e cursor atomicamente;
+- creative permanece raiz reutilizável, referenciado pelo ad em
+  `meta.creative_ref`; ausência numa varredura não gera tombstone neste corte;
+- o primeiro gate real encontrou o formato de timestamp Meta `+0000`, incompatível
+  diretamente com `datetime.fromisoformat` no Python 3.10. O normalizador passou a
+  convertê-lo de forma estrita para `+00:00` e o release foi repetido;
+- 39/39 testes do base e 84/84 integrados passaram; upgrade offline e replay foram
+  idempotentes, com HTTP privado/público 200 e produção intocada;
+- evidência canônica do release:
+  `scans/raw/20260831-odoo16-marketing-center-meta-catalog/release/20260831T042545536542Z`.
+
 Pendências imediatas, em ordem:
 
 1. provisionar um perfil Meta reader próprio para Ads, comprovar `ads_read` e executar
    discovery real das ad accounts permitidas;
-2. implementar catálogo Meta de campaign/adset/ad/creative/form/dataset;
+2. completar o catálogo Meta com lead forms e datasets/pixels;
 3. adicionar fatos de métrica/revisão e o conector de Insights;
 4. implementar Lead Ads por webhook e pull reconciliador;
 5. fazer o spike do runtime Google e então criar `google_api_base` e
@@ -1708,8 +1731,9 @@ Aceite:
 ### Fase 4 - Meta Ads read-only e Lead Ads
 
 Status: **parcialmente entregue**. Perfil reader, validação de App/scopes,
-discovery de ad accounts e projeção provider-neutral foram implantados. Catálogo,
-Insights e Lead Ads permanecem pendentes.
+discovery de ad accounts, projeção provider-neutral e catálogo ordenado de
+campaign/adset/ad/creative foram implantados. Forms/datasets, Insights e Lead Ads
+permanecem pendentes.
 
 Entregas:
 

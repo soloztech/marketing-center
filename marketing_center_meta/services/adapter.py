@@ -4,6 +4,7 @@ import re
 from odoo.addons.meta_api_base.services.errors import MetaApiError, MetaApiPausedError
 from odoo.addons.meta_api_base.services.graph import graph_debug_token, graph_request
 
+from .catalog import fetch_meta_catalog_page
 from .credentials import MetaCredentialResolutionError, resolve_profile_credentials
 
 META_ADAPTER_KEY = "meta.graph"
@@ -215,3 +216,20 @@ class MetaMarketingReadAdapter:
                 raise MetaApiError("Meta ad account pagination is invalid")
             seen_cursors.add(after)
         raise MetaApiError("Meta ad account discovery exceeded the page limit")
+
+    def fetch_catalog_page(
+        self,
+        account_ref,
+        entity_type,
+        *,
+        after="",
+        reporting_context_hash,
+    ):
+        return fetch_meta_catalog_page(
+            self._app,
+            self._access_token,
+            account_ref,
+            entity_type,
+            after=after,
+            reporting_context_hash=reporting_context_hash,
+        )

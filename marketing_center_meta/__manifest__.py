@@ -1,7 +1,7 @@
 {
     "name": "Marketing Center - Meta",
     "summary": "Read-only Meta Marketing API connector for Marketing Center",
-    "version": "16.0.1.0.0",
+    "version": "16.0.1.1.0",
     "category": "Marketing",
     "author": "Soloz Technologies",
     "website": "https://github.com/lcsztl/marketing-center",
@@ -13,6 +13,7 @@
         "data/queue_job.xml",
         "views/meta_profile_views.xml",
         "views/marketing_connection_views.xml",
+        "views/marketing_source_views.xml",
     ],
     "external_dependencies": {"python": ["requests"]},
     "installable": True,
