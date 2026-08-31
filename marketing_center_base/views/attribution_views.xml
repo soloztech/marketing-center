@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_marketing_attribution_touchpoint_tree" model="ir.ui.view">
+        <field name="name">marketing.attribution.touchpoint.tree</field>
+        <field name="model">marketing.attribution.touchpoint</field>
+        <field name="arch" type="xml">
+            <tree create="false" edit="false" delete="false">
+                <field name="occurred_at" />
+                <field name="platform" />
+                <field name="channel" />
+                <field name="touchpoint_type" />
+                <field name="evidence_level" />
+                <field name="utm_campaign" />
+                <field name="source_system" />
+                <field name="revision_sequence" />
+                <field name="company_id" groups="base.group_multi_company" />
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_marketing_attribution_touchpoint_form" model="ir.ui.view">
+        <field name="name">marketing.attribution.touchpoint.form</field>
+        <field name="model">marketing.attribution.touchpoint</field>
+        <field name="arch" type="xml">
+            <form create="false" edit="false" delete="false">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="public_ref" />
+                            <field
+                name="company_id"
+                groups="base.group_multi_company"
+              />
+                            <field name="occurred_at" />
+                            <field name="observed_at" />
+                            <field name="platform" />
+                            <field name="channel" />
+                            <field name="network" />
+                        </group>
+                        <group>
+                            <field name="touchpoint_type" />
+                            <field name="evidence_level" />
+                            <field name="source_system" />
+                            <field name="source_scope_ref" />
+                            <field name="source_occurrence_ref" />
+                            <field name="source_evidence_ref" />
+                            <field name="revision_sequence" />
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Origin">
+                            <group>
+                                <field name="landing_url" />
+                                <field name="referrer_url" />
+                                <field name="utm_source" />
+                                <field name="utm_medium" />
+                                <field name="utm_campaign" />
+                                <field name="utm_content" />
+                                <field name="utm_term" />
+                                <field name="asset_refs_json" />
+                            </group>
+                        </page>
+                        <page string="Evidence">
+                            <field name="evidence_ids" nolabel="1">
+                                <tree
+                  create="false"
+                  edit="false"
+                  delete="false"
+                >
+                                    <field name="observed_at" />
+                                    <field name="source_system" />
+                                    <field name="source_evidence_ref" />
+                                    <field name="mapping_version" />
+                                    <field name="disposition" />
+                                    <field name="related_touchpoint_id" />
+                                </tree>
+                            </field>
+                        </page>
+                        <page
+              string="Identifiers"
+              groups="marketing_center_base.group_marketing_center_admin"
+            >
+                            <field name="identifier_ids" nolabel="1">
+                                <tree
+                  create="false"
+                  edit="false"
+                  delete="false"
+                >
+                                    <field name="namespace" />
+                                    <field name="role" />
+                                    <field name="masked_value" />
+                                    <field name="purpose" />
+                                    <field name="retain_until" />
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Privacy">
+                            <group>
+                                <field name="policy_version" />
+                                <field name="notice_version" />
+                                <field name="legal_basis_code" />
+                                <field name="consent_state" />
+                                <field name="privacy_decision_source" />
+                                <field name="privacy_decided_at" />
+                            </group>
+                        </page>
+                        <page
+              string="Technical"
+              groups="marketing_center_base.group_marketing_center_admin"
+            >
+                            <group>
+                                <field name="schema_version" />
+                                <field name="mapping_version" />
+                                <field name="source_schema_version" />
+                                <field name="canonical_key" />
+                                <field name="content_hash" />
+                                <field name="extensions_json" />
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record
+    id="view_marketing_attribution_touchpoint_search"
+    model="ir.ui.view"
+  >
+        <field name="name">marketing.attribution.touchpoint.search</field>
+        <field name="model">marketing.attribution.touchpoint</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="platform" />
+                <field name="channel" />
+                <field name="utm_campaign" />
+                <field name="source_system" />
+                <filter
+          name="group_platform"
+          string="Platform"
+          context="{'group_by': 'platform'}"
+        />
+                <filter
+          name="group_touchpoint_type"
+          string="Touchpoint type"
+          context="{'group_by': 'touchpoint_type'}"
+        />
+            </search>
+        </field>
+    </record>
+
+    <record
+    id="action_marketing_attribution_touchpoints"
+    model="ir.actions.act_window"
+  >
+        <field name="name">Touchpoints</field>
+        <field name="res_model">marketing.attribution.touchpoint</field>
+        <field name="view_mode">tree,form</field>
+        <field
+      name="search_view_id"
+      ref="view_marketing_attribution_touchpoint_search"
+    />
+    </record>
+</odoo>

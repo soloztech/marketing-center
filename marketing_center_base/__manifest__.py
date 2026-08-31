@@ -1,0 +1,21 @@
+{
+    "name": "Marketing Center Base",
+    "summary": "Provider-neutral marketing and attribution foundation",
+    "version": "16.0.1.2.0",
+    "category": "Marketing",
+    "author": "Soloz Technologies",
+    "website": "https://github.com/lcsztl/marketing-center",
+    "license": "AGPL-3",
+    "depends": ["base", "utm"],
+    "data": [
+        "security/marketing_center_security.xml",
+        "security/ir.model.access.csv",
+        "views/configuration_views.xml",
+        "views/catalog_views.xml",
+        "views/sync_views.xml",
+        "views/attribution_views.xml",
+        "views/menus.xml",
+    ],
+    "installable": True,
+    "application": True,
+}

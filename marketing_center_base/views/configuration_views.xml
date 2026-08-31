@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_marketing_center_source_tree" model="ir.ui.view">
+        <field name="name">marketing.center.source.tree</field>
+        <field name="model">marketing.center.source</field>
+        <field name="arch" type="xml">
+            <tree delete="false">
+                <field name="name" />
+                <field name="service" />
+                <field name="external_account_ref" />
+                <field name="state" />
+                <field name="read_enabled" />
+                <field name="write_enabled" />
+                <field name="currency_id" />
+                <field name="timezone" />
+                <field name="company_id" />
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_marketing_center_source_form" model="ir.ui.view">
+        <field name="name">marketing.center.source.form</field>
+        <field name="model">marketing.center.source</field>
+        <field name="arch" type="xml">
+            <form delete="false">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name" />
+                            <field name="company_id" />
+                            <field name="service" />
+                            <field name="external_account_ref" />
+                            <field name="external_account_id" />
+                        </group>
+                        <group>
+                            <field name="state" />
+                            <field name="active" />
+                            <field name="read_enabled" />
+                            <field name="write_enabled" readonly="1" />
+                            <field name="currency_id" />
+                            <field name="timezone" />
+                            <field name="configuration_revision" />
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Connections">
+                            <field name="connection_ids" nolabel="1">
+                                <tree
+                  create="false"
+                  edit="false"
+                  delete="false"
+                >
+                                    <field name="name" />
+                                    <field name="adapter_key" />
+                                    <field name="purpose" />
+                                    <field name="state" />
+                                    <field name="health_state" />
+                                    <field name="binding_revision" />
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Team access">
+                            <field name="team_source_ids" nolabel="1">
+                                <tree editable="bottom" delete="false">
+                                    <field name="company_id" invisible="1" />
+                                    <field name="team_id" />
+                                    <field name="access_mode" />
+                                    <field name="active" />
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Runtime">
+                            <group>
+                                <field name="first_observed_at" />
+                                <field name="last_observed_at" />
+                                <field name="effective_capabilities_json" />
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_marketing_center_source_search" model="ir.ui.view">
+        <field name="name">marketing.center.source.search</field>
+        <field name="model">marketing.center.source</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name" />
+                <field name="service" />
+                <field name="external_account_ref" />
+                <filter
+          name="active_sources"
+          string="Active"
+          domain="[('state', '=', 'active')]"
+        />
+                <filter
+          name="group_service"
+          string="Service"
+          context="{'group_by': 'service'}"
+        />
+                <filter
+          name="group_company"
+          string="Company"
+          context="{'group_by': 'company_id'}"
+        />
+            </search>
+        </field>
+    </record>
+
+    <record id="action_marketing_center_sources" model="ir.actions.act_window">
+        <field name="name">Sources</field>
+        <field name="res_model">marketing.center.source</field>
+        <field name="view_mode">tree,form</field>
+        <field
+      name="search_view_id"
+      ref="view_marketing_center_source_search"
+    />
+    </record>
+
+    <record id="view_marketing_center_connection_tree" model="ir.ui.view">
+        <field name="name">marketing.center.connection.tree</field>
+        <field name="model">marketing.center.connection</field>
+        <field name="arch" type="xml">
+            <tree delete="false">
+                <field name="name" />
+                <field name="source_id" />
+                <field name="adapter_key" />
+                <field name="purpose" />
+                <field name="state" />
+                <field name="health_state" />
+                <field name="binding_revision" />
+                <field name="company_id" />
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_marketing_center_connection_form" model="ir.ui.view">
+        <field name="name">marketing.center.connection.form</field>
+        <field name="model">marketing.center.connection</field>
+        <field name="arch" type="xml">
+            <form delete="false">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name" />
+                            <field name="company_id" />
+                            <field name="source_id" />
+                            <field name="adapter_key" />
+                            <field name="purpose" />
+                            <field name="active" />
+                        </group>
+                        <group>
+                            <field name="profile_public_ref" />
+                            <field name="profile_revision" />
+                            <field name="binding_revision" />
+                            <field name="state" />
+                            <field name="health_state" />
+                            <field name="verified_at" />
+                            <field name="cooldown_until" />
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Capabilities">
+                            <field name="effective_capabilities_json" />
+                            <field name="effective_capabilities_hash" />
+                        </page>
+                        <page string="Diagnostics">
+                            <field name="last_health_error_class" />
+                            <field name="last_health_error_message" />
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record
+    id="action_marketing_center_connections"
+    model="ir.actions.act_window"
+  >
+        <field name="name">Connections</field>
+        <field name="res_model">marketing.center.connection</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <record id="view_marketing_center_team_tree" model="ir.ui.view">
+        <field name="name">marketing.center.team.tree</field>
+        <field name="model">marketing.center.team</field>
+        <field name="arch" type="xml">
+            <tree delete="false">
+                <field name="name" />
+                <field name="company_id" />
+                <field name="active" />
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_marketing_center_team_form" model="ir.ui.view">
+        <field name="name">marketing.center.team.form</field>
+        <field name="model">marketing.center.team</field>
+        <field name="arch" type="xml">
+            <form delete="false">
+                <sheet>
+                    <group>
+                        <field name="name" />
+                        <field name="company_id" />
+                        <field name="active" />
+                    </group>
+                    <notebook>
+                        <page string="Members">
+                            <field name="member_ids" nolabel="1">
+                                <tree editable="bottom" delete="false">
+                                    <field name="user_id" />
+                                    <field name="role" />
+                                    <field name="active" />
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Sources">
+                            <field name="source_link_ids" nolabel="1">
+                                <tree editable="bottom" delete="false">
+                                    <field name="company_id" invisible="1" />
+                                    <field name="source_id" />
+                                    <field name="access_mode" />
+                                    <field name="active" />
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_marketing_center_teams" model="ir.actions.act_window">
+        <field name="name">Teams</field>
+        <field name="res_model">marketing.center.team</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+</odoo>

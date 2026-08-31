@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_marketing_external_entity_tree" model="ir.ui.view">
+        <field name="name">marketing.center.external.entity.tree</field>
+        <field name="model">marketing.center.external.entity</field>
+        <field name="arch" type="xml">
+            <tree create="false" edit="false" delete="false">
+                <field name="name" />
+                <field name="source_id" />
+                <field name="entity_type" />
+                <field name="group_type" />
+                <field name="external_ref" />
+                <field name="remote_status" />
+                <field name="last_observed_at" />
+                <field name="remote_missing_at" />
+                <field name="current_revision_sequence" />
+                <field name="company_id" />
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_marketing_external_entity_form" model="ir.ui.view">
+        <field name="name">marketing.center.external.entity.form</field>
+        <field name="model">marketing.center.external.entity</field>
+        <field name="arch" type="xml">
+            <form create="false" edit="false" delete="false">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name" />
+                            <field name="company_id" />
+                            <field name="source_id" />
+                            <field name="entity_type" />
+                            <field name="group_type" />
+                            <field name="external_ref" />
+                            <field name="external_id" />
+                        </group>
+                        <group>
+                            <field name="remote_status" />
+                            <field name="parent_id" />
+                            <field name="first_observed_at" />
+                            <field name="last_observed_at" />
+                            <field name="provider_updated_at" />
+                            <field name="remote_missing_at" />
+                            <field name="current_revision_sequence" />
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Revisions">
+                            <field name="current_revision_id" invisible="1" />
+                            <field name="revision_ids" nolabel="1">
+                                <tree
+                  create="false"
+                  edit="false"
+                  delete="false"
+                >
+                                    <field name="revision_sequence" />
+                                    <field name="observed_at" />
+                                    <field name="name" />
+                                    <field name="remote_status" />
+                                    <field name="is_tombstone" />
+                                    <field name="content_hash" />
+                                </tree>
+                            </field>
+                        </page>
+                        <page
+              string="Technical"
+              groups="marketing_center_base.group_marketing_center_admin"
+            >
+                            <group>
+                                <field name="public_ref" />
+                                <field name="parent_entity_type" />
+                                <field name="parent_external_ref" />
+                                <field name="current_content_hash" />
+                                <field name="last_sync_run_id" />
+                                <field name="attributes_json" />
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_marketing_external_entity_search" model="ir.ui.view">
+        <field name="name">marketing.center.external.entity.search</field>
+        <field name="model">marketing.center.external.entity</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name" />
+                <field name="external_ref" />
+                <field name="source_id" />
+                <field name="entity_type" />
+                <filter
+          name="remote_missing"
+          string="Remote missing"
+          domain="[('remote_missing_at', '!=', False)]"
+        />
+                <filter
+          name="group_source"
+          string="Source"
+          context="{'group_by': 'source_id'}"
+        />
+                <filter
+          name="group_type"
+          string="Type"
+          context="{'group_by': 'entity_type'}"
+        />
+            </search>
+        </field>
+    </record>
+
+    <record
+    id="action_marketing_external_entities"
+    model="ir.actions.act_window"
+  >
+        <field name="name">External Entities</field>
+        <field name="res_model">marketing.center.external.entity</field>
+        <field name="view_mode">tree,form</field>
+        <field
+      name="search_view_id"
+      ref="view_marketing_external_entity_search"
+    />
+    </record>
+</odoo>

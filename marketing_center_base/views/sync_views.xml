@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_marketing_sync_run_tree" model="ir.ui.view">
+        <field name="name">marketing.center.sync.run.tree</field>
+        <field name="model">marketing.center.sync.run</field>
+        <field name="arch" type="xml">
+            <tree create="false" edit="false" delete="false">
+                <field name="create_date" />
+                <field name="source_id" />
+                <field name="sync_kind" />
+                <field name="scope_ref" />
+                <field name="state" />
+                <field name="page_count" />
+                <field name="received_count" />
+                <field name="applied_count" />
+                <field name="duplicate_count" />
+                <field name="error_count" />
+                <field name="company_id" />
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_marketing_sync_run_form" model="ir.ui.view">
+        <field name="name">marketing.center.sync.run.form</field>
+        <field name="model">marketing.center.sync.run</field>
+        <field name="arch" type="xml">
+            <form create="false" edit="false" delete="false">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="public_ref" />
+                            <field name="company_id" />
+                            <field name="source_id" />
+                            <field name="connection_id" />
+                            <field name="sync_kind" />
+                            <field name="entity_type" />
+                            <field name="grain" />
+                            <field name="scope_ref" />
+                            <field name="state" />
+                        </group>
+                        <group>
+                            <field name="trigger_kind" />
+                            <field name="trigger_ref" />
+                            <field name="window_start" />
+                            <field name="window_end" />
+                            <field name="report_timezone" />
+                            <field name="started_at" />
+                            <field name="finished_at" />
+                        </group>
+                    </group>
+                    <group string="Counters" col="5">
+                        <field name="page_count" />
+                        <field name="received_count" />
+                        <field name="applied_count" />
+                        <field name="duplicate_count" />
+                        <field name="error_count" />
+                    </group>
+                    <notebook>
+                        <page string="Diagnostics">
+                            <field name="error_summary" />
+                            <group
+                groups="marketing_center_base.group_marketing_center_admin"
+              >
+                                <field name="adapter_key" />
+                                <field name="source_revision" />
+                                <field name="binding_revision" />
+                                <field name="profile_revision" />
+                                <field name="queue_job_uuid" />
+                                <field name="provider_request_ids_json" />
+                                <field name="error_class" />
+                            </group>
+                        </page>
+                        <page
+              string="Hashes"
+              groups="marketing_center_base.group_marketing_center_admin"
+            >
+                            <field name="run_key" />
+                            <field name="scope_hash" />
+                            <field name="reporting_context_hash" />
+                            <field name="window_key" />
+                            <field name="request_fingerprint" />
+                            <field name="result_hash" />
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_marketing_sync_runs" model="ir.actions.act_window">
+        <field name="name">Synchronization Runs</field>
+        <field name="res_model">marketing.center.sync.run</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <record id="view_marketing_sync_cursor_tree" model="ir.ui.view">
+        <field name="name">marketing.center.sync.cursor.tree</field>
+        <field name="model">marketing.center.sync.cursor</field>
+        <field name="arch" type="xml">
+            <tree create="false" edit="false" delete="false">
+                <field name="source_id" />
+                <field name="adapter_key" />
+                <field name="cursor_kind" />
+                <field name="scope_ref" />
+                <field name="cursor_sequence" />
+                <field name="watermark" />
+                <field name="last_advanced_at" />
+                <field name="company_id" />
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_marketing_sync_cursor_form" model="ir.ui.view">
+        <field name="name">marketing.center.sync.cursor.form</field>
+        <field name="model">marketing.center.sync.cursor</field>
+        <field name="arch" type="xml">
+            <form create="false" edit="false" delete="false">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="company_id" />
+                            <field name="source_id" />
+                            <field name="adapter_key" />
+                            <field name="cursor_kind" />
+                            <field name="entity_type" />
+                            <field name="grain" />
+                            <field name="scope_ref" />
+                        </group>
+                        <group>
+                            <field name="cursor_sequence" />
+                            <field name="watermark" />
+                            <field name="last_success_run_id" />
+                            <field name="last_advanced_at" />
+                            <field name="provider_job_ref" />
+                            <field name="cursor_value" />
+                        </group>
+                    </group>
+                    <group>
+                        <field name="cursor_key" />
+                        <field name="window_key" />
+                        <field name="cursor_digest" />
+                        <field name="reporting_context_hash" />
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_marketing_sync_cursors" model="ir.actions.act_window">
+        <field name="name">Synchronization Cursors</field>
+        <field name="res_model">marketing.center.sync.cursor</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+</odoo>

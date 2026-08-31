@@ -1,0 +1,276 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="module_category_marketing_center" model="ir.module.category">
+        <field name="name">Marketing Center</field>
+        <field name="sequence">35</field>
+    </record>
+
+    <record id="group_marketing_center_viewer" model="res.groups">
+        <field name="name">Marketing Viewer</field>
+        <field name="category_id" ref="module_category_marketing_center" />
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]" />
+    </record>
+
+    <record id="group_marketing_center_analyst" model="res.groups">
+        <field name="name">Marketing Analyst</field>
+        <field name="category_id" ref="module_category_marketing_center" />
+        <field
+      name="implied_ids"
+      eval="[(4, ref('group_marketing_center_viewer'))]"
+    />
+    </record>
+
+    <record id="group_marketing_center_operator" model="res.groups">
+        <field name="name">Marketing Operator</field>
+        <field name="category_id" ref="module_category_marketing_center" />
+        <field
+      name="implied_ids"
+      eval="[(4, ref('group_marketing_center_analyst'))]"
+    />
+    </record>
+
+    <record id="group_marketing_center_manager" model="res.groups">
+        <field name="name">Marketing Manager</field>
+        <field name="category_id" ref="module_category_marketing_center" />
+        <field
+      name="implied_ids"
+      eval="[(4, ref('group_marketing_center_operator'))]"
+    />
+    </record>
+
+    <record id="group_marketing_center_admin" model="res.groups">
+        <field name="name">Marketing Administrator</field>
+        <field name="category_id" ref="module_category_marketing_center" />
+        <field
+      name="implied_ids"
+      eval="[(4, ref('group_marketing_center_manager'))]"
+    />
+    </record>
+
+    <record id="base.group_system" model="res.groups">
+        <field
+      name="implied_ids"
+      eval="[(4, ref('marketing_center_base.group_marketing_center_admin'))]"
+    />
+    </record>
+
+    <record id="rule_marketing_attribution_touchpoint_company" model="ir.rule">
+        <field name="name">Marketing touchpoints by active company</field>
+        <field name="model_id" ref="model_marketing_attribution_touchpoint" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_admin'))]"
+    />
+    </record>
+
+    <record id="rule_marketing_attribution_evidence_company" model="ir.rule">
+        <field name="name">Marketing evidence by active company</field>
+        <field name="model_id" ref="model_marketing_attribution_evidence" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_admin'))]"
+    />
+    </record>
+
+    <record id="rule_marketing_attribution_identifier_company" model="ir.rule">
+        <field name="name">Marketing identifiers by active company</field>
+        <field name="model_id" ref="model_marketing_attribution_identifier" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_admin'))]"
+    />
+    </record>
+
+    <record id="rule_marketing_team_member_scope" model="ir.rule">
+        <field name="name">Marketing teams by active membership</field>
+        <field name="model_id" ref="model_marketing_center_team" />
+        <field
+      name="domain_force"
+    >[('company_id', 'in', company_ids), ('access_user_ids', 'in', user.id)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_viewer'))]"
+    />
+    </record>
+
+    <record id="rule_marketing_team_admin_company" model="ir.rule">
+        <field name="name">Marketing teams by administrator company</field>
+        <field name="model_id" ref="model_marketing_center_team" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_admin'))]"
+    />
+    </record>
+
+    <record id="rule_marketing_team_member_member_scope" model="ir.rule">
+        <field name="name">Marketing team members by membership</field>
+        <field name="model_id" ref="model_marketing_center_team_member" />
+        <field
+      name="domain_force"
+    >[('company_id', 'in', company_ids), ('active', '=', True), ('team_id.access_user_ids', 'in', user.id)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_viewer'))]"
+    />
+    </record>
+
+    <record id="rule_marketing_team_member_admin_company" model="ir.rule">
+        <field
+      name="name"
+    >Marketing team members by administrator company</field>
+        <field name="model_id" ref="model_marketing_center_team_member" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_admin'))]"
+    />
+    </record>
+
+    <record id="rule_marketing_team_source_member_scope" model="ir.rule">
+        <field name="name">Marketing team sources by membership</field>
+        <field name="model_id" ref="model_marketing_center_team_source" />
+        <field
+      name="domain_force"
+    >[('company_id', 'in', company_ids), ('active', '=', True), ('team_id.access_user_ids', 'in', user.id)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_viewer'))]"
+    />
+    </record>
+
+    <record id="rule_marketing_team_source_admin_company" model="ir.rule">
+        <field
+      name="name"
+    >Marketing team sources by administrator company</field>
+        <field name="model_id" ref="model_marketing_center_team_source" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_admin'))]"
+    />
+    </record>
+
+    <record id="rule_marketing_source_roster" model="ir.rule">
+        <field name="name">Marketing sources by team roster</field>
+        <field name="model_id" ref="model_marketing_center_source" />
+        <field
+      name="domain_force"
+    >[('company_id', 'in', company_ids), ('access_user_ids', 'in', user.id)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_viewer'))]"
+    />
+    </record>
+
+    <record id="rule_marketing_source_admin_company" model="ir.rule">
+        <field name="name">Marketing sources by administrator company</field>
+        <field name="model_id" ref="model_marketing_center_source" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_admin'))]"
+    />
+    </record>
+
+    <record id="rule_marketing_connection_admin_company" model="ir.rule">
+        <field
+      name="name"
+    >Marketing connections by administrator company</field>
+        <field name="model_id" ref="model_marketing_center_connection" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_admin'))]"
+    />
+    </record>
+
+    <record id="rule_marketing_entity_roster" model="ir.rule">
+        <field name="name">Marketing entities by source roster</field>
+        <field name="model_id" ref="model_marketing_center_external_entity" />
+        <field
+      name="domain_force"
+    >[('company_id', 'in', company_ids), ('source_id.access_user_ids', 'in', user.id)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_viewer'))]"
+    />
+    </record>
+
+    <record id="rule_marketing_entity_admin_company" model="ir.rule">
+        <field name="name">Marketing entities by administrator company</field>
+        <field name="model_id" ref="model_marketing_center_external_entity" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_admin'))]"
+    />
+    </record>
+
+    <record id="rule_marketing_entity_revision_roster" model="ir.rule">
+        <field name="name">Marketing entity revisions by source roster</field>
+        <field
+      name="model_id"
+      ref="model_marketing_center_external_entity_revision"
+    />
+        <field
+      name="domain_force"
+    >[('company_id', 'in', company_ids), ('source_id.access_user_ids', 'in', user.id)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_viewer'))]"
+    />
+    </record>
+
+    <record id="rule_marketing_entity_revision_admin_company" model="ir.rule">
+        <field
+      name="name"
+    >Marketing entity revisions by administrator company</field>
+        <field
+      name="model_id"
+      ref="model_marketing_center_external_entity_revision"
+    />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_admin'))]"
+    />
+    </record>
+
+    <record id="rule_marketing_sync_run_roster" model="ir.rule">
+        <field name="name">Marketing sync runs by source roster</field>
+        <field name="model_id" ref="model_marketing_center_sync_run" />
+        <field
+      name="domain_force"
+    >[('company_id', 'in', company_ids), ('source_id.access_user_ids', 'in', user.id)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_viewer'))]"
+    />
+    </record>
+
+    <record id="rule_marketing_sync_run_admin_company" model="ir.rule">
+        <field name="name">Marketing sync runs by administrator company</field>
+        <field name="model_id" ref="model_marketing_center_sync_run" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_admin'))]"
+    />
+    </record>
+
+    <record id="rule_marketing_sync_cursor_admin_company" model="ir.rule">
+        <field
+      name="name"
+    >Marketing sync cursors by administrator company</field>
+        <field name="model_id" ref="model_marketing_center_sync_cursor" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_admin'))]"
+    />
+    </record>
+</odoo>

@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_marketing_contact_center_link_admin,marketing.attribution.contact.center.link administrator,model_marketing_attribution_contact_center_link,group_marketing_contact_center_admin,1,0,0,0
+
