@@ -17,6 +17,13 @@
           groups="marketing_center_base.group_marketing_center_admin"
           attrs="{'invisible': ['|', '|', ('service', '!=', 'meta.ads'), ('state', '!=', 'active'), ('read_enabled', '=', False)]}"
         />
+                <button
+          name="action_enqueue_meta_insights_sync"
+          string="Sync Meta Insights (7 days)"
+          type="object"
+          groups="marketing_center_base.group_marketing_center_admin"
+          attrs="{'invisible': ['|', '|', ('service', '!=', 'meta.ads'), ('state', '!=', 'active'), ('read_enabled', '=', False)]}"
+        />
             </xpath>
         </field>
     </record>

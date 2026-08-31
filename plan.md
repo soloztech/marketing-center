@@ -10,8 +10,9 @@
 >
 > Este documento é normativo para a implementação. Os cortes executáveis atuais
 > cobrem DTO/ledger de touchpoints, ponte opcional com o Contact Center e o núcleo
-> operacional de source, connection, catálogo, revisões e sync. Métricas, eventos de
-> negócio, mutações e conectores continuam organizados pelas fases abaixo.
+> operacional de source, connection, catálogo, revisões, sync e performance diária.
+> Eventos de negócio, mutações e conectores restantes continuam organizados pelas
+> fases abaixo.
 
 ## Estado implementado — 2026-08-29
 
@@ -111,14 +112,43 @@ Quarto corte implantado no servidor05:
 - evidência canônica do release:
   `scans/raw/20260831-odoo16-marketing-center-meta-catalog/release/20260831T042545536542Z`.
 
+Quinto corte implantado no servidor05:
+
+- `marketing_center_base` `16.0.1.3.0` adicionou o contrato provider-neutral
+  `MarketingPerformanceDTO`, fatos diários de conta/campanha e revisões imutáveis;
+- impressões, cliques e custo em micros usam PostgreSQL `BIGINT`; flags de presença
+  distinguem campo ausente de zero reportado e o histórico preserva A→B→A;
+- identidade inclui fonte, data, grain, referência externa, dimensões, origem e
+  contexto de relatório. Entidade do catálogo é vínculo opcional, nunca identidade;
+- páginas são aplicadas com fencing, CAS e atomicidade com o cursor. Execução vazia
+  não fabrica zero, não cria tombstone e não renova artificialmente o fato anterior;
+- `marketing_center_meta` `16.0.1.2.0` implementou Insights v26 diário para conta e
+  campanha, somente impressões, cliques e gasto, sem actions, conversões, breakdowns
+  ou parâmetros de atribuição;
+- a janela é limitada a 31 dias e respeita o timezone IANA da conta, inclusive dias
+  UTC de 23/25 horas. O botão administrativo agenda os sete dias fechados anteriores;
+- paginação usa exclusivamente o cursor opaco `after`, com teto de 512 páginas,
+  oito tentativas por página, fencing de profile/source/connection/job e recuperação
+  explícita a partir da primeira página;
+- o primeiro gate isolado detectou a representação física de `{}` como `NULL` em
+  `fields.Json` no Odoo 16; o hash de dimensões permanece canônico e o modelo passou
+  a aceitar `NULL` somente como representação de dimensões vazias;
+- 53/53 testes do base e 116/116 integrados passaram; upgrade offline e replay foram
+  idempotentes, HTTP privado/público retornou 200 e produção não foi tocada;
+- evidência canônica do release:
+  `scans/raw/20260831-odoo16-marketing-center-meta-insights/release/20260831T045958728100Z`.
+
+O código está pronto, mas a leitura real permanece operacionalmente bloqueada até
+existir um perfil Meta reader dedicado com `ads_read`. O token de mensageria atual
+não deve ser reutilizado.
+
 Pendências imediatas, em ordem:
 
 1. provisionar um perfil Meta reader próprio para Ads, comprovar `ads_read` e executar
-   discovery real das ad accounts permitidas;
+   discovery, catálogo e Insights reais nas ad accounts permitidas;
 2. completar o catálogo Meta com lead forms e datasets/pixels;
-3. adicionar fatos de métrica/revisão e o conector de Insights;
-4. implementar Lead Ads por webhook e pull reconciliador;
-5. fazer o spike do runtime Google e então criar `google_api_base` e
+3. implementar Lead Ads por webhook e pull reconciliador;
+4. fazer o spike do runtime Google e então criar `google_api_base` e
    `marketing_center_google`.
 
 ## Objetivo
@@ -1663,8 +1693,9 @@ Aceite:
 ### Fase 2 - `marketing_center_base`
 
 Status: **parcialmente entregue**. DTO/ledger de atribuição, source/connection,
-team/roster, catálogo/revisões e sync run/cursor estão no laboratório. Performance,
-business/conversion events, delivery e change request/approval seguem pendentes.
+team/roster, catálogo/revisões, sync run/cursor e performance diária de
+conta/campanha estão no laboratório. Business/conversion events, delivery e change
+request/approval seguem pendentes.
 
 Entregas:
 
@@ -1731,9 +1762,10 @@ Aceite:
 ### Fase 4 - Meta Ads read-only e Lead Ads
 
 Status: **parcialmente entregue**. Perfil reader, validação de App/scopes,
-discovery de ad accounts, projeção provider-neutral e catálogo ordenado de
-campaign/adset/ad/creative foram implantados. Forms/datasets, Insights e Lead Ads
-permanecem pendentes.
+discovery de ad accounts, projeção provider-neutral, catálogo ordenado de
+campaign/adset/ad/creative e Insights diário de conta/campanha foram implantados.
+Forms/datasets e Lead Ads permanecem pendentes; o Insights aguarda credencial
+`ads_read` para validação real.
 
 Entregas:
 

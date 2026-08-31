@@ -5,6 +5,8 @@ from . import (
     test_catalog_dto,
     test_catalog_service,
     test_operational_security,
+    test_performance_dto,
+    test_performance_service,
     test_source_connection,
     test_sync_service,
 )

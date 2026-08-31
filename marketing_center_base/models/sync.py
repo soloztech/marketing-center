@@ -84,6 +84,11 @@ class MarketingCenterSyncRun(models.Model):
     reporting_context_hash = fields.Char(
         required=True, size=64, index=True, readonly=True
     )
+    reporting_context_json = fields.Json(
+        readonly=True,
+        copy=False,
+        groups="marketing_center_base.group_marketing_center_admin",
+    )
     window_key = fields.Char(required=True, size=64, index=True, readonly=True)
     window_start = fields.Datetime(index=True, readonly=True)
     window_end = fields.Datetime(index=True, readonly=True)

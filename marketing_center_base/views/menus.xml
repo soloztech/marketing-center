@@ -22,6 +22,14 @@
     groups="marketing_center_base.group_marketing_center_admin"
   />
     <menuitem
+    id="menu_marketing_center_performance"
+    name="Performance"
+    parent="menu_marketing_center_root"
+    action="action_marketing_metric_daily"
+    sequence="25"
+    groups="marketing_center_base.group_marketing_center_viewer"
+  />
+    <menuitem
     id="menu_marketing_center_catalog"
     name="Catalog"
     parent="menu_marketing_center_root"

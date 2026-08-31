@@ -11,6 +11,13 @@ from .dto import (
     MarketingTouchpointDTO,
     PrivacySnapshotDTO,
 )
+from .performance_dto import (
+    MarketingPerformanceDTO,
+    PerformanceDTOValidationError,
+    PerformanceIngestResult,
+    PerformanceMetricDTO,
+    PerformancePageDTO,
+)
 
 __all__ = [
     "AttributionDTOValidationError",
@@ -21,5 +28,10 @@ __all__ = [
     "MarketingIdentifierDTO",
     "MarketingTouchpointDTO",
     "PrivacySnapshotDTO",
+    "PerformanceDTOValidationError",
+    "PerformanceIngestResult",
+    "MarketingPerformanceDTO",
+    "PerformanceMetricDTO",
+    "PerformancePageDTO",
     "SyncPageDTO",
 ]

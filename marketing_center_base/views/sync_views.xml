@@ -67,6 +67,7 @@
                                 <field name="profile_revision" />
                                 <field name="queue_job_uuid" />
                                 <field name="provider_request_ids_json" />
+                                <field name="reporting_context_json" />
                                 <field name="error_class" />
                             </group>
                         </page>

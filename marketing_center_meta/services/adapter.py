@@ -6,6 +6,7 @@ from odoo.addons.meta_api_base.services.graph import graph_debug_token, graph_re
 
 from .catalog import fetch_meta_catalog_page
 from .credentials import MetaCredentialResolutionError, resolve_profile_credentials
+from .insights import fetch_meta_insights_page
 
 META_ADAPTER_KEY = "meta.graph"
 META_ADS_SERVICE = "meta.ads"
@@ -230,6 +231,31 @@ class MetaMarketingReadAdapter:
             self._access_token,
             account_ref,
             entity_type,
+            after=after,
+            reporting_context_hash=reporting_context_hash,
+        )
+
+    def fetch_insights_page(
+        self,
+        account_ref,
+        grain,
+        *,
+        date_from,
+        date_to,
+        currency,
+        report_timezone,
+        after="",
+        reporting_context_hash,
+    ):
+        return fetch_meta_insights_page(
+            self._app,
+            self._access_token,
+            account_ref,
+            grain,
+            date_from=date_from,
+            date_to=date_to,
+            currency=currency,
+            report_timezone=report_timezone,
             after=after,
             reporting_context_hash=reporting_context_hash,
         )

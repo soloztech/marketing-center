@@ -1,1 +1,1 @@
-from . import adapter, catalog, credentials
+from . import adapter, catalog, credentials, insights

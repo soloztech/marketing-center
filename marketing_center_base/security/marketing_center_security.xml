@@ -252,6 +252,50 @@
     />
     </record>
 
+    <record id="rule_marketing_metric_daily_roster" model="ir.rule">
+        <field name="name">Marketing metrics by source roster</field>
+        <field name="model_id" ref="model_marketing_center_metric_daily" />
+        <field
+      name="domain_force"
+    >[('company_id', 'in', company_ids), ('source_id.access_user_ids', 'in', user.id)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_viewer'))]"
+    />
+    </record>
+
+    <record id="rule_marketing_metric_daily_admin_company" model="ir.rule">
+        <field name="name">Marketing metrics by administrator company</field>
+        <field name="model_id" ref="model_marketing_center_metric_daily" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_admin'))]"
+    />
+    </record>
+
+    <record id="rule_marketing_metric_revision_roster" model="ir.rule">
+        <field name="name">Marketing metric revisions by source roster</field>
+        <field name="model_id" ref="model_marketing_center_metric_revision" />
+        <field
+      name="domain_force"
+    >[('company_id', 'in', company_ids), ('source_id.access_user_ids', 'in', user.id)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_viewer'))]"
+    />
+    </record>
+
+    <record id="rule_marketing_metric_revision_admin_company" model="ir.rule">
+        <field name="name">Marketing metric revisions by administrator company</field>
+        <field name="model_id" ref="model_marketing_center_metric_revision" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_admin'))]"
+    />
+    </record>
+
     <record id="rule_marketing_sync_run_admin_company" model="ir.rule">
         <field name="name">Marketing sync runs by administrator company</field>
         <field name="model_id" ref="model_marketing_center_sync_run" />

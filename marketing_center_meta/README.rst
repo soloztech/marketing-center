@@ -22,5 +22,11 @@ versioned local stage envelope. The provider ``paging.next`` URL is never follow
 persisted. Missing objects are not tombstoned by this first sweep because a page scan
 alone is not yet authoritative deletion evidence.
 
+The Insights reader projects the last seven closed days at account and campaign
+grain. Its v1 contract requests only impressions, clicks and spend, converts spend
+exactly to micros, respects the ad-account timezone and preserves missing metrics as
+missing. Actions, conversions, attribution settings and breakdowns are intentionally
+outside this first contract.
+
 UI buttons enqueue OCA jobs; no Meta request runs in the browser request transaction.
-Campaign mutation, Insights, Lead Ads ingestion and CAPI remain disabled.
+Campaign mutation, Lead Ads ingestion and CAPI remain disabled.

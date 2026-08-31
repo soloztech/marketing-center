@@ -4,6 +4,8 @@ from . import (
     catalog,
     catalog_service,
     configuration,
+    performance,
+    performance_service,
     sync,
     sync_service,
 )

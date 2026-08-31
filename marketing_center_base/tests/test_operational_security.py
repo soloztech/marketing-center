@@ -6,6 +6,7 @@ from odoo.exceptions import AccessError, ValidationError
 from odoo.tests.common import SavepointCase
 
 from ..services.catalog_dto import ExternalEntityDTO
+from ..services.performance_dto import MarketingPerformanceDTO
 
 
 class TestMarketingOperationalSecurity(SavepointCase):
@@ -32,6 +33,20 @@ class TestMarketingOperationalSecurity(SavepointCase):
                 }
             )
         )
+        cls.marketing_admin = (
+            cls.env["res.users"]
+            .with_context(no_reset_password=True)
+            .create(
+                {
+                    "name": "Marketing Company Administrator",
+                    "login": "marketing-admin-%s" % uuid.uuid4(),
+                    "email": "marketing-admin@example.invalid",
+                    "company_id": cls.env.company.id,
+                    "company_ids": [Command.set(cls.env.company.ids)],
+                    "groups_id": [Command.set(cls.admin_group.ids)],
+                }
+            )
+        )
         cls.visible_source = cls._create_source("Visible", "account-visible")
         cls.hidden_source = cls._create_source("Hidden", "account-hidden")
         cls.team = cls.env["marketing.center.team"].create(
@@ -53,6 +68,8 @@ class TestMarketingOperationalSecurity(SavepointCase):
         )
         cls.visible_entity = cls._create_entity(cls.visible_source, "campaign-visible")
         cls.hidden_entity = cls._create_entity(cls.hidden_source, "campaign-hidden")
+        cls.visible_metric = cls._create_metric(cls.visible_source, "campaign-visible")
+        cls.hidden_metric = cls._create_metric(cls.hidden_source, "campaign-hidden")
 
     @classmethod
     def _create_source(cls, name, external_ref):
@@ -82,6 +99,25 @@ class TestMarketingOperationalSecurity(SavepointCase):
         )
         return cls.env["marketing.center.external.entity"].browse(result.entity_id)
 
+    @classmethod
+    def _create_metric(cls, source, external_ref):
+        result = cls.env["marketing.center.performance.service"]._upsert_metric(
+            cls.env.company,
+            source,
+            MarketingPerformanceDTO(
+                grain="campaign",
+                entity_external_ref=external_ref,
+                report_date=datetime.date(2026, 8, 30),
+                period_start_utc=datetime.datetime(2026, 8, 30, 0, 0),
+                period_end_utc=datetime.datetime(2026, 8, 31, 0, 0),
+                report_timezone="UTC",
+                currency=source.currency_id.name,
+                observed_at=datetime.datetime(2026, 8, 31, 12, 0),
+                impressions=10,
+            ),
+        )
+        return cls.env["marketing.center.metric.daily"].browse(result.metric_id)
+
     def test_roster_scopes_sources_entities_and_revisions(self):
         viewer_env = self.env(user=self.viewer)
         sources = viewer_env["marketing.center.source"].search([])
@@ -90,16 +126,37 @@ class TestMarketingOperationalSecurity(SavepointCase):
         self.assertEqual(entities, self.visible_entity)
         revisions = viewer_env["marketing.center.external.entity.revision"].search([])
         self.assertEqual(revisions.entity_id, self.visible_entity)
+        metrics = viewer_env["marketing.center.metric.daily"].search([])
+        self.assertEqual(metrics, self.visible_metric)
+        metric_revisions = viewer_env["marketing.center.metric.revision"].search([])
+        self.assertEqual(metric_revisions.metric_id, self.visible_metric)
         with self.assertRaises(AccessError):
             self.hidden_source.with_user(self.viewer).check_access_rule("read")
         with self.assertRaises(AccessError):
             self.hidden_entity.with_user(self.viewer).check_access_rule("read")
+        with self.assertRaises(AccessError):
+            self.hidden_metric.with_user(self.viewer).check_access_rule("read")
+        admin_metrics = (
+            self.env["marketing.center.metric.daily"]
+            .with_user(self.marketing_admin)
+            .search([("id", "in", [self.visible_metric.id, self.hidden_metric.id])])
+        )
+        self.assertEqual(
+            set(admin_metrics.ids),
+            {self.visible_metric.id, self.hidden_metric.id},
+        )
 
     def test_technical_fields_and_connections_remain_admin_only(self):
         viewer_source_fields = (
             self.env["marketing.center.source"].with_user(self.viewer).fields_get()
         )
         self.assertNotIn("effective_capabilities_json", viewer_source_fields)
+        viewer_revision_fields = (
+            self.env["marketing.center.metric.revision"]
+            .with_user(self.viewer)
+            .fields_get()
+        )
+        self.assertNotIn("snapshot_json", viewer_revision_fields)
         with self.assertRaises(AccessError):
             self.env["marketing.center.connection"].with_user(
                 self.viewer

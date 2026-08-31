@@ -1,3 +1,4 @@
+import datetime
 import re
 
 import pytz
@@ -8,9 +9,11 @@ from odoo.exceptions import AccessError, ValidationError
 from ..services.catalog_dto import (
     CatalogDTOValidationError,
     SyncPageDTO,
+    _json_mapping,
     canonical_json,
     sha256_text,
 )
+from ..services.performance_dto import PerformanceDTOValidationError, PerformancePageDTO
 from ..services.tokens import MARKETING_SYNC_WRITE_TOKEN
 
 _SAFE_KEY_RE = re.compile(r"^[a-z0-9][a-z0-9._:-]{0,127}$")
@@ -83,13 +86,22 @@ class MarketingCenterSyncService(models.AbstractModel):
             window_end,
             report_timezone or source.timezone,
         )
-        reporting_context = dict(reporting_context or {})
         try:
+            reporting_context = _json_mapping(reporting_context, "reporting_context")
             context_json = canonical_json(reporting_context)
-        except (TypeError, ValueError) as error:
+        except (CatalogDTOValidationError, TypeError, ValueError) as error:
             raise ValidationError(
                 _("The reporting context must be valid JSON.")
             ) from error
+        if sync_kind == "metrics":
+            self._validate_performance_plan(
+                reporting_context,
+                grain=grain,
+                source=source,
+                window_start=window_start,
+                window_end=window_end,
+                report_timezone=report_timezone,
+            )
         if len(context_json.encode("utf-8")) > 16 * 1024:
             raise ValidationError(_("The reporting context is too large."))
         reporting_context_hash = sha256_text(context_json)
@@ -182,6 +194,7 @@ class MarketingCenterSyncService(models.AbstractModel):
                     "scope_ref": scope_ref,
                     "scope_hash": scope_hash,
                     "reporting_context_hash": reporting_context_hash,
+                    "reporting_context_json": reporting_context,
                     "window_key": window_key,
                     "window_start": window_start or False,
                     "window_end": window_end or False,
@@ -246,9 +259,9 @@ class MarketingCenterSyncService(models.AbstractModel):
         )
         cursor_values = {
             "cursor_value": page.next_cursor or False,
-            "cursor_digest": sha256_text(page.next_cursor)
-            if page.next_cursor
-            else False,
+            "cursor_digest": (
+                sha256_text(page.next_cursor) if page.next_cursor else False
+            ),
             "cursor_sequence": cursor.cursor_sequence + 1,
             "provider_job_ref": page.provider_job_ref or False,
             "watermark": page.watermark or False,
@@ -258,6 +271,77 @@ class MarketingCenterSyncService(models.AbstractModel):
         self._write_cursor(cursor, cursor_values)
         terminal = not page.has_more
         self._update_run_page(run, page, results, terminal=terminal)
+        return run
+
+    @api.model
+    def _apply_performance_page(self, run, payload, *, expected_cursor_sequence):
+        run = self._validated_run(run, sync_kind="metrics")
+        if (
+            not isinstance(expected_cursor_sequence, int)
+            or isinstance(expected_cursor_sequence, bool)
+            or expected_cursor_sequence < 0
+        ):
+            raise ValidationError(
+                _("The expected cursor sequence must be a non-negative integer.")
+            )
+        try:
+            page = (
+                payload
+                if isinstance(payload, PerformancePageDTO)
+                else PerformancePageDTO.from_dict(payload)
+            )
+        except PerformanceDTOValidationError as error:
+            raise ValidationError(_("Invalid performance page: %s") % error) from error
+        if page.reporting_context_hash != run.reporting_context_hash:
+            raise ValidationError(
+                _("The performance page reporting context does not match the run.")
+            )
+        if not self._validate_fencing(run):
+            return run
+        with self.env.cr.savepoint():
+            cursor = self._locked_cursor(run)
+            if cursor.cursor_sequence != expected_cursor_sequence:
+                raise ValidationError(
+                    _("The synchronization cursor changed concurrently.")
+                )
+            if run.state in {"planned", "queued"}:
+                self._transition(run, "running", {"started_at": fields.Datetime.now()})
+            if page.provider_job_ref and page.provider_job_state in {
+                "pending",
+                "running",
+            }:
+                self._write_cursor(
+                    cursor,
+                    {
+                        "provider_job_ref": page.provider_job_ref,
+                        "watermark": page.watermark or cursor.watermark,
+                        "cursor_sequence": cursor.cursor_sequence + 1,
+                    },
+                )
+                self._update_run_page(run, page, (), terminal=False)
+                return run
+
+            results = tuple(
+                self.env["marketing.center.performance.service"]._upsert_metric(
+                    run.company_id, run.source_id, item, sync_run=run
+                )
+                for item in page.items
+            )
+            self._write_cursor(
+                cursor,
+                {
+                    "cursor_value": page.next_cursor or False,
+                    "cursor_digest": (
+                        sha256_text(page.next_cursor) if page.next_cursor else False
+                    ),
+                    "cursor_sequence": cursor.cursor_sequence + 1,
+                    "provider_job_ref": page.provider_job_ref or False,
+                    "watermark": page.watermark or False,
+                    "last_success_run_id": run.id,
+                    "last_advanced_at": fields.Datetime.now(),
+                },
+            )
+            self._update_run_page(run, page, results, terminal=not page.has_more)
         return run
 
     @api.model
@@ -487,6 +571,70 @@ class MarketingCenterSyncService(models.AbstractModel):
                 }
             )
         )
+
+    @api.model
+    def _validate_daily_window(self, window_start, window_end, report_timezone):
+        try:
+            timezone = pytz.timezone(report_timezone)
+            start_local = pytz.UTC.localize(window_start).astimezone(timezone)
+            end_local = pytz.UTC.localize(window_end).astimezone(timezone)
+        except (pytz.UnknownTimeZoneError, ValueError) as error:
+            raise ValidationError(
+                _("The performance UTC window is invalid.")
+            ) from error
+        if (
+            start_local.timetz().replace(tzinfo=None) != datetime.time.min
+            or end_local.timetz().replace(tzinfo=None) != datetime.time.min
+        ):
+            raise ValidationError(
+                _("Performance windows must start and end at local midnight.")
+            )
+        if (end_local.date() - start_local.date()).days > 31:
+            raise ValidationError(
+                _("Performance synchronization windows cannot exceed 31 days.")
+            )
+
+    @api.model
+    def _validate_performance_plan(
+        self,
+        reporting_context,
+        *,
+        grain,
+        source,
+        window_start,
+        window_end,
+        report_timezone,
+    ):
+        if grain not in {"account", "campaign"}:
+            raise ValidationError(
+                _("Performance synchronization requires account or campaign grain.")
+            )
+        if not window_start:
+            raise ValidationError(
+                _("Performance synchronization requires a bounded UTC window.")
+            )
+        if report_timezone != source.timezone:
+            raise ValidationError(
+                _("Performance timezone must match the marketing source.")
+            )
+        self._validate_daily_window(window_start, window_end, report_timezone)
+        contract_version = reporting_context.get("contract_version")
+        context_grain = reporting_context.get("grain")
+        currency = reporting_context.get("currency")
+        context_timezone = reporting_context.get("report_timezone")
+        if (
+            not isinstance(contract_version, str)
+            or not _SAFE_KEY_RE.fullmatch(contract_version)
+            or context_grain != grain
+            or currency != source.currency_id.name.upper()
+            or context_timezone != report_timezone
+        ):
+            raise ValidationError(
+                _(
+                    "Performance reporting context must canonically identify its "
+                    "contract, grain, currency, and timezone."
+                )
+            )
 
     @api.model
     def _safe_key(self, value, label, required=True):
