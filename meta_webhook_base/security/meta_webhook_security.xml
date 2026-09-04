@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="rule_meta_webhook_endpoint_company" model="ir.rule">
+        <field name="name">Meta webhook endpoints by active company</field>
+        <field name="model_id" ref="model_meta_webhook_endpoint" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_system'))]" />
+    </record>
+    <record id="rule_meta_webhook_page_company" model="ir.rule">
+        <field name="name">Meta webhook Pages by active company</field>
+        <field name="model_id" ref="model_meta_webhook_page" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_system'))]" />
+    </record>
+    <record id="rule_meta_webhook_asset_company" model="ir.rule">
+        <field name="name">Meta webhook assets by active company</field>
+        <field name="model_id" ref="model_meta_webhook_asset" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_system'))]" />
+    </record>
+    <record id="rule_meta_webhook_subscription_company" model="ir.rule">
+        <field name="name">Meta webhook subscriptions by active company</field>
+        <field name="model_id" ref="model_meta_webhook_subscription" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_system'))]" />
+    </record>
+    <record id="rule_meta_webhook_delivery_company" model="ir.rule">
+        <field name="name">Meta webhook deliveries by active company</field>
+        <field name="model_id" ref="model_meta_webhook_delivery" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_system'))]" />
+    </record>
+    <record id="rule_meta_webhook_item_company" model="ir.rule">
+        <field name="name">Meta webhook items by active company</field>
+        <field name="model_id" ref="model_meta_webhook_item" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_system'))]" />
+    </record>
+    <record id="rule_meta_webhook_dispatch_company" model="ir.rule">
+        <field name="name">Meta webhook dispatches by active company</field>
+        <field name="model_id" ref="model_meta_webhook_dispatch" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_system'))]" />
+    </record>
+</odoo>

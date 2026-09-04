@@ -6,3 +6,14 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 .playwright-cli/
+
+# Local secrets and generated operational data
+*.env
+*.pem
+*.key
+*.p12
+*.pfx
+*.dump
+*.sql
+credentials/
+output/

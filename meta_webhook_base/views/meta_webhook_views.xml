@@ -1,0 +1,287 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_meta_webhook_endpoint_tree" model="ir.ui.view">
+        <field name="name">meta.webhook.endpoint.tree</field>
+        <field name="model">meta.webhook.endpoint</field>
+        <field name="arch" type="xml">
+            <tree decoration-muted="not active">
+                <field name="company_id" invisible="1" />
+                <field name="name" />
+                <field name="app_id" />
+                <field name="company_id" groups="base.group_multi_company" />
+                <field name="revision" />
+                <field name="active" />
+            </tree>
+        </field>
+    </record>
+    <record id="view_meta_webhook_endpoint_form" model="ir.ui.view">
+        <field name="name">meta.webhook.endpoint.form</field>
+        <field name="model">meta.webhook.endpoint</field>
+        <field name="arch" type="xml">
+            <form string="Meta Webhook Endpoint">
+                <field name="company_id" invisible="1" />
+                <header>
+                    <button
+            name="action_enqueue_subscription_reconcile"
+            type="object"
+            string="Reconcile Meta subscriptions"
+            class="oe_highlight"
+            attrs="{'invisible': [('active', '=', False)]}"
+          />
+                    <field name="subscription_state" widget="statusbar" />
+                </header>
+                <sheet>
+                    <widget
+            name="web_ribbon"
+            text="Archived"
+            bg_color="bg-danger"
+            attrs="{'invisible': [('active', '=', True)]}"
+          />
+                    <group>
+                        <group>
+                            <field name="name" />
+                            <field
+                name="app_id"
+                options="{'no_create': True}"
+              />
+                            <field
+                name="company_id"
+                groups="base.group_multi_company"
+              />
+                            <field name="active" />
+                        </group>
+                        <group>
+                            <field name="webhook_url" readonly="1" />
+                            <field name="credential_backend" />
+                            <field name="verify_token_ref" />
+                            <field name="revision" readonly="1" />
+                            <field name="public_ref" readonly="1" />
+                            <field name="verified_at" readonly="1" />
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Pages">
+                            <field
+                name="page_ids"
+                context="{'default_endpoint_id': active_id}"
+              >
+                                <tree decoration-muted="not active">
+                                    <field name="name" />
+                                    <field name="external_page_id" />
+                                    <field name="subscription_state" />
+                                    <field name="revision" />
+                                    <field name="active" />
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Observed App subscriptions">
+                            <field
+                name="observed_subscriptions_json"
+                readonly="1"
+                nolabel="1"
+              />
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_meta_webhook_page_tree" model="ir.ui.view">
+        <field name="name">meta.webhook.page.tree</field>
+        <field name="model">meta.webhook.page</field>
+        <field name="arch" type="xml">
+            <tree decoration-muted="not active">
+                <field name="company_id" invisible="1" />
+                <field name="name" />
+                <field name="external_page_id" />
+                <field name="endpoint_id" />
+                <field name="subscription_state" />
+                <field name="verified_at" />
+                <field name="active" />
+            </tree>
+        </field>
+    </record>
+    <record id="view_meta_webhook_page_form" model="ir.ui.view">
+        <field name="name">meta.webhook.page.form</field>
+        <field name="model">meta.webhook.page</field>
+        <field name="arch" type="xml">
+            <form string="Meta Webhook Page">
+                <field name="company_id" invisible="1" />
+                <header>
+                    <button
+            name="action_enqueue_subscription_reconcile"
+            type="object"
+            string="Reconcile subscribed_apps"
+            class="oe_highlight"
+            attrs="{'invisible': [('active', '=', False)]}"
+          />
+                    <field name="subscription_state" widget="statusbar" />
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name" />
+                            <field
+                name="endpoint_id"
+                options="{'no_create': True}"
+              />
+                            <field name="external_page_id" />
+                            <field name="active" />
+                        </group>
+                        <group>
+                            <field name="credential_backend" />
+                            <field name="access_token_ref" />
+                            <field name="revision" readonly="1" />
+                            <field name="verified_at" readonly="1" />
+                        </group>
+                    </group>
+                    <group
+            string="Last reconciliation"
+            attrs="{'invisible': [('last_error_class', '=', False)]}"
+          >
+                        <field name="last_error_class" readonly="1" />
+                        <field name="last_error_message" readonly="1" />
+                    </group>
+                    <notebook>
+                        <page string="Routing assets">
+                            <field name="asset_ids">
+                                <tree
+                  editable="bottom"
+                  decoration-muted="not active"
+                >
+                                    <field name="platform" />
+                                    <field name="object_type" />
+                                    <field name="transport" />
+                                    <field name="external_asset_id" />
+                                    <field name="active" />
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Consumer subscriptions">
+                            <field name="subscription_ids">
+                                <tree
+                  editable="bottom"
+                  decoration-muted="not active"
+                >
+                                    <field name="consumer_key" />
+                                    <field name="object_type" />
+                                    <field name="field_name" />
+                                    <field name="active" />
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Observed fields">
+                            <field
+                name="observed_fields_json"
+                readonly="1"
+                nolabel="1"
+              />
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_meta_webhook_delivery_tree" model="ir.ui.view">
+        <field name="name">meta.webhook.delivery.tree</field>
+        <field name="model">meta.webhook.delivery</field>
+        <field name="arch" type="xml">
+            <tree create="0" delete="0">
+                <field name="company_id" invisible="1" />
+                <field name="create_date" />
+                <field name="endpoint_id" />
+                <field name="object_type" />
+                <field name="state" />
+                <field name="item_count" />
+                <field name="dispatch_count" />
+                <field name="attempts" />
+            </tree>
+        </field>
+    </record>
+    <record id="view_meta_webhook_delivery_form" model="ir.ui.view">
+        <field name="name">meta.webhook.delivery.form</field>
+        <field name="model">meta.webhook.delivery</field>
+        <field name="arch" type="xml">
+            <form create="0" edit="0" delete="0">
+                <field name="company_id" invisible="1" />
+                <header>
+                    <button
+            name="action_requeue"
+            type="object"
+            string="Requeue"
+            attrs="{'invisible': [('state', 'not in', ['unrouted', 'stale', 'dead'])]}"
+          />
+                    <field name="state" widget="statusbar" />
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="public_ref" />
+                            <field name="endpoint_id" />
+                            <field name="object_type" />
+                            <field name="content_sha256" />
+                        </group>
+                        <group>
+                            <field name="body_size_bytes" />
+                            <field name="graph_version" />
+                            <field name="processed_at" />
+                            <field name="queue_job_uuid" />
+                        </group>
+                    </group>
+                    <group
+            attrs="{'invisible': [('last_error_class', '=', False)]}"
+          >
+                        <field name="last_error_class" />
+                        <field name="last_error_message" />
+                    </group>
+                    <notebook>
+                        <page string="Sanitized envelope">
+                            <field name="sanitized_envelope_json" nolabel="1" />
+                        </page>
+                        <page string="Items">
+                            <field name="item_ids">
+                                <tree>
+                                    <field name="sequence" />
+                                    <field name="kind" />
+                                    <field name="event_field" />
+                                    <field name="target_asset_id" />
+                                    <field name="occurrence_ref" />
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Dispatches">
+                            <field name="dispatch_ids">
+                                <tree>
+                                    <field name="consumer_key" />
+                                    <field name="page_id" />
+                                    <field name="state" />
+                                    <field name="attempts" />
+                                    <field name="processed_at" />
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_meta_webhook_endpoint" model="ir.actions.act_window">
+        <field name="name">Webhook endpoints</field>
+        <field name="res_model">meta.webhook.endpoint</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+    <record id="action_meta_webhook_page" model="ir.actions.act_window">
+        <field name="name">Pages and assets</field>
+        <field name="res_model">meta.webhook.page</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+    <record id="action_meta_webhook_delivery" model="ir.actions.act_window">
+        <field name="name">Webhook deliveries</field>
+        <field name="res_model">meta.webhook.delivery</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+</odoo>
