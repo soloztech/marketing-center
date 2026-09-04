@@ -36,7 +36,7 @@ jobs:
           path: ~/.cache/pre-commit
           key: pre-commit|${{ env.PY }}|${{ hashFiles('.pre-commit-config.yaml') }}
       - name: Install pre-commit
-        run: pip install pre-commit
+        run: pip install pre-commit==4.6.2
       - name: Run pre-commit
         run: pre-commit run --all-files --show-diff-on-failure --color=always
         env:
