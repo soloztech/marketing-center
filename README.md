@@ -52,4 +52,13 @@ checkout. Their Git ancestry was merged into this repository before the first Gi
 release. Module technical names, models, tables and dependency contracts did not
 change; therefore this source consolidation requires no Odoo database migration.
 
+The consolidated laboratory release validated 425 files with tree
+`d62f85de79bef0c23b19fd3315bd114d98fe18a8b1bec9e10f2e1d02d8234ceb`.
+Seven clean-database suites passed 1,071 tests in total, including all 160 tests of the
+three provider foundations. QUnit passed 12/12 tests and 49/49 assertions in minified
+and debug-assets modes. All 18 addons were upgraded and replayed idempotently, queues
+converged, temporary resources were removed and the former remote `integration-core`
+root was removed. See the
+[cross-repository baseline](reviews/2026-09-04-greenfield-baseline-cross-repo.md).
+
 Production has not been changed by this repository release.

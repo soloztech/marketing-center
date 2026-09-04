@@ -5,12 +5,22 @@ token backend/reference and required scopes. Validate the profile, then discover
 accounts. The reader token must prove every configured required scope, including
 ``ads_read``.
 
+Neither the App secret nor an access token is stored in PostgreSQL. Each opaque
+reference selects its backend independently:
+
+* ``environment`` resolves an environment variable name, for example
+  ``ODOO_META_MARKETING_APP_SECRET`` or
+  ``ODOO_META_MARKETING_ACCESS_TOKEN``;
+* ``file`` resolves a filename below ``ODOO_META_API_SECRET_DIR``. The file must be
+  regular, non-symlinked and inaccessible to group/other users.
+
 For the Soloz deployment, prefer the ``file`` backend. Mount a private directory as
 ``/run/secrets/meta-marketing``, expose only
 ``ODOO_META_API_SECRET_DIR=/run/secrets/meta-marketing`` and use versioned references
 such as ``soloz_meta_app_secret_v1`` on the shared App and
-``soloz_meta_ads_reader_token_v1`` on the reader profile. Secret files must be regular files, mode ``0600``
-and mounted read-only. Do not reuse a Messenger/Instagram Page token as an Ads reader.
+``soloz_meta_ads_reader_token_v1`` on the reader profile. Secret files must be
+regular files, mode ``0600`` and mounted read-only. Do not reuse a
+Messenger/Instagram Page token as an Ads reader.
 
 After discovery, open a Meta Ads source and choose ``Sync Meta catalog``. The action
 creates one provider-neutral run and queues campaign, ad-set, ad and creative pages in

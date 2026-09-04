@@ -2783,5 +2783,15 @@ Permanecem gates de produção, sem serem confundidos com defeitos já corrigido
 A disposição detalhada está em
 `reviews/2026-09-04-remaining-addons-greenfield-review.md`.
 
-O índice conjunto deste baseline, incluindo os limites com Contact Center e Integration
-Core, está em `../reviews/2026-09-04-greenfield-baseline-cross-repo.md`.
+O índice conjunto atualizado deste baseline, já refletindo a consolidação física das
+fundações e os limites com Contact Center, está em
+`reviews/2026-09-04-greenfield-baseline-cross-repo.md`.
+
+O cutover consolidado posterior fechou com `applied_and_validated`, árvore
+`d62f85de79bef0c23b19fd3315bd114d98fe18a8b1bec9e10f2e1d02d8234ceb` e 425 arquivos.
+Passaram **42/42** Google API, **45/45** Meta API, **73/73** Meta Webhook, **123/123**
+Base, **660/660** integrados, **123/123** Website e **5/5** da facade. QUnit passou
+**12/12** e **49/49** em ambos os modos. Upgrade e replay terminaram com zero, filas
+convergiram, o workspace de rollback e o root remoto `integration-core` foram removidos
+e a rota de teste retornou ao SHA-256 original e ao HTTP 200. Evidência:
+`scans/raw/20260903-odoo16-marketing-center-remaining-addons-greenfield-closeout/release/20260904T123542490166Z/summary.json`.

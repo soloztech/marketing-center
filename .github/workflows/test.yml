@@ -65,7 +65,9 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: soloztech/contact-center
-          ref: "16.0"
+          # Release CI is intentionally coupled to the matching, immutable
+          # cross-repository candidate instead of the moving 16.0 branch.
+          ref: "16.0.20260904.1-rc1"
           path: .ci-private-dependency/contact-center
           token: ${{ secrets.CROSS_REPO_READ_TOKEN }}
           persist-credentials: false

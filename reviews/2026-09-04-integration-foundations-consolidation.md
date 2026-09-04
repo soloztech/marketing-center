@@ -1,7 +1,7 @@
 # Consolidação das fundações de integração
 
 Data: 2026-09-04  
-Estado: em validação
+Estado: validado no laboratório; publicação GitHub em andamento
 
 ## Decisão
 
@@ -38,11 +38,11 @@ banco nem renomeação de módulos Odoo.
 
 ## Gates de release
 
-- [ ] testes estáticos dos dois repositórios;
-- [ ] 160 testes isolados das três fundações técnicas;
-- [ ] suítes Odoo integradas de Marketing Center e Contact Center;
-- [ ] cutover consolidado no SERVIDOR05 com resolução única dos 18 addons;
-- [ ] smoke autenticado sem regressão funcional;
+- [x] testes estáticos dos dois repositórios;
+- [x] 160 testes isolados das três fundações técnicas;
+- [x] suítes Odoo integradas de Marketing Center e Contact Center;
+- [x] cutover consolidado no SERVIDOR05 com resolução única dos 18 addons;
+- [x] smoke autenticado sem regressão funcional;
 - [ ] repositórios privados `soloztech/contact-center` e `soloztech/marketing-center`
       publicados com CI reproduzível;
 - [ ] tag/release candidato aponta para os commits validados.
@@ -59,5 +59,22 @@ exclusivamente aos dois repositórios.
 
 O GitHub Actions permanece desabilitado enquanto os repositórios estão vazios. A ordem
 segura de publicação é: publicar ambas as branches `16.0`, selecionar a branch padrão,
-habilitar Actions e só então disparar manualmente as duas suítes. Isso evita que um
-repositório tente resolver o outro antes de ambos existirem.
+publicar em ambos a tag coordenada `16.0.20260904.1-rc1`, habilitar Actions e só então
+disparar manualmente as duas suítes. Cada workflow consome a tag imutável do repositório
+irmão. Isso evita tanto o bootstrap circular quanto a redefinição posterior de uma CI já
+verde pela movimentação da outra branch.
+
+## Evidência do laboratório
+
+- Marketing Center e fundações: `applied_and_validated`, 425 arquivos, árvore
+  `d62f85de79bef0c23b19fd3315bd114d98fe18a8b1bec9e10f2e1d02d8234ceb`, 1.071 testes Odoo
+  e QUnit 12/12 em ambos os modos. Evidência:
+  `scans/raw/20260903-odoo16-marketing-center-remaining-addons-greenfield-closeout/release/20260904T123542490166Z/summary.json`.
+- Contact Center consumidor: `applied_and_validated`, árvore
+  `83b88b22773067c34e370d3784ec05f1bd0b2b09f08a478230475bbe16bb1f9e`, 505 Base, 199
+  WuzAPI e 895 testes integrados, além de QUnit Base/UI nos dois modos. Evidência:
+  `scans/raw/20260903-odoo16-contact-center-base-crm-greenfield-closeout/release/20260904T124751394613Z/summary.json`.
+- A rota foi restaurada com SHA-256
+  `2fd9e569856478dfa336391bd226f3c8af05454db56033be6352ef80aad56403`, o endpoint público
+  de teste respondeu HTTP 200 e `production_touched` permaneceu `false` nos dois
+  releases.
