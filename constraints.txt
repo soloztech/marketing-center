@@ -4,3 +4,4 @@
 google-auth==2.57.1
 cryptography==50.0.1
 pyOpenSSL==26.4.0
+urllib3==1.26.20

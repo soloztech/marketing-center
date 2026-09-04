@@ -46,9 +46,9 @@ Install the repository Python dependencies with its versioned compatibility cont
 python -m pip install --constraint constraints.txt --requirement requirements.txt
 ```
 
-The constraint keeps current Google Auth, `cryptography` and `pyOpenSSL` mutually
-compatible with the Odoo 16 runtime. CI imports that TLS stack before initializing its
-database, so dependency drift fails before addon tests.
+The constraint keeps current Google Auth, `cryptography`, `pyOpenSSL` and Odoo's
+`urllib3.contrib.pyopenssl` bridge mutually compatible. CI imports that exact TLS stack
+before initializing its database, so dependency drift fails before addon tests.
 
 ## Current greenfield baseline
 

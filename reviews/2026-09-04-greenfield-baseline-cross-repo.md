@@ -70,13 +70,13 @@ were retained because they remain runtime contracts, not legacy compatibility.
 ## Publication policy
 
 - Both GitHub repositories are private and use branch `16.0`.
-- The coordinated release uses tag `16.0.20260904.2-rc1` in both repositories; each CI
+- The coordinated release uses tag `16.0.20260904.3-rc1` in both repositories; each CI
   workflow checks out the sibling repository at that immutable tag.
-- The earlier bootstrap tag remains unreleased. Its first remote test exposed an
-  upstream resolver mismatch: current `google-auth` upgraded `cryptography` while the
-  mutable OCA image retained legacy `pyOpenSSL`. Marketing Center now applies the
-  versioned `constraints.txt` contract before Odoo starts and verifies the three
-  imports.
+- The earlier bootstrap candidates remain unreleased. Remote tests exposed an upstream
+  resolver mismatch: current `google-auth` upgraded `cryptography` while the mutable OCA
+  image retained legacy `pyOpenSSL` and `urllib3`. Marketing Center now applies the
+  versioned `constraints.txt` contract before Odoo starts and verifies the exact
+  `urllib3.contrib.pyopenssl` import used by Odoo.
 - Contact Center is published from a new sanitized root history. The prior local
   development history is retained only in a mode-`0600`, verified Git bundle whose
   SHA-256 is `48692ef85b7b65047576a0628850978559cb06eceee0e98fd7827dce4a94eaf2`.
