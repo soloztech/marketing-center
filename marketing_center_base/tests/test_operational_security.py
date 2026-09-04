@@ -19,6 +19,9 @@ class TestMarketingOperationalSecurity(SavepointCase):
         cls.admin_group = cls.env.ref(
             "marketing_center_base.group_marketing_center_admin"
         )
+        cls.analyst_group = cls.env.ref(
+            "marketing_center_base.group_marketing_center_analyst"
+        )
         cls.viewer = (
             cls.env["res.users"]
             .with_context(no_reset_password=True)
@@ -146,6 +149,47 @@ class TestMarketingOperationalSecurity(SavepointCase):
             {self.visible_metric.id, self.hidden_metric.id},
         )
 
+    def test_two_team_rosters_do_not_cross_source_boundaries(self):
+        second_viewer = (
+            self.env["res.users"]
+            .with_context(no_reset_password=True)
+            .create(
+                {
+                    "name": "Second marketing roster viewer",
+                    "login": "marketing-second-viewer-%s" % uuid.uuid4(),
+                    "company_id": self.env.company.id,
+                    "company_ids": [Command.set(self.env.company.ids)],
+                    "groups_id": [Command.set(self.viewer_group.ids)],
+                }
+            )
+        )
+        second_team = self.env["marketing.center.team"].create(
+            {"name": "Second source roster", "company_id": self.env.company.id}
+        )
+        self.env["marketing.center.team.member"].create(
+            {
+                "team_id": second_team.id,
+                "user_id": second_viewer.id,
+                "role": "viewer",
+            }
+        )
+        self.env["marketing.center.team.source"].create(
+            {
+                "team_id": second_team.id,
+                "source_id": self.hidden_source.id,
+                "access_mode": "read",
+            }
+        )
+
+        first_sources = (
+            self.env["marketing.center.source"].with_user(self.viewer).search([])
+        )
+        second_sources = (
+            self.env["marketing.center.source"].with_user(second_viewer).search([])
+        )
+        self.assertEqual(first_sources.ids, self.visible_source.ids)
+        self.assertEqual(second_sources.ids, self.hidden_source.ids)
+
     def test_technical_fields_and_connections_remain_admin_only(self):
         viewer_source_fields = (
             self.env["marketing.center.source"].with_user(self.viewer).fields_get()
@@ -223,6 +267,109 @@ class TestMarketingOperationalSecurity(SavepointCase):
             self.env["marketing.center.source"]
             .with_user(self.viewer)
             .search([("id", "=", self.visible_source.id)])
+        )
+
+    def test_capability_is_the_intersection_of_group_role_and_source_mode(self):
+        analyst = (
+            self.env["res.users"]
+            .with_context(no_reset_password=True)
+            .create(
+                {
+                    "name": "Marketing roster analyst",
+                    "login": "marketing-analyst-%s" % uuid.uuid4(),
+                    "company_id": self.env.company.id,
+                    "company_ids": [Command.set(self.env.company.ids)],
+                    "groups_id": [Command.set(self.analyst_group.ids)],
+                }
+            )
+        )
+        membership = self.env["marketing.center.team.member"].create(
+            {
+                "team_id": self.team.id,
+                "user_id": analyst.id,
+                "role": "manager",
+            }
+        )
+        source_link = self.team.source_link_ids.filtered(
+            lambda link: link.source_id == self.visible_source
+        )
+
+        self.assertTrue(self.visible_source._has_user_capability("read", analyst))
+        self.assertFalse(
+            self.visible_source._has_user_capability("prepare", analyst),
+            "The source mode must cap a more privileged team role.",
+        )
+
+        source_link.write({"access_mode": "approve"})
+        self.assertTrue(self.visible_source._has_user_capability("prepare", analyst))
+        self.assertFalse(
+            self.visible_source._has_user_capability("operate", analyst),
+            "The global Analyst group must cap a Manager team role.",
+        )
+
+        membership.write({"role": "viewer"})
+        self.assertTrue(self.visible_source._has_user_capability("read", analyst))
+        self.assertFalse(
+            self.visible_source._has_user_capability("prepare", analyst),
+            "The team role must cap the user's global group.",
+        )
+
+    def test_inactive_scope_components_revoke_the_stored_projection(self):
+        membership = self.team.member_ids.filtered(
+            lambda item: item.user_id == self.viewer
+        )
+        source_link = self.team.source_link_ids.filtered(
+            lambda link: link.source_id == self.visible_source
+        )
+        self.assertIn(self.viewer, self.visible_source.sudo().access_user_ids)
+
+        source_link.write({"active": False})
+        self.assertNotIn(self.viewer, self.visible_source.sudo().access_user_ids)
+        source_link.write({"active": True})
+
+        self.team.write({"active": False})
+        self.assertNotIn(self.viewer, self.visible_source.sudo().access_user_ids)
+        self.team.write({"active": True})
+
+        membership.write({"active": False})
+        self.assertNotIn(self.viewer, self.visible_source.sudo().access_user_ids)
+        membership.write({"active": True})
+
+        self.visible_source.write({"active": False})
+        self.assertNotIn(self.viewer, self.visible_source.sudo().access_user_ids)
+        self.assertFalse(
+            self.env["marketing.center.source"]
+            .with_user(self.viewer)
+            .with_context(active_test=False)
+            .search([("id", "=", self.visible_source.id)])
+        )
+
+    def test_administrator_bypasses_roster_but_not_active_company_scope(self):
+        self.assertTrue(
+            self.hidden_source._has_user_capability(
+                "approve", user=self.marketing_admin
+            )
+        )
+        other_company = self.env["res.company"].create(
+            {"name": "Capability boundary %s" % uuid.uuid4()}
+        )
+        other_source = (
+            self.env["marketing.center.source"]
+            .sudo()
+            .create(
+                {
+                    "name": "Other-company capability source",
+                    "company_id": other_company.id,
+                    "service": "manual.import",
+                    "external_account_ref": "other-company-capability",
+                    "currency_id": other_company.currency_id.id,
+                    "timezone": "UTC",
+                    "state": "active",
+                }
+            )
+        )
+        self.assertFalse(
+            other_source._has_user_capability("read", user=self.marketing_admin)
         )
 
     def test_scope_parent_identities_are_immutable(self):

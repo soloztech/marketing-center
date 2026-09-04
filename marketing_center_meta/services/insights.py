@@ -9,12 +9,17 @@ from odoo.addons.marketing_center_base.services.performance_dto import (
     MarketingPerformanceDTO,
     PerformancePageDTO,
 )
+from odoo.addons.marketing_center_base.services.timezone import (
+    LocalDateBoundaryError,
+    local_date_boundary_utc,
+)
 from odoo.addons.meta_api_base.services.errors import MetaApiError
 from odoo.addons.meta_api_base.services.graph import graph_request
 
+from .graph_contract import require_marketing_graph_version
+
 META_INSIGHTS_CONTRACT_VERSION = "meta.marketing.insights.daily.v1"
 META_INSIGHTS_GRAINS = ("account", "campaign")
-META_INSIGHTS_GRAPH_VERSION = "v26.0"
 
 _ACCOUNT_FIELDS = (
     "account_id",
@@ -100,11 +105,7 @@ def insights_window_from_utc(window_start, window_end, report_timezone):
     zone = pytz.timezone(report_timezone)
     start_local = pytz.UTC.localize(window_start).astimezone(zone)
     end_local = pytz.UTC.localize(window_end).astimezone(zone)
-    if (
-        start_local.timetz().replace(tzinfo=None) != datetime.time.min
-        or end_local.timetz().replace(tzinfo=None) != datetime.time.min
-        or start_local.date() >= end_local.date()
-    ):
+    if start_local.date() >= end_local.date():
         raise MetaApiError("Meta Insights run window is invalid")
     date_from = start_local.date()
     date_to = end_local.date() - datetime.timedelta(days=1)
@@ -329,15 +330,10 @@ def _count(value, label):
 
 
 def _local_midnight_utc(value, report_timezone):
-    zone = pytz.timezone(report_timezone)
     try:
-        local_value = zone.localize(
-            datetime.datetime.combine(value, datetime.time.min),
-            is_dst=None,
-        )
-    except (pytz.AmbiguousTimeError, pytz.NonExistentTimeError):
+        return local_date_boundary_utc(value, report_timezone)
+    except LocalDateBoundaryError:
         raise MetaApiError("Meta Insights local date boundary is invalid") from None
-    return local_value.astimezone(pytz.UTC).replace(tzinfo=None, microsecond=0)
 
 
 def _date(value, label):
@@ -356,10 +352,7 @@ def _date(value, label):
 
 
 def _graph_version(value):
-    value = _bounded_text(value, "Graph version", 16)
-    if value != META_INSIGHTS_GRAPH_VERSION:
-        raise MetaApiError("Meta Insights requires Graph v26.0")
-    return value
+    return require_marketing_graph_version(value, "insights")
 
 
 def _grain(value):

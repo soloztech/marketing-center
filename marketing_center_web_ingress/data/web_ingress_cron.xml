@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo noupdate="1">
+  <record id="ir_cron_gc_marketing_web_ingress_admission" model="ir.cron">
+    <field name="name">Marketing Web Ingress: purge admission safety net</field>
+    <field name="model_id" ref="model_marketing_web_ingress_admission" />
+    <field name="state">code</field>
+    <field name="code">model._gc_old_admissions()</field>
+    <field name="interval_number">1</field>
+    <field name="interval_type">minutes</field>
+    <field name="numbercall">-1</field>
+    <field name="doall" eval="False" />
+    <field name="active" eval="True" />
+  </record>
+</odoo>

@@ -257,7 +257,10 @@ class TestMetaInsightsAdapter(SavepointCase):
                 date_from="2026-07-01",
                 date_to="2026-08-01",
             )
-        with self.assertRaises(MetaApiError):
+        with self.assertRaisesRegex(
+            MetaApiError,
+            "Insights supports Graph v26.0.*configured as v25.0",
+        ):
             self._fetch(
                 "account",
                 {"data": []},

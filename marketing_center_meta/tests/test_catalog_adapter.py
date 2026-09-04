@@ -13,6 +13,7 @@ from ..services.catalog import (
     meta_catalog_sweep_reporting_context,
     orchestrate_meta_catalog_page,
 )
+from ..services.graph_contract import META_MARKETING_GRAPH_VERSION
 
 
 class TestMetaCatalogAdapter(SavepointCase):
@@ -253,3 +254,22 @@ class TestMetaCatalogAdapter(SavepointCase):
         rendered = str(context)
         self.assertNotIn("targeting", rendered)
         self.assertNotIn("url", rendered.lower())
+
+    def test_catalog_shares_the_explicit_marketing_graph_contract(self):
+        self.assertEqual(META_MARKETING_GRAPH_VERSION, "v26.0")
+        incompatible = SimpleNamespace(graph_version="v27.0")
+        with self.assertRaisesRegex(
+            MetaApiError,
+            "Catalog supports Graph v26.0.*configured as v27.0",
+        ):
+            with patch(
+                "odoo.addons.marketing_center_meta.services.catalog.graph_request"
+            ) as request:
+                fetch_meta_catalog_page(
+                    incompatible,
+                    "synthetic-token",
+                    "act_123",
+                    "campaign",
+                    reporting_context_hash=self.context_hash,
+                )
+            request.assert_not_called()

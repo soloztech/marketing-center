@@ -6,12 +6,32 @@ import pytz
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 
+from ..services.scheduler import fair_scheduler_batch
 from ..services.tokens import (
     MARKETING_CONFIGURATION_RUNTIME_TOKEN,
     MARKETING_WRITE_CAPABILITY_TOKEN,
 )
 
 _TECHNICAL_KEY_RE = re.compile(r"^[a-z0-9][a-z0-9._:-]{0,127}$")
+
+_CAPABILITY_RANK = {
+    "read": 1,
+    "prepare": 2,
+    "operate": 3,
+    "approve": 4,
+}
+_TEAM_ROLE_RANK = {
+    "viewer": _CAPABILITY_RANK["read"],
+    "analyst": _CAPABILITY_RANK["prepare"],
+    "operator": _CAPABILITY_RANK["operate"],
+    "manager": _CAPABILITY_RANK["approve"],
+}
+_GLOBAL_CAPABILITY_GROUPS = (
+    ("marketing_center_base.group_marketing_center_manager", "approve"),
+    ("marketing_center_base.group_marketing_center_operator", "operate"),
+    ("marketing_center_base.group_marketing_center_analyst", "prepare"),
+    ("marketing_center_base.group_marketing_center_viewer", "read"),
+)
 
 
 def _uuid(_recordset):
@@ -68,11 +88,18 @@ class MarketingCenterTeam(models.Model):
         )
     ]
 
-    @api.depends("active", "member_ids.active", "member_ids.user_id")
+    @api.depends(
+        "active",
+        "member_ids.active",
+        "member_ids.user_id",
+        "member_ids.user_id.active",
+    )
     def _compute_access_user_ids(self):
         for team in self:
             team.access_user_ids = (
-                team.member_ids.filtered("active").mapped("user_id")
+                team.member_ids.filtered(
+                    lambda member: member.active and member.user_id.active
+                ).mapped("user_id")
                 if team.active
                 else self.env["res.users"]
             )
@@ -82,7 +109,11 @@ class MarketingCenterTeam(models.Model):
             team.company_id.id != values["company_id"] for team in self
         ):
             raise AccessError(_("A marketing team cannot be moved to another company."))
-        return super().write(values)
+        result = super().write(values)
+        if "active" in values:
+            self._compute_access_user_ids()
+            self.mapped("source_link_ids.source_id")._compute_access_user_ids()
+        return result
 
     def unlink(self):  # pylint: disable=method-required-super
         raise AccessError(_("Marketing teams must be archived instead of deleted."))
@@ -118,6 +149,11 @@ class MarketingCenterTeamMember(models.Model):
         required=True,
         default="viewer",
         index=True,
+        help=(
+            "Maximum source capability granted to this user inside this team. "
+            "It is intersected with the user's global Marketing Center group and "
+            "the source assignment access mode."
+        ),
     )
 
     _sql_constraints = [
@@ -136,6 +172,18 @@ class MarketingCenterTeamMember(models.Model):
                     _("The team company must be available to the selected user.")
                 )
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        memberships = super().create(vals_list)
+        memberships._refresh_access_projection()
+        return memberships
+
+    def _refresh_access_projection(self):
+        teams = self.mapped("team_id")
+        teams._compute_access_user_ids()
+        teams.mapped("source_link_ids.source_id")._compute_access_user_ids()
+        return True
+
     def write(self, values):
         for field_name in ("team_id", "user_id"):
             if field_name in values and any(
@@ -143,10 +191,16 @@ class MarketingCenterTeamMember(models.Model):
             ):
                 raise AccessError(
                     _(
-                        "A team membership identity cannot be changed; archive it instead."
+                        "A team membership identity cannot be changed; "
+                        "archive it instead."
                     )
                 )
-        return super().write(values)
+        affected_teams = self.mapped("team_id")
+        result = super().write(values)
+        affected_teams |= self.mapped("team_id")
+        affected_teams._compute_access_user_ids()
+        affected_teams.mapped("source_link_ids.source_id")._compute_access_user_ids()
+        return result
 
     def unlink(self):  # pylint: disable=method-required-super
         raise AccessError(_("Marketing team members must be archived instead."))
@@ -186,6 +240,10 @@ class MarketingCenterTeamSource(models.Model):
         required=True,
         default="read",
         index=True,
+        help=(
+            "Maximum capability this team receives on the source. It is "
+            "intersected with each member's role and global Marketing Center group."
+        ),
     )
 
     _sql_constraints = [
@@ -204,6 +262,12 @@ class MarketingCenterTeamSource(models.Model):
                     _("A marketing team cannot access a source from another company.")
                 )
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        links = super().create(vals_list)
+        links.mapped("source_id")._compute_access_user_ids()
+        return links
+
     def write(self, values):
         for field_name in ("team_id", "source_id"):
             if field_name in values and any(
@@ -211,10 +275,15 @@ class MarketingCenterTeamSource(models.Model):
             ):
                 raise AccessError(
                     _(
-                        "A source assignment identity cannot be changed; archive it instead."
+                        "A source assignment identity cannot be changed; "
+                        "archive it instead."
                     )
                 )
-        return super().write(values)
+        affected_sources = self.mapped("source_id")
+        result = super().write(values)
+        affected_sources |= self.mapped("source_id")
+        affected_sources._compute_access_user_ids()
+        return result
 
     def unlink(self):  # pylint: disable=method-required-super
         raise AccessError(_("Marketing source assignments must be archived instead."))
@@ -279,7 +348,9 @@ class MarketingCenterSource(models.Model):
     write_enabled = fields.Boolean(
         default=False,
         index=True,
-        help="External mutations remain disabled until an explicit policy enables them.",
+        help=(
+            "External mutations remain disabled until an explicit policy enables them."
+        ),
     )
     effective_capabilities_json = fields.Json(
         readonly=True,
@@ -331,15 +402,104 @@ class MarketingCenterSource(models.Model):
         ),
     ]
 
+    @api.model
+    def _fair_scheduler_batch(self, domain, *, cursor_key, limit):
+        """Return a bounded round-robin batch of technical sources.
+
+        Provider crons must not repeatedly inspect the lowest database IDs: a
+        source that is already covered, invalid, or failing would otherwise keep
+        every source beyond the batch limit permanently out of consideration.
+        The cursor is operational scheduler state, not business evidence, so a
+        small namespaced ``ir.config_parameter`` is sufficient and avoids adding
+        provider columns to this neutral model.
+        """
+
+        return fair_scheduler_batch(
+            self.env,
+            self._name,
+            domain,
+            cursor_key=cursor_key,
+            limit=limit,
+        )
+
     @api.depends(
+        "active",
         "team_source_ids.active",
+        "team_source_ids.access_mode",
+        "team_source_ids.team_id.active",
         "team_source_ids.team_id.access_user_ids",
     )
     def _compute_access_user_ids(self):
         for source in self:
-            source.access_user_ids = source.team_source_ids.filtered("active").mapped(
-                "team_id.access_user_ids"
-            )
+            source.access_user_ids = source._capability_users("read")
+
+    def _capability_users(self, capability):
+        """Return the active roster projection for one source capability.
+
+        This projection deliberately excludes the global Odoo group: ACLs and
+        ``_has_user_capability`` apply that independent ceiling.  Keeping roster
+        scope and global authority separate makes record rules searchable while
+        preventing a team assignment from granting a global privilege.
+        """
+        self.ensure_one()
+        required_rank = _CAPABILITY_RANK.get(capability)
+        if not required_rank:
+            raise ValidationError(_("The marketing source capability is invalid."))
+        users = self.env["res.users"]
+        if not self.active:
+            return users
+        for link in self.team_source_ids:
+            if (
+                not link.active
+                or not link.team_id.active
+                or _CAPABILITY_RANK[link.access_mode] < required_rank
+            ):
+                continue
+            users |= link.team_id.member_ids.filtered(
+                lambda member: member.active
+                and member.user_id.active
+                and _TEAM_ROLE_RANK[member.role] >= required_rank
+            ).mapped("user_id")
+        return users
+
+    @api.model
+    def _global_capability_rank(self, user):
+        if user.has_group("marketing_center_base.group_marketing_center_admin"):
+            return _CAPABILITY_RANK["approve"]
+        for group_xmlid, capability in _GLOBAL_CAPABILITY_GROUPS:
+            if user.has_group(group_xmlid):
+                return _CAPABILITY_RANK[capability]
+        return 0
+
+    def _has_user_capability(self, capability, user=None):
+        """Check global role AND active company AND active source roster.
+
+        Marketing administrators bypass the roster, but never the active-company
+        boundary.  Other users need the capability in all three independent
+        dimensions: Odoo group, active team membership and active source link.
+        """
+        self.ensure_one()
+        required_rank = _CAPABILITY_RANK.get(capability)
+        if not required_rank:
+            raise ValidationError(_("The marketing source capability is invalid."))
+        user = user or self.env.user
+        user_env = self.with_user(user).env
+        if self.company_id.id not in user_env.companies.ids:
+            return False
+        if user.has_group("marketing_center_base.group_marketing_center_admin"):
+            return True
+        if self._global_capability_rank(user) < required_rank:
+            return False
+        return user.id in self.sudo()._capability_users(capability).ids
+
+    def _check_user_capability(self, capability, user=None):
+        for source in self:
+            if not source._has_user_capability(capability, user=user):
+                raise AccessError(
+                    _("You do not have %(capability)s access to this source.")
+                    % {"capability": capability}
+                )
+        return True
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -382,8 +542,81 @@ class MarketingCenterSource(models.Model):
             normalized.append(values)
         return super().create(normalized)
 
+    def _lock_identity_scope(self):
+        """Serialize source identity changes and evidence creation.
+
+        All callers lock the complete recordset in the same database order.  The
+        explicit invalidation is essential under concurrent workers: evidence
+        and identity decisions must use values read after the lock, not an ORM
+        cache populated while another transaction owned the row.
+        """
+        source_ids = sorted({source_id for source_id in self.ids if source_id})
+        if not source_ids:
+            return self.browse()
+        self.flush_model(
+            [
+                "service",
+                "external_account_ref",
+                "external_account_id",
+                "first_observed_at",
+                "last_observed_at",
+            ]
+        )
+        self.env.cr.execute(
+            "SELECT id FROM marketing_center_source "
+            "WHERE id = ANY(%s) ORDER BY id FOR UPDATE",
+            [source_ids],
+        )
+        locked = self.browse([row[0] for row in self.env.cr.fetchall()])
+        locked.invalidate_recordset(
+            [
+                "service",
+                "external_account_ref",
+                "external_account_id",
+                "first_observed_at",
+                "last_observed_at",
+            ]
+        )
+        return locked
+
+    def _mark_identity_evidence(self):
+        """Create an MVCC fence before committing new identity evidence.
+
+        Odoo runs PostgreSQL transactions with a stable snapshot.  A row lock
+        alone would let a waiting identity writer keep a snapshot from before
+        the evidence insert.  This no-op update creates a new source row version,
+        forcing that stale waiter to retry and re-evaluate the evidence registry.
+        """
+        locked = self._lock_identity_scope()
+        if locked:
+            self.env.cr.execute(
+                "UPDATE marketing_center_source "
+                "SET configuration_revision = configuration_revision "
+                "WHERE id = ANY(%s)",
+                [locked.ids],
+            )
+        return locked
+
+    @api.model
+    def _identity_evidence_registry(self):
+        """Return extensible evidence declarations as model/field/domain tuples."""
+        return (
+            ("marketing.center.connection", "source_id", ()),
+            ("marketing.center.sync.run", "source_id", ()),
+            ("marketing.center.external.entity", "source_id", ()),
+            ("marketing.center.metric.daily", "source_id", ()),
+        )
+
     def write(self, values):
         values = dict(values)
+        refresh_access_projection = "active" in values
+        identity_fields = {
+            "service",
+            "external_account_ref",
+            "external_account_id",
+        }.intersection(values)
+        if identity_fields:
+            self = self._lock_identity_scope()
         if "company_id" in values and any(
             source.company_id.id != values["company_id"] for source in self
         ):
@@ -419,9 +652,23 @@ class MarketingCenterSource(models.Model):
         for field_name in ("external_account_ref", "external_account_id"):
             if field_name in values:
                 values[field_name] = _normalize_text(values[field_name])
+        for source in self:
+            changed = any(
+                source[field_name] != values[field_name]
+                for field_name in identity_fields
+            )
+            if changed and source._identity_has_evidence():
+                raise AccessError(
+                    _(
+                        "A marketing source with bindings or observed evidence "
+                        "cannot change its external identity. Archive it and create "
+                        "a new source instead."
+                    )
+                )
         revision_fields = {
             "service",
             "external_account_ref",
+            "external_account_id",
             "currency_id",
             "timezone",
             "state",
@@ -444,8 +691,34 @@ class MarketingCenterSource(models.Model):
                     [source.id],
                 )
                 source.invalidate_recordset(["configuration_revision"])
+            if refresh_access_projection:
+                self._compute_access_user_ids()
             return True
-        return super().write(values)
+        result = super().write(values)
+        if refresh_access_projection:
+            self._compute_access_user_ids()
+        return result
+
+    def _identity_has_evidence(self):
+        self.ensure_one()
+        if self.first_observed_at or self.last_observed_at:
+            return True
+        for (
+            model_name,
+            source_field,
+            extra_domain,
+        ) in self._identity_evidence_registry():
+            if model_name not in self.env.registry.models:
+                continue
+            domain = [(source_field, "=", self.id), *extra_domain]
+            if (
+                self.env[model_name]
+                .sudo()
+                .with_context(active_test=False)
+                .search_count(domain)
+            ):
+                return True
+        return False
 
     @api.constrains("service", "external_account_ref", "timezone")
     def _check_configuration_values(self):
@@ -589,6 +862,7 @@ class MarketingCenterConnection(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        locked_sources = self._lock_source_identity_scope(vals_list)
         normalized = []
         for incoming in vals_list:
             values = dict(incoming)
@@ -630,7 +904,23 @@ class MarketingCenterConnection(models.Model):
             ):
                 raise AccessError(_("Capabilities are maintained by integration code."))
             normalized.append(values)
+        locked_sources._mark_identity_evidence()
         return super().create(normalized)
+
+    @api.model
+    def _lock_source_identity_scope(self, vals_list):
+        source_ids = sorted(
+            {
+                int(values["source_id"])
+                for values in vals_list
+                if values.get("source_id")
+            }
+        )
+        return (
+            self.env["marketing.center.source"]
+            .browse(source_ids)
+            ._lock_identity_scope()
+        )
 
     def write(self, values):
         values = dict(values)

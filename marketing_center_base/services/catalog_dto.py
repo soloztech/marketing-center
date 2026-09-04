@@ -400,9 +400,11 @@ class SyncPageDTO:
     def __post_init__(self):
         _schema_version(self.schema_version, SYNC_PAGE_SCHEMA_VERSION, "SyncPageDTO")
         items = tuple(
-            item
-            if isinstance(item, ExternalEntityDTO)
-            else ExternalEntityDTO.from_dict(item)
+            (
+                item
+                if isinstance(item, ExternalEntityDTO)
+                else ExternalEntityDTO.from_dict(item)
+            )
             for item in tuple(self.items or ())
         )
         if len(items) > _MAX_PAGE_ITEMS:
@@ -492,9 +494,11 @@ class SyncPageDTO:
         try:
             payload = dict(values)
             payload["items"] = tuple(
-                item
-                if isinstance(item, ExternalEntityDTO)
-                else ExternalEntityDTO.from_dict(item)
+                (
+                    item
+                    if isinstance(item, ExternalEntityDTO)
+                    else ExternalEntityDTO.from_dict(item)
+                )
                 for item in tuple(payload.get("items") or ())
             )
             payload["errors"] = tuple(payload.get("errors") or ())

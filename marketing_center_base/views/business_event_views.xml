@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_marketing_business_event_tree" model="ir.ui.view">
+        <field name="name">marketing.business.event.tree</field>
+        <field name="model">marketing.business.event</field>
+        <field name="arch" type="xml">
+            <tree create="false" edit="false" delete="false">
+                <field name="occurred_at" />
+                <field name="event_class" />
+                <field name="event_type" />
+                <field name="source_system" />
+                <field name="business_event_key" />
+                <field name="amount_signed" optional="show" />
+                <field name="currency_id" optional="show" />
+                <field name="evidence_level" optional="hide" />
+                <field name="company_id" groups="base.group_multi_company" />
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_marketing_business_event_form" model="ir.ui.view">
+        <field name="name">marketing.business.event.form</field>
+        <field name="model">marketing.business.event</field>
+        <field name="arch" type="xml">
+            <form create="false" edit="false" delete="false">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="public_ref" />
+                            <field
+                name="company_id"
+                groups="base.group_multi_company"
+              />
+                            <field name="event_class" />
+                            <field name="event_type" />
+                            <field name="occurred_at" />
+                            <field name="observed_at" />
+                            <field name="evidence_level" />
+                        </group>
+                        <group>
+                            <field name="source_system" />
+                            <field name="source_model" />
+                            <field name="source_res_id" />
+                            <field name="source_occurrence_ref" />
+                            <field name="source_evidence_ref" />
+                            <field name="business_event_key" />
+                        </group>
+                    </group>
+                    <group
+            string="Value"
+            attrs="{'invisible': [('has_amount', '=', False)]}"
+          >
+                        <field name="has_amount" invisible="1" />
+                        <field
+              name="amount_signed"
+              widget="monetary"
+              options="{'currency_field': 'currency_id'}"
+            />
+                        <field name="currency_id" />
+                    </group>
+                    <group
+            string="Correction"
+            attrs="{'invisible': [('reverses_event_id', '=', False)]}"
+          >
+                        <field name="reverses_event_id" />
+                        <field name="root_event_id" />
+                    </group>
+                    <notebook>
+                        <page string="Observations">
+                            <field name="observation_ids" nolabel="1">
+                                <tree
+                  create="false"
+                  edit="false"
+                  delete="false"
+                >
+                                    <field name="observed_at" />
+                                    <field name="source_evidence_ref" />
+                                    <field name="disposition" />
+                                    <field name="observed_content_hash" />
+                                    <field
+                    name="snapshot_json"
+                    groups="marketing_center_base.group_marketing_center_admin"
+                  />
+                                </tree>
+                            </field>
+                        </page>
+                        <page
+              string="Technical"
+              groups="marketing_center_base.group_marketing_center_admin"
+            >
+                            <group>
+                                <field name="schema_version" />
+                                <field name="canonical_key" />
+                                <field name="content_hash" />
+                                <field name="snapshot_json" />
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_marketing_business_event_search" model="ir.ui.view">
+        <field name="name">marketing.business.event.search</field>
+        <field name="model">marketing.business.event</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="business_event_key" />
+                <field name="event_type" />
+                <field name="source_system" />
+                <field name="occurred_at" />
+                <filter
+          name="group_event_type"
+          string="Event type"
+          context="{'group_by': 'event_type'}"
+        />
+                <filter
+          name="group_source_system"
+          string="Source system"
+          context="{'group_by': 'source_system'}"
+        />
+            </search>
+        </field>
+    </record>
+
+    <record id="action_marketing_business_events" model="ir.actions.act_window">
+        <field name="name">Business Events</field>
+        <field name="res_model">marketing.business.event</field>
+        <field name="view_mode">tree,form</field>
+        <field
+      name="search_view_id"
+      ref="view_marketing_business_event_search"
+    />
+    </record>
+</odoo>

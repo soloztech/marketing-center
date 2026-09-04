@@ -74,10 +74,17 @@
                     <notebook>
                         <page string="Revisions">
                             <field name="revision_ids" nolabel="1">
-                                <tree create="false" edit="false" delete="false">
+                                <tree
+                  create="false"
+                  edit="false"
+                  delete="false"
+                >
                                     <field name="revision_sequence" />
                                     <field name="observed_at" />
-                                    <field name="has_impressions" invisible="1" />
+                                    <field
+                    name="has_impressions"
+                    invisible="1"
+                  />
                                     <field
                     name="impressions"
                     attrs="{'invisible': [('has_impressions', '=', False)]}"
@@ -87,7 +94,10 @@
                     name="clicks"
                     attrs="{'invisible': [('has_clicks', '=', False)]}"
                   />
-                                    <field name="has_cost_micros" invisible="1" />
+                                    <field
+                    name="has_cost_micros"
+                    invisible="1"
+                  />
                                     <field
                     name="cost_micros"
                     attrs="{'invisible': [('has_cost_micros', '=', False)]}"

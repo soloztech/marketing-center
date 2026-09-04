@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_marketing_business_event_form_account" model="ir.ui.view">
+        <field name="name">marketing.business.event.form.account</field>
+        <field name="model">marketing.business.event</field>
+        <field
+      name="inherit_id"
+      ref="marketing_center_base.view_marketing_business_event_form"
+    />
+        <field name="arch" type="xml">
+            <xpath expr="//sheet/group[1]" position="before">
+                <div class="oe_button_box" name="account_button_box">
+                    <button
+            name="action_view_account_moves"
+            type="object"
+            class="oe_stat_button"
+            icon="fa-file-text-o"
+            groups="account.group_account_invoice"
+            attrs="{'invisible': [('account_move_count', '=', 0)]}"
+          >
+                        <field
+              name="account_move_count"
+              widget="statinfo"
+              string="Journal Entries"
+            />
+                    </button>
+                    <button
+            name="action_view_account_payments"
+            type="object"
+            class="oe_stat_button"
+            icon="fa-money"
+            groups="account.group_account_invoice"
+            attrs="{'invisible': [('account_payment_count', '=', 0)]}"
+          >
+                        <field
+              name="account_payment_count"
+              widget="statinfo"
+              string="Payments"
+            />
+                    </button>
+                </div>
+            </xpath>
+        </field>
+    </record>
+</odoo>

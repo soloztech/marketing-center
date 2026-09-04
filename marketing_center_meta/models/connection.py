@@ -20,6 +20,7 @@ class MarketingCenterConnection(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        self._lock_source_identity_scope(vals_list)
         prepared = [self._prepare_meta_create(values) for values in vals_list]
         return super().create(prepared)
 
@@ -62,6 +63,10 @@ class MarketingCenterConnection(models.Model):
         profile = profile.exists()
         if not profile or len(profile) != 1:
             raise ValidationError(_("A Meta reader profile is required."))
+        if profile.reader_kind != "ads_reader":
+            raise ValidationError(
+                _("A Meta Ads connection requires an Ads reader profile.")
+            )
         source = (
             self.env["marketing.center.source"].browse(values.get("source_id")).exists()
         )
@@ -106,6 +111,10 @@ class MarketingCenterConnection(models.Model):
             return values
         if not profile or len(profile) != 1:
             raise ValidationError(_("A Meta reader profile is required."))
+        if profile.reader_kind != "ads_reader":
+            raise ValidationError(
+                _("A Meta Ads connection requires an Ads reader profile.")
+            )
         source = (
             self.env["marketing.center.source"]
             .browse(values.get("source_id", self.source_id.id))
@@ -170,6 +179,7 @@ class MarketingCenterConnection(models.Model):
             profile = connection.meta_profile_id
             if (
                 not profile
+                or profile.reader_kind != "ads_reader"
                 or connection.purpose != "reader"
                 or connection.source_id.service != META_ADS_SERVICE
                 or profile.company_id != connection.company_id
@@ -189,6 +199,12 @@ class MarketingCenterConnection(models.Model):
 class MarketingCenterSource(models.Model):
     _inherit = "marketing.center.source"
 
+    @api.model
+    def _identity_evidence_registry(self):
+        return super()._identity_evidence_registry() + (
+            ("marketing.center.meta.lead.route", "source_id", ()),
+        )
+
     def action_enqueue_meta_catalog_sync(self):
         self.ensure_one()
         self.check_access_rights("write")
@@ -205,7 +221,8 @@ class MarketingCenterSource(models.Model):
             trigger_kind="manual",
             trigger_ref="manual:%s" % uuid.uuid4(),
         )
-        service._enqueue_page(run, service._cursor_snapshot(run)[0])
+        cursor_sequence = service._restart_catalog_cursor(run)
+        service._enqueue_page(run, cursor_sequence)
         return {
             "type": "ir.actions.client",
             "tag": "display_notification",
@@ -216,28 +233,3 @@ class MarketingCenterSource(models.Model):
                 "sticky": False,
             },
         }
-
-    def write(self, values):
-        identity_fields = {"service", "external_account_ref"}.intersection(values)
-        if identity_fields:
-            service = str(values.get("service", "") or "").strip().lower()
-            external_ref = str(values.get("external_account_ref", "") or "").strip()
-            changed = self.filtered(
-                lambda source: (
-                    "service" in identity_fields and source.service != service
-                )
-                or (
-                    "external_account_ref" in identity_fields
-                    and source.external_account_ref != external_ref
-                )
-            )
-            if changed and self.env["marketing.center.connection"].sudo().search_count(
-                [
-                    ("source_id", "in", changed.ids),
-                    ("adapter_key", "=", META_ADAPTER_KEY),
-                ]
-            ):
-                raise AccessError(
-                    _("A source bound to Meta cannot change its external identity.")
-                )
-        return super().write(values)

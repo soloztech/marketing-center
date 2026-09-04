@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_marketing_attribution_model_tree" model="ir.ui.view">
+        <field name="name">marketing.attribution.model.tree</field>
+        <field name="model">marketing.attribution.model</field>
+        <field name="arch" type="xml">
+            <tree create="false" edit="false" delete="false">
+                <field name="name" />
+                <field name="code" />
+                <field name="version" />
+                <field name="strategy" />
+                <field name="interpretation" />
+                <field name="window_days" />
+                <field name="policy_ref" />
+                <field name="company_id" groups="base.group_multi_company" />
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_marketing_attribution_model_form" model="ir.ui.view">
+        <field name="name">marketing.attribution.model.form</field>
+        <field name="model">marketing.attribution.model</field>
+        <field name="arch" type="xml">
+            <form create="false" edit="false" delete="false">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name" />
+                            <field
+                name="company_id"
+                groups="base.group_multi_company"
+              />
+                            <field name="code" />
+                            <field name="version" />
+                            <field name="strategy" />
+                            <field name="interpretation" />
+                        </group>
+                        <group>
+                            <field name="window_days" />
+                            <field name="policy_ref" />
+                            <field name="registered_by_producer" />
+                            <field name="eligible_evidence_bases_json" />
+                            <field name="schema_version" />
+                            <field name="content_hash" />
+                            <field name="created_at" />
+                        </group>
+                    </group>
+                    <div class="alert alert-info" role="status">
+                        A result allocates credit under this explicit policy. It does not prove incrementality or causal lift.
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record
+    id="action_marketing_attribution_models"
+    model="ir.actions.act_window"
+  >
+        <field name="name">Attribution Models</field>
+        <field name="res_model">marketing.attribution.model</field>
+        <field name="view_mode">tree,form</field>
+        <field name="context">{'create': False}</field>
+    </record>
+
+    <record id="view_marketing_attribution_result_tree" model="ir.ui.view">
+        <field name="name">marketing.attribution.result.tree</field>
+        <field name="model">marketing.attribution.result</field>
+        <field name="arch" type="xml">
+            <tree create="false" edit="false" delete="false">
+                <field name="calculated_at" />
+                <field name="business_event_id" />
+                <field name="model_id" />
+                <field name="disposition" />
+                <field name="unattributed_reason" />
+                <field name="candidate_count" />
+                <field name="eligible_count" />
+                <field name="credited_count" />
+                <field name="company_id" groups="base.group_multi_company" />
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_marketing_attribution_result_form" model="ir.ui.view">
+        <field name="name">marketing.attribution.result.form</field>
+        <field name="model">marketing.attribution.result</field>
+        <field name="arch" type="xml">
+            <form create="false" edit="false" delete="false">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="run_id" />
+                            <field name="model_id" />
+                            <field name="business_event_id" />
+                            <field name="subject_kind" />
+                            <field name="subject_key" />
+                            <field
+                name="company_id"
+                groups="base.group_multi_company"
+              />
+                        </group>
+                        <group>
+                            <field name="window_start" />
+                            <field name="window_end" />
+                            <field name="calculated_at" />
+                            <field name="disposition" />
+                            <field name="unattributed_reason" />
+                            <field name="total_weight_micros" />
+                        </group>
+                    </group>
+                    <div class="alert alert-info" role="status">
+                        Correlation-only candidates remain visible below for audit but can never receive credit.
+                    </div>
+                    <notebook>
+                        <page string="Candidates">
+                            <field name="candidate_ids" nolabel="1">
+                                <tree
+                  create="false"
+                  edit="false"
+                  delete="false"
+                >
+                                    <field name="candidate_sequence" />
+                                    <field name="touchpoint_id" />
+                                    <field name="touchpoint_occurred_at" />
+                                    <field name="evidence_basis" />
+                                    <field name="channel_class" />
+                                    <field name="state" />
+                                    <field name="reason" />
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Contributions">
+                            <field name="contribution_ids" nolabel="1">
+                                <tree
+                  create="false"
+                  edit="false"
+                  delete="false"
+                >
+                                    <field name="contribution_sequence" />
+                                    <field name="touchpoint_id" />
+                                    <field name="weight_micros" />
+                                    <field name="allocated_amount_micros" />
+                                    <field name="evidence_basis" />
+                                    <field name="platform" />
+                                    <field name="channel" />
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Subject amount">
+                            <group>
+                                <field name="has_amount" />
+                                <field name="subject_amount_micros" />
+                                <field name="attributed_amount_micros" />
+                                <field name="currency_id" />
+                                <field name="candidate_count" />
+                                <field name="eligible_count" />
+                                <field name="credited_count" />
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_marketing_attribution_result_search" model="ir.ui.view">
+        <field name="name">marketing.attribution.result.search</field>
+        <field name="model">marketing.attribution.result</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="business_event_id" />
+                <field name="model_id" />
+                <filter
+          name="credited"
+          string="Credited"
+          domain="[('disposition', '=', 'credited')]"
+        />
+                <filter
+          name="unattributed"
+          string="Unattributed"
+          domain="[('disposition', '=', 'unattributed')]"
+        />
+                <filter
+          name="group_model"
+          string="Model"
+          context="{'group_by': 'model_id'}"
+        />
+            </search>
+        </field>
+    </record>
+
+    <record
+    id="action_marketing_attribution_results"
+    model="ir.actions.act_window"
+  >
+        <field name="name">Attribution Results</field>
+        <field name="res_model">marketing.attribution.result</field>
+        <field name="view_mode">tree,form</field>
+        <field
+      name="search_view_id"
+      ref="view_marketing_attribution_result_search"
+    />
+        <field name="context">{'create': False}</field>
+    </record>
+</odoo>

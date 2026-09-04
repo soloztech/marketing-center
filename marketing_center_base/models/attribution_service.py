@@ -8,6 +8,7 @@ from ..services.dto import (
     canonical_json,
     sha256_text,
 )
+from ..services.serialization import acquire_advisory_xact_lock
 from ..services.tokens import MARKETING_ATTRIBUTION_WRITE_TOKEN
 
 
@@ -23,11 +24,7 @@ class MarketingAttributionService(models.AbstractModel):
             or len(company) != 1
         ):
             raise ValidationError(_("A single valid company is required."))
-        company = company.exists()
-        if not company:
-            raise ValidationError(_("A single valid company is required."))
-        if company not in self.env.companies:
-            raise AccessError(_("The marketing touchpoint belongs to another company."))
+        company_id = company.id
         try:
             dto = (
                 payload
@@ -41,10 +38,17 @@ class MarketingAttributionService(models.AbstractModel):
 
         canonical_key = dto.canonical_key
         content_hash = dto.content_hash
-        lock_key = "marketing_attribution:%s:%s" % (company.id, canonical_key)
-        self.env.cr.execute(
-            "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", [lock_key]
+        lock_key = "marketing_attribution:%s:%s" % (company_id, canonical_key)
+        acquire_advisory_xact_lock(
+            self.env.cr,
+            lock_key,
+            "Concurrent marketing touchpoint ingestion requires a fresh snapshot",
         )
+        company = company.exists()
+        if not company:
+            raise ValidationError(_("A single valid company is required."))
+        if company not in self.env.companies:
+            raise AccessError(_("The marketing touchpoint belongs to another company."))
 
         touchpoint_model = self.env["marketing.attribution.touchpoint"].sudo()
         existing = touchpoint_model.search(
@@ -54,12 +58,11 @@ class MarketingAttributionService(models.AbstractModel):
             ],
             order="revision_sequence asc, id asc",
         )
-        exact = existing.filtered(lambda item: item.content_hash == content_hash)[:1]
-        if exact:
-            self._create_evidence(exact, dto, "duplicate", exact)
-            return self._result(exact, "duplicate")
-
         previous = existing[-1:] if existing else touchpoint_model.browse()
+        if previous and previous.content_hash == content_hash:
+            self._create_evidence(previous, dto, "duplicate", previous)
+            return self._result(previous, "duplicate")
+
         revision_sequence = (previous.revision_sequence or 0) + 1
         values = self._touchpoint_values(
             company, dto, canonical_key, content_hash, revision_sequence
@@ -72,9 +75,22 @@ class MarketingAttributionService(models.AbstractModel):
             .create(values)
         )
         self._create_identifiers(touchpoint, dto)
-        disposition = "conflict" if previous else "accepted"
+        disposition = self._revision_disposition(dto, previous)
         self._create_evidence(touchpoint, dto, disposition, previous)
         return self._result(touchpoint, disposition)
+
+    @api.model
+    def _revision_disposition(self, dto, previous):
+        if dto.revision_kind == "conflict":
+            return "conflict"
+        if not previous:
+            return "accepted"
+        return {
+            "conflict": "conflict",
+            "correction": "revised",
+            "enrichment": "enriched",
+            "observation": "conflict",
+        }[dto.revision_kind]
 
     @api.model
     def _touchpoint_values(
@@ -98,6 +114,7 @@ class MarketingAttributionService(models.AbstractModel):
             "network": dto.network or False,
             "touchpoint_type": dto.touchpoint_type,
             "evidence_level": dto.evidence_level,
+            "revision_kind": dto.revision_kind,
             "landing_url": dto.landing_url or False,
             "referrer_url": dto.referrer_url or False,
             "utm_source": utm.get("source") or False,

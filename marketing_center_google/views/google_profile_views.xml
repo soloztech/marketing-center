@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_marketing_center_google_profile_tree" model="ir.ui.view">
+        <field name="name">marketing.center.google.profile.tree</field>
+        <field name="model">marketing.center.google.profile</field>
+        <field name="arch" type="xml">
+            <tree delete="false">
+                <field name="name" />
+                <field name="google_identity_id" />
+                <field name="health_state" />
+                <field name="verified_at" />
+                <field name="discovered_customer_count" />
+                <field name="profile_revision" />
+                <field name="identity_revision" />
+                <field name="company_id" />
+                <field name="active" />
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_marketing_center_google_profile_form" model="ir.ui.view">
+        <field name="name">marketing.center.google.profile.form</field>
+        <field name="model">marketing.center.google.profile</field>
+        <field name="arch" type="xml">
+            <form delete="false">
+                <header>
+                    <button
+            name="action_enqueue_validation"
+            string="Validate"
+            type="object"
+            class="oe_highlight"
+          />
+                    <button
+            name="action_enqueue_discovery"
+            string="Discover customers"
+            type="object"
+          />
+                    <field
+            name="health_state"
+            widget="statusbar"
+            statusbar_visible="unknown,healthy,degraded,unhealthy"
+          />
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name" />
+                            <field name="company_id" />
+                            <field
+                name="google_identity_id"
+                options="{'no_create': True, 'no_create_edit': True}"
+              />
+                            <field name="active" />
+                        </group>
+                        <group>
+                            <field name="public_ref" />
+                            <field name="profile_revision" />
+                            <field name="identity_revision" />
+                            <field name="verified_at" />
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Discovery bounds">
+                            <group>
+                                <field name="max_discovery_roots" />
+                                <field name="max_discovery_depth" />
+                                <field name="max_discovery_customers" />
+                                <field name="max_discovery_pages" />
+                            </group>
+                            <p class="text-muted">
+                                Discovery starts from directly accessible customers and
+                                traverses manager-account hierarchies with fixed GAQL and
+                                strict local limits.
+                            </p>
+                        </page>
+                        <page string="Validation">
+                            <group>
+                                <field name="last_error_class" />
+                                <field name="last_error_message" />
+                                <field name="last_request_id" />
+                                <field name="accessible_root_count" />
+                                <field name="discovered_customer_count" />
+                                <field name="discovery_request_count" />
+                            </group>
+                        </page>
+                        <page string="Connections">
+                            <field name="connection_ids" nolabel="1">
+                                <tree
+                  create="false"
+                  edit="false"
+                  delete="false"
+                >
+                                    <field name="name" />
+                                    <field name="source_id" />
+                                    <field name="state" />
+                                    <field name="health_state" />
+                                    <field name="profile_revision" />
+                                    <field name="google_identity_revision" />
+                                    <field name="binding_revision" />
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record
+    id="action_marketing_center_google_profiles"
+    model="ir.actions.act_window"
+  >
+        <field name="name">Google Ads Reader Profiles</field>
+        <field name="res_model">marketing.center.google.profile</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <menuitem
+    id="menu_marketing_center_google_profiles"
+    name="Google Ads Reader Profiles"
+    parent="marketing_center_base.menu_marketing_center_configuration"
+    action="action_marketing_center_google_profiles"
+    sequence="26"
+    groups="marketing_center_base.group_marketing_center_admin"
+  />
+</odoo>

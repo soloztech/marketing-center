@@ -6,6 +6,7 @@ from ..services.catalog_dto import (
     EntityIngestResult,
     ExternalEntityDTO,
 )
+from ..services.serialization import acquire_advisory_xact_lock
 from ..services.tokens import MARKETING_CATALOG_WRITE_TOKEN
 
 
@@ -15,14 +16,7 @@ class MarketingCenterCatalogService(models.AbstractModel):
 
     @api.model
     def _upsert_entity(self, company, source, payload, sync_run=None):
-        company, source = self._validated_scope(company, source)
-        sync_run = sync_run.sudo().exists() if sync_run else sync_run
-        if sync_run and (
-            len(sync_run) != 1
-            or sync_run.source_id != source
-            or sync_run.company_id != company
-        ):
-            raise ValidationError(_("The sync run does not match the entity source."))
+        company_id, source_id = self._scope_ids_for_lock(company, source)
         try:
             dto = (
                 payload
@@ -33,13 +27,23 @@ class MarketingCenterCatalogService(models.AbstractModel):
             raise ValidationError(_("Invalid external entity: %s") % error) from error
 
         lock_key = "marketing_catalog:%s:%s:%s" % (
-            source.id,
+            source_id,
             dto.entity_type,
             dto.external_ref,
         )
-        self.env.cr.execute(
-            "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", [lock_key]
+        acquire_advisory_xact_lock(
+            self.env.cr,
+            lock_key,
+            "Concurrent marketing catalog ingestion requires a fresh snapshot",
         )
+        company, source = self._validated_scope(company, source)
+        sync_run = sync_run.sudo().exists() if sync_run else sync_run
+        if sync_run and (
+            len(sync_run) != 1
+            or sync_run.source_id != source
+            or sync_run.company_id != company
+        ):
+            raise ValidationError(_("The sync run does not match the entity source."))
         entity_model = self.env["marketing.center.external.entity"].sudo()
         entity = entity_model.search(
             [
@@ -53,9 +57,9 @@ class MarketingCenterCatalogService(models.AbstractModel):
         if entity and entity.current_content_hash == dto.content_hash:
             values = {
                 "last_observed_at": max(entity.last_observed_at, dto.observed_at),
-                "last_sync_run_id": sync_run.id
-                if sync_run
-                else entity.last_sync_run_id.id,
+                "last_sync_run_id": (
+                    sync_run.id if sync_run else entity.last_sync_run_id.id
+                ),
             }
             if dto.provider_updated_at and (
                 not entity.provider_updated_at
@@ -99,6 +103,22 @@ class MarketingCenterCatalogService(models.AbstractModel):
         if sequence > 1 and disposition == "accepted":
             disposition = "updated"
         return self._result(entity, disposition)
+
+    @api.model
+    def _scope_ids_for_lock(self, company, source):
+        if (
+            not company
+            or getattr(company, "_name", "") != "res.company"
+            or len(company) != 1
+        ):
+            raise ValidationError(_("A single valid company is required."))
+        if (
+            not source
+            or getattr(source, "_name", "") != "marketing.center.source"
+            or len(source) != 1
+        ):
+            raise ValidationError(_("A single valid marketing source is required."))
+        return company.id, source.id
 
     @api.model
     def _validated_scope(self, company, source):

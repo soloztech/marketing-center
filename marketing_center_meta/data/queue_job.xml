@@ -5,7 +5,10 @@
         <field name="parent_id" ref="queue_job.channel_root" />
     </record>
 
-    <record id="queue_job_function_meta_profile_validate" model="queue.job.function">
+    <record
+    id="queue_job_function_meta_profile_validate"
+    model="queue.job.function"
+  >
         <field name="model_id" ref="model_marketing_center_meta_profile" />
         <field name="method">_job_validate_read_profile</field>
         <field name="channel_id" ref="queue_job_channel_marketing_meta" />
@@ -15,7 +18,10 @@
     />
     </record>
 
-    <record id="queue_job_function_meta_profile_discover" model="queue.job.function">
+    <record
+    id="queue_job_function_meta_profile_discover"
+    model="queue.job.function"
+  >
         <field name="model_id" ref="model_marketing_center_meta_profile" />
         <field name="method">_job_discover_read_sources</field>
         <field name="channel_id" ref="queue_job_channel_marketing_meta" />
@@ -25,7 +31,10 @@
     />
     </record>
 
-    <record id="queue_job_function_meta_catalog_page" model="queue.job.function">
+    <record
+    id="queue_job_function_meta_catalog_page"
+    model="queue.job.function"
+  >
         <field
       name="model_id"
       ref="marketing_center_base.model_marketing_center_sync_run"
@@ -38,12 +47,41 @@
     />
     </record>
 
-    <record id="queue_job_function_meta_insights_page" model="queue.job.function">
+    <record
+    id="queue_job_function_meta_insights_page"
+    model="queue.job.function"
+  >
         <field
       name="model_id"
       ref="marketing_center_base.model_marketing_center_sync_run"
     />
         <field name="method">_job_sync_meta_insights_page</field>
+        <field name="channel_id" ref="queue_job_channel_marketing_meta" />
+        <field
+      name="retry_pattern"
+      eval="{1: 10, 2: 30, 3: 60, 4: 120, 5: 300, 6: 600, 7: 1200, 8: 1800}"
+    />
+    </record>
+
+    <record id="queue_job_function_meta_lead_fetch" model="queue.job.function">
+        <field
+      name="model_id"
+      ref="model_marketing_center_meta_lead_submission"
+    />
+        <field name="method">_job_fetch_meta_lead</field>
+        <field name="channel_id" ref="queue_job_channel_marketing_meta" />
+        <field
+      name="retry_pattern"
+      eval="{1: 10, 2: 30, 3: 60, 4: 120, 5: 300, 6: 600, 7: 1200, 8: 1800}"
+    />
+    </record>
+
+    <record
+    id="queue_job_function_meta_lead_reconcile"
+    model="queue.job.function"
+  >
+        <field name="model_id" ref="model_marketing_center_meta_lead_route" />
+        <field name="method">_job_reconcile_meta_leads_page</field>
         <field name="channel_id" ref="queue_job_channel_marketing_meta" />
         <field
       name="retry_pattern"

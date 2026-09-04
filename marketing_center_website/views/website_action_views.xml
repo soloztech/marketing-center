@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+  <record id="view_marketing_website_action_tree" model="ir.ui.view">
+    <field name="name">marketing.website.action.tree</field>
+    <field name="model">marketing.website.action</field>
+    <field name="arch" type="xml">
+      <tree decoration-muted="not active">
+        <field name="name" />
+        <field name="website_id" />
+        <field name="company_id" />
+        <field name="kind" />
+        <field name="route_ref" />
+        <field name="form_model_id" optional="show" />
+        <field name="active" />
+      </tree>
+    </field>
+  </record>
+
+  <record id="view_marketing_website_action_form" model="ir.ui.view">
+    <field name="name">marketing.website.action.form</field>
+    <field name="model">marketing.website.action</field>
+    <field name="arch" type="xml">
+      <form>
+        <sheet>
+          <div class="oe_button_box" name="button_box">
+            <button
+              name="toggle_active"
+              type="object"
+              class="oe_stat_button"
+              icon="fa-archive"
+            >
+              <field name="active" widget="boolean_button" />
+            </button>
+          </div>
+          <div class="oe_title">
+            <label for="name" />
+            <h1><field name="name" /></h1>
+          </div>
+          <group>
+            <group>
+              <field
+                name="binding_id"
+                attrs="{'readonly': [('id', '!=', False)]}"
+              />
+              <field name="website_id" readonly="1" />
+              <field name="company_id" readonly="1" />
+              <field name="kind" attrs="{'readonly': [('id', '!=', False)]}" />
+            </group>
+            <group>
+              <field name="public_ref" readonly="1" />
+              <field
+                name="route_ref"
+                attrs="{'readonly': [('id', '!=', False)]}"
+              />
+              <field
+                name="source_path"
+                attrs="{'readonly': [('id', '!=', False)]}"
+              />
+              <field name="token_ttl_seconds" />
+            </group>
+          </group>
+          <group
+            string="Successful Website form"
+            attrs="{'invisible': [('kind', '!=', 'form_submission')]}"
+          >
+            <field
+              name="form_model_id"
+              options="{'no_create': True, 'no_open': True}"
+              attrs="{'required': [('kind', '=', 'form_submission')], 'readonly': [('id', '!=', False)]}"
+            />
+          </group>
+          <group
+            string="WhatsApp handoff"
+            attrs="{'invisible': [('kind', '!=', 'whatsapp_handoff')]}"
+          >
+            <field
+              name="whatsapp_destination"
+              attrs="{'required': [('kind', '=', 'whatsapp_handoff')], 'readonly': [('id', '!=', False)]}"
+            />
+            <field name="fallback_path" />
+          </group>
+          <group string="Website marker">
+            <field name="marker_attribute" readonly="1" />
+          </group>
+          <div class="alert alert-info" role="alert">
+            Add the marker above to the corresponding native Website form or
+            WhatsApp link. Only this opaque reference is visible in the page.
+            The form body and the configured WhatsApp destination never enter
+            the tracking JavaScript.
+          </div>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="action_marketing_website_actions" model="ir.actions.act_window">
+    <field name="name">Website Actions</field>
+    <field name="res_model">marketing.website.action</field>
+    <field name="view_mode">tree,form</field>
+  </record>
+
+  <menuitem
+    id="menu_marketing_website_actions"
+    name="Website Actions"
+    parent="marketing_center_base.menu_marketing_center_configuration"
+    action="action_marketing_website_actions"
+    sequence="56"
+    groups="marketing_center_base.group_marketing_center_admin"
+  />
+</odoo>

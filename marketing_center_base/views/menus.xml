@@ -7,6 +7,21 @@
     groups="marketing_center_base.group_marketing_center_viewer"
   />
     <menuitem
+    id="menu_marketing_center_funnel"
+    name="Funnel"
+    parent="menu_marketing_center_root"
+    sequence="15"
+    groups="marketing_center_base.group_marketing_center_analyst"
+  />
+    <menuitem
+    id="menu_marketing_center_business_events"
+    name="Business Events"
+    parent="menu_marketing_center_funnel"
+    action="action_marketing_business_events"
+    sequence="10"
+    groups="marketing_center_base.group_marketing_center_analyst"
+  />
+    <menuitem
     id="menu_marketing_center_attribution"
     name="Attribution"
     parent="menu_marketing_center_root"
@@ -17,8 +32,24 @@
     id="menu_marketing_center_touchpoints"
     name="Touchpoints"
     parent="menu_marketing_center_attribution"
-    action="action_marketing_attribution_touchpoints"
+    action="action_marketing_attribution_effective_touchpoints"
     sequence="10"
+    groups="marketing_center_base.group_marketing_center_admin"
+  />
+    <menuitem
+    id="menu_marketing_center_attribution_results"
+    name="Results"
+    parent="menu_marketing_center_attribution"
+    action="action_marketing_attribution_results"
+    sequence="20"
+    groups="marketing_center_base.group_marketing_center_admin"
+  />
+    <menuitem
+    id="menu_marketing_center_attribution_models"
+    name="Models"
+    parent="menu_marketing_center_attribution"
+    action="action_marketing_attribution_models"
+    sequence="30"
     groups="marketing_center_base.group_marketing_center_admin"
   />
     <menuitem

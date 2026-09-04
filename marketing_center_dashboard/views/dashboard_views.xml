@@ -1,0 +1,660 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_marketing_dashboard_overview_kanban" model="ir.ui.view">
+        <field name="name">marketing.center.dashboard.overview.kanban</field>
+        <field name="model">marketing.center.dashboard.overview</field>
+        <field name="arch" type="xml">
+            <kanban
+        create="false"
+        edit="false"
+        delete="false"
+        group_create="false"
+        quick_create="false"
+        default_group_by="row_kind"
+      >
+                <field name="name" />
+                <field name="row_kind" />
+                <field name="company_id" />
+                <field name="source_id" />
+                <field name="source_state" />
+                <field name="service" />
+                <field name="timezone" />
+                <field name="currency_id" />
+                <field name="metric_origin" />
+                <field name="performance_grain" />
+                <field name="window_start_date" />
+                <field name="window_end_date" />
+                <field name="updated_at" />
+                <field name="performance_updated_at" />
+                <field name="freshness_state" />
+                <field name="freshness_hours" />
+                <field name="has_performance_data" />
+                <field name="has_clicks" />
+                <field name="clicks" />
+                <field name="has_cost" />
+                <field name="cost_amount" />
+                <field name="has_touchpoint_data" />
+                <field name="touchpoint_count" />
+                <field name="total_touchpoint_count" />
+                <field name="resolved_touchpoint_count" />
+                <field name="unresolved_touchpoint_count" />
+                <field name="resolution_coverage" />
+                <field name="has_contact_center" />
+                <field name="has_crm" />
+                <field name="has_sale" />
+                <field name="has_account" />
+                <field name="conversation_started_count" />
+                <field name="conversation_first_response_count" />
+                <field name="response_episode_started_count" />
+                <field name="response_episode_answered_count" />
+                <field name="lead_created_count" />
+                <field name="qualified_count" />
+                <field name="won_count" />
+                <field name="lost_count" />
+                <field name="proposal_sent_count" />
+                <field name="order_confirmed_count" />
+                <field name="order_cancelled_count" />
+                <field name="invoice_posted_count" />
+                <field name="credit_note_posted_count" />
+                <field name="payment_allocated_count" />
+                <field name="payment_allocation_reversed_count" />
+                <templates>
+                    <t t-name="kanban-box">
+                        <div class="oe_kanban_card oe_kanban_global_click">
+                            <t t-if="record.row_kind.raw_value === 'summary'">
+                                <div
+                  class="d-flex justify-content-between align-items-start"
+                >
+                                    <div>
+                                        <div
+                      class="text-uppercase text-muted small"
+                    >
+                                            Fatos da empresa · últimos 30 dias
+                                        </div>
+                                        <strong class="h4"><field
+                        name="company_id"
+                      /></strong>
+                                    </div>
+                                    <span
+                    class="badge badge-info"
+                  >Sem crédito causal</span>
+                                </div>
+                                <div class="mt-3 mb-2">
+                                    <t
+                    t-if="record.has_touchpoint_data.raw_value"
+                  >
+                                        <span class="h2"><field
+                        name="resolution_coverage"
+                      />%</span>
+                                        <div
+                      class="text-muted"
+                    >cobertura técnica de fonte</div>
+                                    </t>
+                                    <t t-else="">
+                                        <span class="h2">—</span>
+                                        <div
+                      class="text-muted"
+                    >nenhum touchpoint observado</div>
+                                    </t>
+                                </div>
+                                <div
+                  class="row no-gutters border-top border-bottom py-2"
+                >
+                                    <div class="col-4">
+                                        <strong><field
+                        name="total_touchpoint_count"
+                      /></strong>
+                                        <div
+                      class="small text-muted"
+                    >touchpoints efetivos</div>
+                                    </div>
+                                    <div class="col-4">
+                                        <strong><field
+                        name="resolved_touchpoint_count"
+                      /></strong>
+                                        <div
+                      class="small text-muted"
+                    >com fonte única</div>
+                                    </div>
+                                    <div class="col-4">
+                                        <strong><field
+                        name="unresolved_touchpoint_count"
+                      /></strong>
+                                        <div
+                      class="small text-muted"
+                    >sem fonte única</div>
+                                    </div>
+                                </div>
+                                <div
+                  class="mt-3"
+                  t-if="record.has_contact_center.raw_value"
+                >
+                                    <strong><field
+                      name="conversation_started_count"
+                    /></strong>
+                                    <span
+                    class="text-muted"
+                  > conversas iniciadas</span>
+                                    <span class="mx-1">·</span>
+                                    <strong><field
+                      name="conversation_first_response_count"
+                    /></strong>
+                                    <span
+                    class="text-muted"
+                  > com 1ª resposta</span>
+                                </div>
+                                <div
+                  class="mt-1"
+                  t-if="record.has_contact_center.raw_value"
+                >
+                                    <strong><field
+                      name="response_episode_started_count"
+                    /></strong>
+                                    <span
+                    class="text-muted"
+                  > ciclos de resposta</span>
+                                    <span class="mx-1">·</span>
+                                    <strong><field
+                      name="response_episode_answered_count"
+                    /></strong>
+                                    <span
+                    class="text-muted"
+                  > ciclos respondidos</span>
+                                </div>
+                                <div
+                  class="mt-1"
+                  t-if="record.has_crm.raw_value"
+                >
+                                    <strong><field
+                      name="lead_created_count"
+                    /></strong>
+                                    <span class="text-muted"> leads</span>
+                                    <span class="mx-1">·</span>
+                                    <strong><field
+                      name="qualified_count"
+                    /></strong>
+                                    <span
+                    class="text-muted"
+                  > qualificados</span>
+                                    <span class="mx-1">·</span>
+                                    <strong><field name="won_count" /></strong>
+                                    <span class="text-muted"> ganhos</span>
+                                </div>
+                                <div
+                  class="mt-1"
+                  t-if="record.has_sale.raw_value"
+                >
+                                    <strong><field
+                      name="proposal_sent_count"
+                    /></strong>
+                                    <span class="text-muted"> propostas</span>
+                                    <span class="mx-1">·</span>
+                                    <strong><field
+                      name="order_confirmed_count"
+                    /></strong>
+                                    <span
+                    class="text-muted"
+                  > pedidos confirmados</span>
+                                    <span class="mx-1">·</span>
+                                    <strong><field
+                      name="order_cancelled_count"
+                    /></strong>
+                                    <span class="text-muted"> cancelados</span>
+                                </div>
+                                <div
+                  class="mt-1"
+                  t-if="record.has_account.raw_value"
+                >
+                                    <strong><field
+                      name="invoice_posted_count"
+                    /></strong>
+                                    <span class="text-muted"> faturas</span>
+                                    <span class="mx-1">·</span>
+                                    <strong><field
+                      name="credit_note_posted_count"
+                    /></strong>
+                                    <span class="text-muted"> créditos</span>
+                                    <span class="mx-1">·</span>
+                                    <strong><field
+                      name="payment_allocated_count"
+                    /></strong>
+                                    <span
+                    class="text-muted"
+                  > alocações de pagamento</span>
+                                </div>
+                                <div class="mt-3 small text-muted">
+                                    Correlação e contagem operacional; nenhum valor foi creditado a uma campanha.
+                                </div>
+                                <button
+                  name="action_open_business_events"
+                  type="object"
+                  class="btn btn-link p-0 mt-2"
+                  groups="marketing_center_base.group_marketing_center_analyst"
+                >Ver fatos do Odoo</button>
+                            </t>
+
+                            <t
+                t-if="record.row_kind.raw_value === 'unresolved'"
+              >
+                                <div
+                  class="d-flex justify-content-between align-items-start"
+                >
+                                    <div>
+                                        <div
+                      class="text-uppercase text-muted small"
+                    >
+                                            Cobertura · últimos 30 dias
+                                        </div>
+                                        <strong
+                      class="h4"
+                    >Não atribuível</strong>
+                                    </div>
+                                    <span
+                    class="badge badge-warning"
+                  >Sem fonte única</span>
+                                </div>
+                                <div class="mt-3">
+                                    <span class="h2"><field
+                      name="touchpoint_count"
+                    /></span>
+                                    <div
+                    class="text-muted"
+                  >touchpoints efetivos ainda sem resolução única</div>
+                                </div>
+                                <div class="mt-3 small text-muted">
+                                    Esta linha evita distribuir sinais ambíguos entre fontes. Ela não representa uma campanha “orgânica” nem receita sem mídia.
+                                </div>
+                            </t>
+
+                            <t t-if="record.row_kind.raw_value === 'source'">
+                                <div
+                  class="d-flex justify-content-between align-items-start"
+                >
+                                    <div>
+                                        <div
+                      class="text-uppercase text-muted small"
+                    >
+                                            <field name="service" /> · <field
+                        name="source_state"
+                      />
+                                        </div>
+                                        <strong class="h4"><field
+                        name="source_id"
+                      /></strong>
+                                    </div>
+                                    <t
+                    t-if="record.freshness_state.raw_value === 'fresh'"
+                  >
+                                        <span
+                      class="badge badge-success"
+                    >Atualizada</span>
+                                    </t>
+                                    <t
+                    t-if="record.freshness_state.raw_value === 'delayed'"
+                  >
+                                        <span
+                      class="badge badge-warning"
+                    >Com atraso</span>
+                                    </t>
+                                    <t
+                    t-if="record.freshness_state.raw_value === 'partial'"
+                  >
+                                        <span
+                      class="badge badge-warning"
+                    >Sincronização incompleta · totais ocultados</span>
+                                    </t>
+                                    <t
+                    t-if="record.freshness_state.raw_value === 'stale'"
+                  >
+                                        <span
+                      class="badge badge-danger"
+                    >Desatualizada</span>
+                                    </t>
+                                    <t
+                    t-if="record.freshness_state.raw_value === 'no_data'"
+                  >
+                                        <span
+                      class="badge badge-secondary"
+                    >Sem performance</span>
+                                    </t>
+                                    <t
+                    t-if="record.freshness_state.raw_value === 'paused'"
+                  >
+                                        <span
+                      class="badge badge-secondary"
+                    >Leitura pausada</span>
+                                    </t>
+                                </div>
+                                <div class="small text-muted mt-1">
+                                    <field name="timezone" /> · <field
+                    name="currency_id"
+                  /> ·
+                                    <field name="performance_grain" />
+                                </div>
+                                <div
+                  class="row no-gutters border-top border-bottom py-2 mt-3"
+                >
+                                    <div class="col-4">
+                                        <t t-if="record.has_cost.raw_value">
+                                            <strong><field
+                          name="cost_amount"
+                        /></strong>
+                                        </t>
+                                        <t t-else=""><strong>—</strong></t>
+                                        <div
+                      class="small text-muted"
+                    >custo da plataforma</div>
+                                    </div>
+                                    <div class="col-4">
+                                        <t t-if="record.has_clicks.raw_value">
+                                            <strong><field
+                          name="clicks"
+                        /></strong>
+                                        </t>
+                                        <t t-else=""><strong>—</strong></t>
+                                        <div
+                      class="small text-muted"
+                    >cliques reportados</div>
+                                    </div>
+                                    <div class="col-4">
+                                        <strong><field
+                        name="touchpoint_count"
+                      /></strong>
+                                        <div
+                      class="small text-muted"
+                    >sinais com esta fonte</div>
+                                    </div>
+                                </div>
+                                <div class="mt-2 small text-muted">
+                                    Performance reportada pela plataforma; touchpoints são resolução técnica, não atribuição causal.
+                                </div>
+                                <div
+                  class="mt-2"
+                  t-if="record.performance_updated_at.raw_value"
+                >
+                                    <span
+                    class="text-muted small"
+                  >Atualizada em </span>
+                                    <field name="performance_updated_at" />
+                                </div>
+                                <button
+                  name="action_open_performance"
+                  type="object"
+                  class="btn btn-link p-0 mt-2"
+                >Ver performance diária</button>
+                            </t>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <record id="view_marketing_dashboard_overview_tree" model="ir.ui.view">
+        <field name="name">marketing.center.dashboard.overview.tree</field>
+        <field name="model">marketing.center.dashboard.overview</field>
+        <field name="arch" type="xml">
+            <tree create="false" edit="false" delete="false">
+                <field name="row_kind" />
+                <field name="name" />
+                <field name="company_id" groups="base.group_multi_company" />
+                <field name="source_id" optional="show" />
+                <field name="freshness_state" optional="show" />
+                <field name="has_cost" invisible="1" />
+                <field
+          name="cost_amount"
+          attrs="{'invisible': [('has_cost', '=', False)]}"
+          optional="show"
+        />
+                <field name="has_clicks" invisible="1" />
+                <field
+          name="clicks"
+          attrs="{'invisible': [('has_clicks', '=', False)]}"
+          optional="show"
+        />
+                <field name="touchpoint_count" optional="show" />
+                <field name="has_touchpoint_data" invisible="1" />
+                <field
+          name="resolution_coverage"
+          attrs="{'invisible': [('has_touchpoint_data', '=', False)]}"
+          optional="show"
+        />
+                <field name="updated_at" optional="show" />
+                <field name="window_start_date" optional="hide" />
+                <field name="window_end_date" optional="hide" />
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_marketing_dashboard_overview_form" model="ir.ui.view">
+        <field name="name">marketing.center.dashboard.overview.form</field>
+        <field name="model">marketing.center.dashboard.overview</field>
+        <field name="arch" type="xml">
+            <form create="false" edit="false" delete="false">
+                <sheet>
+                    <field name="row_kind" invisible="1" />
+                    <field name="has_contact_center" invisible="1" />
+                    <field name="has_crm" invisible="1" />
+                    <field name="has_sale" invisible="1" />
+                    <field name="has_account" invisible="1" />
+                    <div class="oe_title">
+                        <label for="name" />
+                        <h1><field name="name" /></h1>
+                    </div>
+                    <div
+            class="alert alert-info"
+            role="status"
+            attrs="{'invisible': [('row_kind', '!=', 'summary')]}"
+          >Fatos do Odoo e correlações são exibidos sem crédito causal para fonte, campanha ou anúncio.</div>
+                    <div
+            class="alert alert-warning"
+            role="status"
+            attrs="{'invisible': [('row_kind', '!=', 'unresolved')]}"
+          >Estes touchpoints não possuem uma única fonte tecnicamente resolvida e, por isso, não são distribuídos.</div>
+                    <group>
+                        <group>
+                            <field name="company_id" />
+                            <field
+                name="source_id"
+                attrs="{'invisible': [('row_kind', '!=', 'source')]}"
+              />
+                            <field
+                name="service"
+                attrs="{'invisible': [('row_kind', '!=', 'source')]}"
+              />
+                            <field
+                name="source_state"
+                attrs="{'invisible': [('row_kind', '!=', 'source')]}"
+              />
+                        </group>
+                        <group>
+                            <field name="window_start_date" />
+                            <field name="window_end_date" />
+                            <field name="updated_at" />
+                        </group>
+                    </group>
+                    <notebook>
+                        <page
+              string="Cobertura"
+              attrs="{'invisible': [('row_kind', '=', 'source')]}"
+            >
+                            <group>
+                                <field name="touchpoint_count" />
+                                <field name="total_touchpoint_count" />
+                                <field name="resolved_touchpoint_count" />
+                                <field name="unresolved_touchpoint_count" />
+                                <field
+                  name="has_touchpoint_data"
+                  invisible="1"
+                />
+                                <field
+                  name="resolution_coverage"
+                  attrs="{'invisible': [('has_touchpoint_data', '=', False)]}"
+                />
+                            </group>
+                        </page>
+                        <page
+              string="Performance da fonte"
+              attrs="{'invisible': [('row_kind', '!=', 'source')]}"
+            >
+                            <group>
+                                <group>
+                                    <field name="metric_origin" />
+                                    <field name="performance_grain" />
+                                    <field name="timezone" />
+                                    <field name="currency_id" />
+                                </group>
+                                <group>
+                                    <field name="freshness_state" />
+                                    <field name="freshness_hours" />
+                                    <field name="performance_updated_at" />
+                                    <field name="has_performance_data" />
+                                </group>
+                            </group>
+                            <group>
+                                <field name="has_cost" invisible="1" />
+                                <field
+                  name="cost_amount"
+                  attrs="{'invisible': [('has_cost', '=', False)]}"
+                />
+                                <field name="has_clicks" invisible="1" />
+                                <field
+                  name="clicks"
+                  attrs="{'invisible': [('has_clicks', '=', False)]}"
+                />
+                                <field name="touchpoint_count" />
+                            </group>
+                            <button
+                name="action_open_performance"
+                type="object"
+                class="oe_highlight"
+                string="Ver performance diária"
+              />
+                        </page>
+                        <page
+              string="Atendimento"
+              attrs="{'invisible': ['|', ('row_kind', '!=', 'summary'), ('has_contact_center', '=', False)]}"
+            >
+                            <group>
+                                <field name="conversation_started_count" />
+                                <field
+                  name="conversation_first_response_count"
+                />
+                                <field name="response_episode_started_count" />
+                                <field name="response_episode_answered_count" />
+                            </group>
+                        </page>
+                        <page
+              string="CRM"
+              attrs="{'invisible': ['|', ('row_kind', '!=', 'summary'), ('has_crm', '=', False)]}"
+            >
+                            <group>
+                                <field name="lead_created_count" />
+                                <field name="qualified_count" />
+                                <field name="won_count" />
+                                <field name="lost_count" />
+                            </group>
+                        </page>
+                        <page
+              string="Vendas"
+              attrs="{'invisible': ['|', ('row_kind', '!=', 'summary'), ('has_sale', '=', False)]}"
+            >
+                            <group>
+                                <field name="proposal_sent_count" />
+                                <field name="order_confirmed_count" />
+                                <field name="order_cancelled_count" />
+                            </group>
+                        </page>
+                        <page
+              string="Financeiro"
+              attrs="{'invisible': ['|', ('row_kind', '!=', 'summary'), ('has_account', '=', False)]}"
+            >
+                            <div class="alert alert-info" role="status">
+                                Contagens operacionais por documento e alocação. Valores não são somados aqui porque os fatos podem estar em moedas diferentes.
+                            </div>
+                            <group>
+                                <field name="invoice_posted_count" />
+                                <field name="credit_note_posted_count" />
+                                <field name="payment_allocated_count" />
+                                <field
+                  name="payment_allocation_reversed_count"
+                />
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_marketing_dashboard_overview_search" model="ir.ui.view">
+        <field name="name">marketing.center.dashboard.overview.search</field>
+        <field name="model">marketing.center.dashboard.overview</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name" />
+                <field name="source_id" />
+                <field name="company_id" groups="base.group_multi_company" />
+                <filter
+          name="sources"
+          string="Fontes"
+          domain="[('row_kind', '=', 'source')]"
+        />
+                <filter
+          name="needs_attention"
+          string="Performance requer atenção"
+          domain="[('row_kind', '=', 'source'), ('freshness_state', 'in', ('delayed', 'stale', 'no_data'))]"
+        />
+                <filter
+          name="unresolved"
+          string="Não atribuível"
+          domain="[('row_kind', '=', 'unresolved')]"
+        />
+                <group expand="0" string="Agrupar por">
+                    <filter
+            name="group_company"
+            string="Empresa"
+            context="{'group_by': 'company_id'}"
+          />
+                    <filter
+            name="group_kind"
+            string="Tipo de linha"
+            context="{'group_by': 'row_kind'}"
+          />
+                    <filter
+            name="group_freshness"
+            string="Freshness"
+            context="{'group_by': 'freshness_state'}"
+          />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record
+    id="action_marketing_dashboard_overview"
+    model="ir.actions.act_window"
+  >
+        <field name="name">Visão gerencial</field>
+        <field name="res_model">marketing.center.dashboard.overview</field>
+        <field name="view_mode">kanban,tree,form</field>
+        <field
+      name="search_view_id"
+      ref="view_marketing_dashboard_overview_search"
+    />
+        <field name="context">{'search_default_group_kind': 1}</field>
+        <field name="help" type="html"><p
+        class="o_view_nocontent_smiling_face"
+      >Configure uma fonte de marketing ou aguarde a primeira sincronização.</p><p
+      >Zeros não substituem dados ausentes; a tela identifica freshness e cobertura separadamente.</p></field>
+    </record>
+
+    <menuitem
+    id="menu_marketing_dashboard_overview"
+    name="Visão gerencial"
+    parent="marketing_center_base.menu_marketing_center_root"
+    action="action_marketing_dashboard_overview"
+    sequence="5"
+    groups="marketing_center_base.group_marketing_center_viewer"
+  />
+</odoo>

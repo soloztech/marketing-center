@@ -47,7 +47,7 @@ class TestMarketingPerformanceDTO(TransactionCase):
 
     def test_daily_bounds_timezone_currency_and_dimensions_are_strict(self):
         invalid_values = (
-            {"grain": "ad"},
+            {"grain": "creative"},
             {"currency": "REAL"},
             {"report_timezone": "Invalid/Timezone"},
             {"period_start_utc": datetime.datetime(2026, 8, 30, 0, 0)},
@@ -61,9 +61,64 @@ class TestMarketingPerformanceDTO(TransactionCase):
             ):
                 self._dto(**values)
 
+    def test_provider_neutral_daily_grains_are_canonical(self):
+        for grain in ("account", "campaign", "ad_group", "ad", "keyword"):
+            with self.subTest(grain=grain):
+                self.assertEqual(self._dto(grain=grain).grain, grain)
+
     def test_at_least_one_metric_is_required(self):
         with self.assertRaises(PerformanceDTOValidationError):
             self._dto(impressions=None, clicks=None, cost_micros=None)
+
+    def test_date_max_is_rejected_as_a_dto_validation_error(self):
+        with self.assertRaises(PerformanceDTOValidationError):
+            self._dto(
+                report_date=datetime.date.max,
+                period_start_utc=datetime.datetime.max.replace(microsecond=0),
+                period_end_utc=datetime.datetime.max.replace(microsecond=0),
+            )
+
+    def test_midnight_dst_gaps_use_first_valid_local_instant(self):
+        cases = (
+            (
+                "America/Santiago",
+                datetime.date(2026, 9, 6),
+                datetime.datetime(2026, 9, 6, 4, 0),
+                datetime.datetime(2026, 9, 7, 3, 0),
+            ),
+            (
+                "America/Havana",
+                datetime.date(2026, 3, 8),
+                datetime.datetime(2026, 3, 8, 5, 0),
+                datetime.datetime(2026, 3, 9, 4, 0),
+            ),
+            (
+                "Asia/Beirut",
+                datetime.date(2026, 3, 29),
+                datetime.datetime(2026, 3, 28, 22, 0),
+                datetime.datetime(2026, 3, 29, 21, 0),
+            ),
+        )
+        for timezone, report_date, start, end in cases:
+            with self.subTest(timezone=timezone):
+                dto = self._dto(
+                    report_timezone=timezone,
+                    report_date=report_date,
+                    period_start_utc=start,
+                    period_end_utc=end,
+                )
+                self.assertEqual(dto.period_start_utc, start)
+                self.assertEqual(dto.period_end_utc, end)
+
+    def test_ambiguous_midnight_chooses_the_earliest_utc_occurrence(self):
+        dto = self._dto(
+            report_timezone="America/Havana",
+            report_date=datetime.date(2026, 11, 1),
+            period_start_utc=datetime.datetime(2026, 11, 1, 4, 0),
+            period_end_utc=datetime.datetime(2026, 11, 2, 5, 0),
+        )
+        self.assertEqual(dto.period_start_utc, datetime.datetime(2026, 11, 1, 4, 0))
+        self.assertEqual(dto.period_end_utc, datetime.datetime(2026, 11, 2, 5, 0))
 
     def test_page_rejects_duplicate_identity_and_unsafe_errors(self):
         metric = self._dto()

@@ -1,7 +1,7 @@
 {
     "name": "Marketing Center - Contact Center Bridge",
     "summary": "Project Contact Center acquisition evidence into Marketing Center",
-    "version": "16.0.1.0.0",
+    "version": "16.0.3.3.0",
     "category": "Marketing",
     "author": "Soloz Technologies",
     "website": "https://github.com/lcsztl/marketing-center",
@@ -12,7 +12,9 @@
         "security/ir.model.access.csv",
         "data/queue_job.xml",
         "views/attribution_link_views.xml",
+        "views/response_episode_views.xml",
     ],
+    "post_init_hook": "post_init_hook",
     "installable": True,
     "application": False,
 }

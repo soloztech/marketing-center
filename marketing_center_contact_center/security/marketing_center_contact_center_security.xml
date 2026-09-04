@@ -28,4 +28,70 @@
       eval="[(4, ref('group_marketing_contact_center_admin'))]"
     />
     </record>
+
+    <record
+    id="rule_marketing_contact_center_response_episode_company"
+    model="ir.rule"
+  >
+        <field
+      name="name"
+    >Marketing Contact Center response episodes by active company</field>
+        <field
+      name="model_id"
+      ref="model_marketing_contact_center_response_episode"
+    />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_contact_center_admin'))]"
+    />
+    </record>
+
+    <record id="rule_marketing_contact_center_response_company" model="ir.rule">
+        <field
+      name="name"
+    >Marketing Contact Center responses by active company</field>
+        <field name="model_id" ref="model_marketing_contact_center_response" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_contact_center_admin'))]"
+    />
+    </record>
+
+    <record
+    id="rule_marketing_contact_center_response_signal_company"
+    model="ir.rule"
+  >
+        <field
+      name="name"
+    >Marketing Contact Center response signals by active company</field>
+        <field
+      name="model_id"
+      ref="model_marketing_contact_center_response_signal"
+    />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_contact_center_admin'))]"
+    />
+    </record>
+
+    <record
+    id="rule_marketing_contact_center_response_cursor_company"
+    model="ir.rule"
+  >
+        <field
+      name="name"
+    >Marketing Contact Center response cursors by active company</field>
+        <field
+      name="model_id"
+      ref="model_marketing_contact_center_response_cursor"
+    />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_contact_center_admin'))]"
+    />
+    </record>
 </odoo>

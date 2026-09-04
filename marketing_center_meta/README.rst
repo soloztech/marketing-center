@@ -7,8 +7,10 @@ discovers Meta ad accounts into the provider-neutral source and connection model
 Each discovered account can enqueue a read-only catalog sweep into the canonical
 ``marketing.center.sync.run``, cursor and external-entity ledgers.
 
-No App secret or access token is stored in PostgreSQL. A profile stores two opaque
-references using one of these backends:
+No App secret or access token is stored in PostgreSQL. The shared ``meta.api.app``
+stores the opaque App Secret reference; each Ads or Lead Ads reader profile stores
+its own opaque access-token reference. Each reference selects one of these backends
+independently:
 
 * ``environment``: environment variable names such as
   ``ODOO_META_MARKETING_APP_SECRET`` and ``ODOO_META_MARKETING_ACCESS_TOKEN``;
@@ -28,5 +30,13 @@ exactly to micros, respects the ad-account timezone and preserves missing metric
 missing. Actions, conversions, attribution settings and breakdowns are intentionally
 outside this first contract.
 
+Lead Ads routes bind one App, Page and Instant Form. A signed webhook callback stores
+only a durable, sanitized routing hint and queues an authenticated Graph v26 GET.
+Private ``field_data`` answers are restricted to system administrators; the
+provider-neutral attribution ledger receives only hashed/masked identifiers and safe
+asset references. A bounded, cursor-based pull reconciler repairs missed callbacks
+through the same idempotent submission and touchpoint projection. It does not create
+or update CRM leads.
+
 UI buttons enqueue OCA jobs; no Meta request runs in the browser request transaction.
-Campaign mutation, Lead Ads ingestion and CAPI remain disabled.
+Campaign mutation, automatic CRM lead creation and CAPI remain disabled.

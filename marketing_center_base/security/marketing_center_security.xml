@@ -64,6 +64,62 @@
     />
     </record>
 
+    <record
+    id="rule_marketing_attribution_effective_touchpoint_company"
+    model="ir.rule"
+  >
+        <field
+      name="name"
+    >Effective marketing touchpoints by active company</field>
+        <field
+      name="model_id"
+      ref="model_marketing_attribution_effective_touchpoint"
+    />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_admin'))]"
+    />
+    </record>
+
+    <record
+    id="rule_marketing_attribution_asset_resolution_roster"
+    model="ir.rule"
+  >
+        <field
+      name="name"
+    >Attribution asset resolutions by source roster</field>
+        <field
+      name="model_id"
+      ref="model_marketing_attribution_asset_resolution"
+    />
+        <field
+      name="domain_force"
+    >[('company_id', 'in', company_ids), ('source_id.active', '=', True), ('source_id.access_user_ids', 'in', user.id)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_viewer'))]"
+    />
+    </record>
+
+    <record
+    id="rule_marketing_attribution_asset_resolution_admin_company"
+    model="ir.rule"
+  >
+        <field
+      name="name"
+    >Attribution asset resolutions by administrator company</field>
+        <field
+      name="model_id"
+      ref="model_marketing_attribution_asset_resolution"
+    />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_admin'))]"
+    />
+    </record>
+
     <record id="rule_marketing_attribution_evidence_company" model="ir.rule">
         <field name="name">Marketing evidence by active company</field>
         <field name="model_id" ref="model_marketing_attribution_evidence" />
@@ -89,7 +145,7 @@
         <field name="model_id" ref="model_marketing_center_team" />
         <field
       name="domain_force"
-    >[('company_id', 'in', company_ids), ('access_user_ids', 'in', user.id)]</field>
+    >[('company_id', 'in', company_ids), ('active', '=', True), ('access_user_ids', 'in', user.id)]</field>
         <field
       name="groups"
       eval="[(4, ref('group_marketing_center_viewer'))]"
@@ -111,7 +167,7 @@
         <field name="model_id" ref="model_marketing_center_team_member" />
         <field
       name="domain_force"
-    >[('company_id', 'in', company_ids), ('active', '=', True), ('team_id.access_user_ids', 'in', user.id)]</field>
+    >[('company_id', 'in', company_ids), ('active', '=', True), ('team_id.active', '=', True), ('team_id.access_user_ids', 'in', user.id)]</field>
         <field
       name="groups"
       eval="[(4, ref('group_marketing_center_viewer'))]"
@@ -135,7 +191,7 @@
         <field name="model_id" ref="model_marketing_center_team_source" />
         <field
       name="domain_force"
-    >[('company_id', 'in', company_ids), ('active', '=', True), ('team_id.access_user_ids', 'in', user.id)]</field>
+    >[('company_id', 'in', company_ids), ('active', '=', True), ('team_id.active', '=', True), ('team_id.access_user_ids', 'in', user.id)]</field>
         <field
       name="groups"
       eval="[(4, ref('group_marketing_center_viewer'))]"
@@ -159,7 +215,7 @@
         <field name="model_id" ref="model_marketing_center_source" />
         <field
       name="domain_force"
-    >[('company_id', 'in', company_ids), ('access_user_ids', 'in', user.id)]</field>
+    >[('company_id', 'in', company_ids), ('active', '=', True), ('access_user_ids', 'in', user.id)]</field>
         <field
       name="groups"
       eval="[(4, ref('group_marketing_center_viewer'))]"
@@ -193,7 +249,7 @@
         <field name="model_id" ref="model_marketing_center_external_entity" />
         <field
       name="domain_force"
-    >[('company_id', 'in', company_ids), ('source_id.access_user_ids', 'in', user.id)]</field>
+    >[('company_id', 'in', company_ids), ('source_id.active', '=', True), ('source_id.access_user_ids', 'in', user.id)]</field>
         <field
       name="groups"
       eval="[(4, ref('group_marketing_center_viewer'))]"
@@ -218,7 +274,7 @@
     />
         <field
       name="domain_force"
-    >[('company_id', 'in', company_ids), ('source_id.access_user_ids', 'in', user.id)]</field>
+    >[('company_id', 'in', company_ids), ('source_id.active', '=', True), ('source_id.access_user_ids', 'in', user.id)]</field>
         <field
       name="groups"
       eval="[(4, ref('group_marketing_center_viewer'))]"
@@ -245,7 +301,7 @@
         <field name="model_id" ref="model_marketing_center_sync_run" />
         <field
       name="domain_force"
-    >[('company_id', 'in', company_ids), ('source_id.access_user_ids', 'in', user.id)]</field>
+    >[('company_id', 'in', company_ids), ('source_id.active', '=', True), ('source_id.access_user_ids', 'in', user.id)]</field>
         <field
       name="groups"
       eval="[(4, ref('group_marketing_center_viewer'))]"
@@ -257,7 +313,7 @@
         <field name="model_id" ref="model_marketing_center_metric_daily" />
         <field
       name="domain_force"
-    >[('company_id', 'in', company_ids), ('source_id.access_user_ids', 'in', user.id)]</field>
+    >[('company_id', 'in', company_ids), ('source_id.active', '=', True), ('source_id.access_user_ids', 'in', user.id)]</field>
         <field
       name="groups"
       eval="[(4, ref('group_marketing_center_viewer'))]"
@@ -279,7 +335,7 @@
         <field name="model_id" ref="model_marketing_center_metric_revision" />
         <field
       name="domain_force"
-    >[('company_id', 'in', company_ids), ('source_id.access_user_ids', 'in', user.id)]</field>
+    >[('company_id', 'in', company_ids), ('source_id.active', '=', True), ('source_id.access_user_ids', 'in', user.id)]</field>
         <field
       name="groups"
       eval="[(4, ref('group_marketing_center_viewer'))]"
@@ -287,7 +343,9 @@
     </record>
 
     <record id="rule_marketing_metric_revision_admin_company" model="ir.rule">
-        <field name="name">Marketing metric revisions by administrator company</field>
+        <field
+      name="name"
+    >Marketing metric revisions by administrator company</field>
         <field name="model_id" ref="model_marketing_center_metric_revision" />
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>
         <field
@@ -311,6 +369,95 @@
       name="name"
     >Marketing sync cursors by administrator company</field>
         <field name="model_id" ref="model_marketing_center_sync_cursor" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_admin'))]"
+    />
+    </record>
+
+    <record id="rule_marketing_business_event_company" model="ir.rule">
+        <field name="name">Marketing business events by active company</field>
+        <field name="model_id" ref="model_marketing_business_event" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_analyst'))]"
+    />
+    </record>
+
+    <record
+    id="rule_marketing_business_event_observation_company"
+    model="ir.rule"
+  >
+        <field
+      name="name"
+    >Marketing business-event observations by active company</field>
+        <field
+      name="model_id"
+      ref="model_marketing_business_event_observation"
+    />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_analyst'))]"
+    />
+    </record>
+
+    <record id="rule_marketing_attribution_model_company" model="ir.rule">
+        <field name="name">Attribution models by active company</field>
+        <field name="model_id" ref="model_marketing_attribution_model" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_admin'))]"
+    />
+    </record>
+
+    <record
+    id="rule_marketing_attribution_calculation_run_company"
+    model="ir.rule"
+  >
+        <field
+      name="name"
+    >Attribution calculation runs by active company</field>
+        <field
+      name="model_id"
+      ref="model_marketing_attribution_calculation_run"
+    />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_admin'))]"
+    />
+    </record>
+
+    <record id="rule_marketing_attribution_result_company" model="ir.rule">
+        <field name="name">Attribution results by active company</field>
+        <field name="model_id" ref="model_marketing_attribution_result" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_admin'))]"
+    />
+    </record>
+
+    <record id="rule_marketing_attribution_candidate_company" model="ir.rule">
+        <field name="name">Attribution candidates by active company</field>
+        <field name="model_id" ref="model_marketing_attribution_candidate" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('group_marketing_center_admin'))]"
+    />
+    </record>
+
+    <record
+    id="rule_marketing_attribution_contribution_company"
+    model="ir.rule"
+  >
+        <field name="name">Attribution contributions by active company</field>
+        <field name="model_id" ref="model_marketing_attribution_contribution" />
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>
         <field
       name="groups"

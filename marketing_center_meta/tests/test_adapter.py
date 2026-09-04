@@ -1,38 +1,73 @@
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from odoo.tests.common import SavepointCase
 
+from odoo.addons.meta_api_base.services import (
+    META_API_RUNTIME_CONTEXT_KEY,
+    META_API_RUNTIME_TOKEN,
+)
+from odoo.addons.meta_api_base.services.credentials import MetaRuntimeApp
 from odoo.addons.meta_api_base.services.errors import MetaApiError, MetaApiPausedError
 
 from ..services.adapter import MetaMarketingReadAdapter
-from ..services.credentials import MetaResolvedCredentials
 
 
 class TestMetaMarketingReadAdapter(SavepointCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.profile = SimpleNamespace(
+        cls.runtime_app = MetaRuntimeApp(
             active=True,
             external_app_id="123456789",
             graph_version="v26.0",
+            app_secret="synthetic-meta-app-secret",
+            public_ref="4f99eec2-786f-4f9a-a174-b80c752dd9d2",
+            revision=7,
+            company_id=cls.env.company.id,
+        )
+        cls.meta_app = Mock()
+        cls.meta_app.with_context.return_value = cls.meta_app
+        cls.meta_app._resolve_runtime.return_value = cls.runtime_app
+        cls.profile = SimpleNamespace(
+            meta_app_id=cls.meta_app,
+            credential_backend="environment",
+            access_token_ref="ODOO_META_READER_TOKEN",
             required_scope_keys=lambda: ("ads_read",),
             ensure_one=lambda: True,
-        )
-        cls.credentials = MetaResolvedCredentials(
-            app_secret="synthetic-meta-app-secret",
-            access_token="synthetic-meta-reader-token",
         )
 
     def _adapter(self):
         patcher = patch(
-            "odoo.addons.marketing_center_meta.services.adapter.resolve_profile_credentials",
-            return_value=self.credentials,
+            "odoo.addons.marketing_center_meta.services.adapter.resolve_secret",
+            return_value="synthetic-meta-reader-token",
         )
         self.addCleanup(patcher.stop)
         patcher.start()
-        return MetaMarketingReadAdapter(self.profile)
+        return MetaMarketingReadAdapter(
+            self.profile,
+            expected_app_revision=self.runtime_app.revision,
+        )
+
+    def test_runtime_uses_shared_app_revision_and_profile_token_reference(self):
+        with patch(
+            "odoo.addons.marketing_center_meta.services.adapter.resolve_secret",
+            return_value="synthetic-meta-reader-token",
+        ) as resolve:
+            MetaMarketingReadAdapter(
+                self.profile,
+                expected_app_revision=self.runtime_app.revision,
+            )
+        self.meta_app._resolve_runtime.assert_called_with(
+            expected_revision=self.runtime_app.revision
+        )
+        self.meta_app.with_context.assert_called_with(
+            **{META_API_RUNTIME_CONTEXT_KEY: META_API_RUNTIME_TOKEN}
+        )
+        resolve.assert_called_once_with(
+            self.profile.credential_backend,
+            self.profile.access_token_ref,
+        )
 
     def test_validation_proves_app_scope_and_read_capabilities(self):
         payload = {

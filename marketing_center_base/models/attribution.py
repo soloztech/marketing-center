@@ -24,6 +24,12 @@ EVIDENCE_LEVELS = [
     ("provider_asserted_non_paid", "Provider asserted non-paid"),
     ("provider_hint", "Provider hint"),
 ]
+REVISION_KINDS = [
+    ("observation", "Observation"),
+    ("enrichment", "Enrichment"),
+    ("correction", "Correction"),
+    ("conflict", "Explicit conflict"),
+]
 
 
 class ImmutableAttributionMixin(models.AbstractModel):
@@ -85,6 +91,13 @@ class MarketingAttributionTouchpoint(models.Model):
     evidence_level = fields.Selection(
         EVIDENCE_LEVELS, required=True, index=True, readonly=True
     )
+    revision_kind = fields.Selection(
+        REVISION_KINDS,
+        required=True,
+        default="observation",
+        index=True,
+        readonly=True,
+    )
     landing_url = fields.Char(readonly=True)
     referrer_url = fields.Char(readonly=True)
     utm_source = fields.Char(index=True, readonly=True)
@@ -128,11 +141,6 @@ class MarketingAttributionTouchpoint(models.Model):
             "public_ref_unique",
             "unique(public_ref)",
             "The marketing touchpoint public reference must be unique.",
-        ),
-        (
-            "canonical_content_unique",
-            "unique(company_id, canonical_key, content_hash)",
-            "This marketing touchpoint revision already exists.",
         ),
         (
             "canonical_revision_unique",
@@ -225,6 +233,8 @@ class MarketingAttributionEvidence(models.Model):
             ("accepted", "Accepted"),
             ("conflict", "Conflict"),
             ("duplicate", "Duplicate observation"),
+            ("enriched", "Enriched"),
+            ("revised", "Revised"),
         ],
         required=True,
         index=True,

@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_google_change_observation_tree" model="ir.ui.view">
+        <field
+      name="name"
+    >marketing.center.google.change.observation.tree</field>
+        <field name="model">marketing.center.google.change.observation</field>
+        <field name="arch" type="xml">
+            <tree create="false" edit="false" delete="false">
+                <field name="occurred_at" />
+                <field name="source_id" />
+                <field name="resource_type" />
+                <field name="operation" />
+                <field name="resource_ref" />
+                <field name="client_type" />
+                <field name="company_id" groups="base.group_multi_company" />
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_google_change_observation_form" model="ir.ui.view">
+        <field
+      name="name"
+    >marketing.center.google.change.observation.form</field>
+        <field name="model">marketing.center.google.change.observation</field>
+        <field name="arch" type="xml">
+            <form create="false" edit="false" delete="false">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="occurred_at" />
+                            <field name="company_id" />
+                            <field name="source_id" />
+                            <field name="customer_ref" />
+                            <field name="resource_type" />
+                            <field name="resource_ref" />
+                        </group>
+                        <group>
+                            <field name="operation" />
+                            <field name="client_type" />
+                            <field name="changed_fields_json" />
+                            <field name="observed_at" />
+                            <field name="contract_version" />
+                        </group>
+                    </group>
+                    <group
+            string="Technical fence"
+            groups="marketing_center_base.group_marketing_center_admin"
+          >
+                        <field name="event_ref" />
+                        <field name="connection_id" />
+                        <field name="profile_id" />
+                        <field name="profile_revision" />
+                        <field name="identity_revision" />
+                        <field name="sync_run_id" />
+                        <field name="actor_hash" />
+                        <field name="content_hash" />
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_google_change_observation_search" model="ir.ui.view">
+        <field
+      name="name"
+    >marketing.center.google.change.observation.search</field>
+        <field name="model">marketing.center.google.change.observation</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="source_id" />
+                <field name="resource_ref" />
+                <field name="resource_type" />
+                <field name="operation" />
+                <field name="occurred_at" />
+                <filter
+          name="group_source"
+          string="Source"
+          context="{'group_by': 'source_id'}"
+        />
+                <filter
+          name="group_resource_type"
+          string="Resource type"
+          context="{'group_by': 'resource_type'}"
+        />
+                <filter
+          name="group_operation"
+          string="Operation"
+          context="{'group_by': 'operation'}"
+        />
+            </search>
+        </field>
+    </record>
+
+    <record
+    id="action_google_change_observations"
+    model="ir.actions.act_window"
+  >
+        <field name="name">Google Ads Change History</field>
+        <field
+      name="res_model"
+    >marketing.center.google.change.observation</field>
+        <field name="view_mode">tree,form</field>
+        <field
+      name="search_view_id"
+      ref="view_google_change_observation_search"
+    />
+    </record>
+
+    <record id="view_google_diagnostic_observation_tree" model="ir.ui.view">
+        <field
+      name="name"
+    >marketing.center.google.diagnostic.observation.tree</field>
+        <field
+      name="model"
+    >marketing.center.google.diagnostic.observation</field>
+        <field name="arch" type="xml">
+            <tree create="false" edit="false" delete="false">
+                <field name="observed_at" />
+                <field name="source_id" />
+                <field name="asset_type" />
+                <field name="asset_ref" />
+                <field
+          name="severity"
+          decoration-danger="severity == 'error'"
+          decoration-warning="severity == 'warning'"
+          decoration-info="severity == 'info'"
+          decoration-success="severity == 'ok'"
+        />
+                <field name="primary_status" />
+                <field name="configured_status" />
+                <field name="company_id" groups="base.group_multi_company" />
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_google_diagnostic_observation_form" model="ir.ui.view">
+        <field
+      name="name"
+    >marketing.center.google.diagnostic.observation.form</field>
+        <field
+      name="model"
+    >marketing.center.google.diagnostic.observation</field>
+        <field name="arch" type="xml">
+            <form create="false" edit="false" delete="false">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="observed_at" />
+                            <field name="company_id" />
+                            <field name="source_id" />
+                            <field name="customer_ref" />
+                            <field name="asset_type" />
+                            <field name="asset_ref" />
+                        </group>
+                        <group>
+                            <field name="severity" />
+                            <field name="configured_status" />
+                            <field name="primary_status" />
+                            <field name="status_reasons_json" />
+                            <field name="policy_approval_status" />
+                            <field name="policy_review_status" />
+                            <field name="policy_topics_json" />
+                        </group>
+                    </group>
+                    <group
+            string="Technical fence"
+            groups="marketing_center_base.group_marketing_center_admin"
+          >
+                        <field name="observation_key" />
+                        <field name="connection_id" />
+                        <field name="profile_id" />
+                        <field name="profile_revision" />
+                        <field name="identity_revision" />
+                        <field name="sync_run_id" />
+                        <field name="content_hash" />
+                        <field name="contract_version" />
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_google_diagnostic_observation_search" model="ir.ui.view">
+        <field
+      name="name"
+    >marketing.center.google.diagnostic.observation.search</field>
+        <field
+      name="model"
+    >marketing.center.google.diagnostic.observation</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="source_id" />
+                <field name="asset_ref" />
+                <field name="asset_type" />
+                <field name="severity" />
+                <field name="primary_status" />
+                <filter
+          name="attention"
+          string="Needs attention"
+          domain="[('severity', 'in', ['warning', 'error'])]"
+        />
+                <filter
+          name="group_source"
+          string="Source"
+          context="{'group_by': 'source_id'}"
+        />
+                <filter
+          name="group_asset_type"
+          string="Asset type"
+          context="{'group_by': 'asset_type'}"
+        />
+                <filter
+          name="group_severity"
+          string="Severity"
+          context="{'group_by': 'severity'}"
+        />
+            </search>
+        </field>
+    </record>
+
+    <record
+    id="action_google_diagnostic_observations"
+    model="ir.actions.act_window"
+  >
+        <field name="name">Google Ads Delivery Diagnostics</field>
+        <field
+      name="res_model"
+    >marketing.center.google.diagnostic.observation</field>
+        <field name="view_mode">tree,form</field>
+        <field
+      name="search_view_id"
+      ref="view_google_diagnostic_observation_search"
+    />
+    </record>
+
+    <menuitem
+    id="menu_google_observability"
+    name="Google Ads Observability"
+    parent="marketing_center_base.menu_marketing_center_root"
+    sequence="35"
+    groups="marketing_center_base.group_marketing_center_manager"
+  />
+    <menuitem
+    id="menu_google_change_observations"
+    name="Change History"
+    parent="menu_google_observability"
+    action="action_google_change_observations"
+    sequence="10"
+    groups="marketing_center_base.group_marketing_center_manager"
+  />
+    <menuitem
+    id="menu_google_diagnostic_observations"
+    name="Delivery Diagnostics"
+    parent="menu_google_observability"
+    action="action_google_diagnostic_observations"
+    sequence="20"
+    groups="marketing_center_base.group_marketing_center_manager"
+  />
+</odoo>

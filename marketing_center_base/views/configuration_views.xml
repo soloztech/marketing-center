@@ -61,6 +61,11 @@
                             </field>
                         </page>
                         <page string="Team access">
+                            <div class="alert alert-info" role="status">
+                                Effective access is the intersection of the user's
+                                global Marketing Center group, active team role and
+                                this source assignment mode.
+                            </div>
                             <field name="team_source_ids" nolabel="1">
                                 <tree editable="bottom" delete="false">
                                     <field name="company_id" invisible="1" />
@@ -211,6 +216,11 @@
                     </group>
                     <notebook>
                         <page string="Members">
+                            <div class="alert alert-info" role="status">
+                                A team role never grants a global privilege. It only
+                                limits the capability already granted by the user's
+                                Marketing Center group.
+                            </div>
                             <field name="member_ids" nolabel="1">
                                 <tree editable="bottom" delete="false">
                                     <field name="user_id" />
@@ -220,6 +230,10 @@
                             </field>
                         </page>
                         <page string="Sources">
+                            <div class="alert alert-info" role="status">
+                                The source mode caps every active member's team role.
+                                Inactive teams, members and assignments grant no access.
+                            </div>
                             <field name="source_link_ids" nolabel="1">
                                 <tree editable="bottom" delete="false">
                                     <field name="company_id" invisible="1" />

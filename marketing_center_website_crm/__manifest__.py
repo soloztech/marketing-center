@@ -1,0 +1,25 @@
+{
+    "name": "Marketing Center - Website CRM Bridge",
+    "summary": "Correlate successful Odoo Website forms with CRM touchpoints",
+    "version": "16.0.1.5.2",
+    "category": "Marketing",
+    "author": "Soloz Technologies",
+    "website": "https://github.com/lcsztl/marketing-center",
+    "license": "AGPL-3",
+    "depends": [
+        "marketing_center_website",
+        "marketing_center_web_ingress",
+        "marketing_center_crm",
+        "website_crm",
+        "queue_job",
+    ],
+    "data": [
+        "security/marketing_center_website_crm_security.xml",
+        "security/ir.model.access.csv",
+        "data/queue_job.xml",
+        "data/recovery_cron.xml",
+        "views/intent_views.xml",
+    ],
+    "installable": True,
+    "application": False,
+}

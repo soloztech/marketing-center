@@ -1,5 +1,7 @@
 import logging
 
+import pytz
+
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
@@ -50,6 +52,96 @@ class MarketingCenterMetaCatalogService(models.AbstractModel):
     _description = "Marketing Center Meta Catalog Service"
 
     @api.model
+    def _scheduled_sources(self, source_ids=None, *, limit=50, scheduler_key):
+        try:
+            limit = int(limit)
+        except (TypeError, ValueError) as error:
+            raise ValidationError(
+                _("The scheduled source limit is invalid.")
+            ) from error
+        if isinstance(limit, bool) or limit < 1 or limit > 500:
+            raise ValidationError(_("The scheduled source limit is invalid."))
+        domain = [
+            ("active", "=", True),
+            ("service", "=", META_ADS_SERVICE),
+            ("state", "=", "active"),
+            ("read_enabled", "=", True),
+        ]
+        if source_ids is not None:
+            if not isinstance(source_ids, (list, tuple)) or any(
+                not isinstance(source_id, int)
+                or isinstance(source_id, bool)
+                or source_id <= 0
+                for source_id in source_ids
+            ):
+                raise ValidationError(_("The scheduled source IDs are invalid."))
+            domain.append(("id", "in", list(source_ids)))
+        source_model = self.env["marketing.center.source"].sudo()
+        if source_ids is not None:
+            return source_model.search(domain, order="id", limit=limit)
+        return source_model._fair_scheduler_batch(
+            domain,
+            cursor_key="meta.%s" % scheduler_key,
+            limit=limit,
+        )
+
+    @api.model
+    def _source_local_date(self, source, now=None):
+        instant = fields.Datetime.to_datetime(now or fields.Datetime.now())
+        if not instant:
+            raise ValidationError(_("The scheduling timestamp is invalid."))
+        if instant.tzinfo is None:
+            instant = pytz.UTC.localize(instant)
+        else:
+            instant = instant.astimezone(pytz.UTC)
+        try:
+            zone = pytz.timezone(source.timezone)
+        except pytz.UnknownTimeZoneError as error:
+            raise ValidationError(_("The Meta source timezone is invalid.")) from error
+        return instant.astimezone(zone).date()
+
+    @api.model
+    def _cron_enqueue_meta_catalog(self, source_ids=None, limit=50, now=None):
+        """Queue at most one complete catalog sweep per source and local day."""
+
+        result = {"queued": 0, "skipped": 0, "failed": 0}
+        for source in self._scheduled_sources(
+            source_ids, limit=limit, scheduler_key="catalog"
+        ):
+            scoped_service = self.with_company(source.company_id).with_context(
+                allowed_company_ids=[source.company_id.id]
+            )
+            scoped_source = scoped_service.env["marketing.center.source"].browse(
+                source.id
+            )
+            try:
+                with self.env.cr.savepoint():
+                    connection = scoped_service._reader_connection(scoped_source)
+                    local_date = scoped_service._source_local_date(scoped_source, now)
+                    run = scoped_service._plan_sweep(
+                        scoped_source,
+                        connection,
+                        trigger_kind="scheduled",
+                        trigger_ref="catalog:%s" % local_date.isoformat(),
+                    )
+                    if run.state != "planned":
+                        result["skipped"] += 1
+                        continue
+                    cursor_sequence = scoped_service._restart_catalog_cursor(run)
+                    scoped_service._enqueue_page(run, cursor_sequence)
+                    result["queued"] += 1
+            except Exception as error:  # pylint: disable=broad-except
+                # One invalid/rotating account cannot suppress all other tenants.
+                # Do not log exception text: provider errors may embed response data.
+                _logger.error(
+                    "Meta catalog scheduling failed for source %s (%s)",
+                    source.public_ref,
+                    error.__class__.__name__,
+                )
+                result["failed"] += 1
+        return result
+
+    @api.model
     def _reader_connection(self, source):
         source = source.sudo().exists()
         if (
@@ -88,7 +180,7 @@ class MarketingCenterMetaCatalogService(models.AbstractModel):
     ):
         profile = self._current_profile(connection)
         reporting_context = meta_catalog_sweep_reporting_context(
-            profile.graph_version,
+            profile.meta_app_id.graph_version,
             source.external_account_ref,
         )
         return self.env["marketing.center.sync.service"]._plan_run(
@@ -131,6 +223,49 @@ class MarketingCenterMetaCatalogService(models.AbstractModel):
         else:
             sync_service._write_run(run, {"queue_job_uuid": str(delayed.uuid)})
         return delayed
+
+    @api.model
+    def _restart_catalog_cursor(self, run):
+        """Start one authoritative catalog sweep at the hierarchy root.
+
+        The core cursor intentionally survives runs, which is useful for resumable
+        pagination inside one sweep.  A *new* full sweep, however, must not inherit
+        an opaque provider cursor left by a failed predecessor.  Reset only the
+        transport position; catalog entities/revisions remain idempotent evidence.
+        """
+
+        run = self._meta_run(run, allow_terminal=False)
+        if run.state != "planned":
+            raise ValidationError(
+                _("A Meta catalog sweep can restart only before it is queued.")
+            )
+        sync_service = self.env["marketing.center.sync.service"]
+        if not sync_service._validate_fencing(run):
+            raise ValidationError(
+                _("Meta catalog configuration changed before restart.")
+            )
+        cursor = sync_service._locked_cursor(run)
+        if not any(
+            (
+                cursor.cursor_value,
+                cursor.cursor_digest,
+                cursor.provider_job_ref,
+                cursor.watermark,
+            )
+        ):
+            return cursor.cursor_sequence
+        sync_service._write_cursor(
+            cursor,
+            {
+                "cursor_value": False,
+                "cursor_digest": False,
+                "provider_job_ref": False,
+                "watermark": False,
+                "cursor_sequence": cursor.cursor_sequence + 1,
+                "last_advanced_at": fields.Datetime.now(),
+            },
+        )
+        return cursor.cursor_sequence
 
     @api.model
     def _execute_page(self, run, *, expected_cursor_sequence):
@@ -222,7 +357,11 @@ class MarketingCenterMetaCatalogService(models.AbstractModel):
             )
         cursor_sequence, cursor_value = self._cursor_snapshot(run)
         if cursor_sequence != expected_cursor_sequence:
-            return {"cursor_changed": True}
+            return self._reschedule_current_cursor(
+                run,
+                job_uuid,
+                enqueue_method="_enqueue_page",
+            )
         try:
             stage, after = decode_meta_catalog_cursor(cursor_value)
         except MetaApiError as error:
@@ -238,7 +377,7 @@ class MarketingCenterMetaCatalogService(models.AbstractModel):
         expected_context_hash = sha256_text(
             canonical_json(
                 meta_catalog_sweep_reporting_context(
-                    profile.graph_version,
+                    profile.meta_app_id.graph_version,
                     run.source_id.external_account_ref,
                 )
             )
@@ -250,7 +389,10 @@ class MarketingCenterMetaCatalogService(models.AbstractModel):
     @api.model
     def _fetch_provider_page(self, run, job_uuid, profile, stage, after):
         try:
-            provider_page = MetaMarketingReadAdapter(profile).fetch_catalog_page(
+            provider_page = MetaMarketingReadAdapter(
+                profile,
+                expected_app_revision=profile.meta_app_id.revision,
+            ).fetch_catalog_page(
                 run.source_id.external_account_ref,
                 stage,
                 after=after,
@@ -357,7 +499,11 @@ class MarketingCenterMetaCatalogService(models.AbstractModel):
         if not self._lock_current_job(run, job_uuid):
             return {"orphan": True}
         meta_service = self.env["marketing.center.meta.service"]
-        if not meta_service._lock_current_profile(profile, run.profile_revision):
+        if not meta_service._lock_current_profile(
+            profile,
+            run.profile_revision,
+            profile.meta_app_id.revision,
+        ):
             return self._mark_stale_before_io(run, job_uuid)
         sync_service = self.env["marketing.center.sync.service"]
         if not sync_service._validate_fencing(run):
@@ -418,12 +564,61 @@ class MarketingCenterMetaCatalogService(models.AbstractModel):
         )
 
     @api.model
+    def _reschedule_current_cursor(self, run, job_uuid, *, enqueue_method):
+        """Replace a valid stale page job with the authoritative cursor job.
+
+        A cursor can advance independently from the queued argument after a
+        recovery or a competing transaction commits.  Returning silently here
+        would leave the active run without a runnable owner until the watchdog
+        closes it.  Serialize on the run and cursor, revalidate every fence, and
+        atomically replace the current job UUID with the exact committed cursor
+        sequence instead.
+        """
+
+        if not self._lock_current_job(run, job_uuid):
+            return {"orphan": True}
+        sync_service = self.env["marketing.center.sync.service"]
+        profile = self._current_profile(run.connection_id, strict=False)
+        meta_service = self.env["marketing.center.meta.service"]
+        if (
+            not profile
+            or not meta_service._lock_current_profile(
+                profile,
+                run.profile_revision,
+                profile.meta_app_id.revision,
+            )
+            or not self._preflight_current(run, profile)
+        ):
+            sync_service._transition(
+                run,
+                "stale",
+                {
+                    "finished_at": fields.Datetime.now(),
+                    "error_summary": (
+                        "Meta profile changed before cursor rescheduling."
+                    ),
+                },
+            )
+            return {"stale": True}
+        if not sync_service._validate_fencing(run):
+            return {"stale": True}
+        cursor = sync_service._locked_cursor(run)
+        cursor_sequence = cursor.cursor_sequence
+        getattr(self, enqueue_method)(run, cursor_sequence)
+        return {
+            "cursor_changed": True,
+            "rescheduled": True,
+            "cursor_sequence": cursor_sequence,
+        }
+
+    @api.model
     def _current_profile(self, connection, *, strict=True):
         profile = connection.sudo().meta_profile_id.exists()
         valid = bool(
             profile
             and len(profile) == 1
             and profile.active
+            and profile.meta_app_id.active
             and profile.company_id == connection.company_id
             and profile.public_ref == connection.profile_public_ref
             and profile.profile_revision == connection.profile_revision
@@ -452,6 +647,7 @@ class MarketingCenterMetaCatalogService(models.AbstractModel):
             and connection.binding_revision == run.binding_revision
             and connection.profile_revision == run.profile_revision
             and profile.profile_revision == run.profile_revision
+            and profile.meta_app_id.active
         )
 
     @api.model

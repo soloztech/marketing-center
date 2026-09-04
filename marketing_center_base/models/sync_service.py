@@ -2,6 +2,7 @@ import datetime
 import re
 
 import pytz
+from psycopg2 import errors as pg_errors
 
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, ValidationError
@@ -14,6 +15,7 @@ from ..services.catalog_dto import (
     sha256_text,
 )
 from ..services.performance_dto import PerformanceDTOValidationError, PerformancePageDTO
+from ..services.timezone import LocalDateBoundaryError, local_date_boundary_utc
 from ..services.tokens import MARKETING_SYNC_WRITE_TOKEN
 
 _SAFE_KEY_RE = re.compile(r"^[a-z0-9][a-z0-9._:-]{0,127}$")
@@ -32,6 +34,101 @@ _ALLOWED_TRANSITIONS = {
 class MarketingCenterSyncService(models.AbstractModel):
     _name = "marketing.center.sync.service"
     _description = "Marketing Center Synchronization Service"
+
+    @api.model
+    def _cancel_run(self, run, summary=None):
+        run = run.sudo().exists()
+        if not run or len(run) != 1:
+            raise ValidationError(_("A single synchronization run is required."))
+        self.env.cr.execute(
+            "SELECT id FROM marketing_center_sync_run WHERE id = %s FOR UPDATE",
+            [run.id],
+        )
+        run.invalidate_recordset(["state", "finished_at", "error_summary"])
+        if run.state not in {"planned", "queued", "running"}:
+            return run
+        self._transition(
+            run,
+            "cancelled",
+            {
+                "finished_at": fields.Datetime.now(),
+                "error_summary": summary or "Synchronization cancelled explicitly.",
+            },
+        )
+        return run
+
+    @api.model
+    def _recover_stuck_runs(
+        self,
+        *,
+        now=None,
+        planned_timeout_minutes=30,
+        active_timeout_hours=6,
+        limit=200,
+    ):
+        """Release scopes abandoned before or during queue execution.
+
+        Terminalizing the run is sufficient fencing: a delayed Queue Job that
+        eventually wakes up observes a terminal state and exits before provider
+        I/O. ``deferred_until`` records intentional provider-neutral ETA waits;
+        the active timeout starts after the newest real progress or deferred ETA.
+        """
+
+        now = fields.Datetime.to_datetime(now) if now else fields.Datetime.now()
+        planned_timeout_minutes = max(5, min(int(planned_timeout_minutes), 24 * 60))
+        active_timeout_hours = max(1, min(int(active_timeout_hours), 7 * 24))
+        limit = max(1, min(int(limit), 1000))
+        planned_cutoff = now - datetime.timedelta(minutes=planned_timeout_minutes)
+        active_cutoff = now - datetime.timedelta(hours=active_timeout_hours)
+        self.env.cr.execute(
+            "SELECT id FROM marketing_center_sync_run "
+            "WHERE (state = 'planned' AND create_date < %s) "
+            "OR (state IN ('queued', 'running') "
+            "AND GREATEST("
+            "COALESCE(write_date, started_at, create_date), "
+            "COALESCE(deferred_until, create_date)"
+            ") < %s) "
+            "ORDER BY create_date, id FOR UPDATE SKIP LOCKED LIMIT %s",
+            [planned_cutoff, active_cutoff, limit],
+        )
+        runs = (
+            self.env["marketing.center.sync.run"]
+            .sudo()
+            .browse([row[0] for row in self.env.cr.fetchall()])
+        )
+        recovered = {"cancelled": 0, "failed": 0}
+        for run in runs:
+            run.invalidate_recordset(["state"])
+            if run.state == "planned":
+                self._transition(
+                    run,
+                    "cancelled",
+                    {
+                        "finished_at": now,
+                        "error_class": "orphaned",
+                        "error_summary": (
+                            "Planned synchronization was never queued and was "
+                            "released by the watchdog."
+                        ),
+                    },
+                )
+                recovered["cancelled"] += 1
+            elif run.state in {"queued", "running"}:
+                self._transition(
+                    run,
+                    "failed",
+                    {
+                        "finished_at": now,
+                        "error_class": "orphaned",
+                        "error_summary": (
+                            "Synchronization stopped making progress and was "
+                            "released by the watchdog."
+                        ),
+                    },
+                )
+                recovered["failed"] += 1
+        recovered["processed"] = len(runs)
+        return recovered
 
     @api.model
     def _plan_run(
@@ -176,36 +273,60 @@ class MarketingCenterSyncService(models.AbstractModel):
                 _("Synchronization run %s already owns this source scope.")
                 % active_run.public_ref
             )
-        return (
-            run_model.with_company(company)
-            .with_context(marketing_sync_write_token=MARKETING_SYNC_WRITE_TOKEN)
-            .create(
-                {
-                    "company_id": company.id,
-                    "source_id": source.id,
-                    "connection_id": connection.id,
-                    "source_revision": source.configuration_revision,
-                    "binding_revision": connection.binding_revision,
-                    "profile_revision": connection.profile_revision,
-                    "adapter_key": connection.adapter_key,
-                    "sync_kind": sync_kind,
-                    "entity_type": entity_type or False,
-                    "grain": grain or False,
-                    "scope_ref": scope_ref,
-                    "scope_hash": scope_hash,
-                    "reporting_context_hash": reporting_context_hash,
-                    "reporting_context_json": reporting_context,
-                    "window_key": window_key,
-                    "window_start": window_start or False,
-                    "window_end": window_end or False,
-                    "report_timezone": report_timezone,
-                    "trigger_kind": trigger_kind,
-                    "trigger_ref": trigger_ref,
-                    "run_key": run_key,
-                    "request_fingerprint": request_fingerprint,
-                }
-            )
-        )
+        try:
+            with self.env.cr.savepoint():
+                return (
+                    run_model.with_company(company)
+                    .with_context(marketing_sync_write_token=MARKETING_SYNC_WRITE_TOKEN)
+                    .create(
+                        {
+                            "company_id": company.id,
+                            "source_id": source.id,
+                            "connection_id": connection.id,
+                            "source_revision": source.configuration_revision,
+                            "binding_revision": connection.binding_revision,
+                            "profile_revision": connection.profile_revision,
+                            "adapter_key": connection.adapter_key,
+                            "sync_kind": sync_kind,
+                            "entity_type": entity_type or False,
+                            "grain": grain or False,
+                            "scope_ref": scope_ref,
+                            "scope_hash": scope_hash,
+                            "reporting_context_hash": reporting_context_hash,
+                            "reporting_context_json": reporting_context,
+                            "window_key": window_key,
+                            "window_start": window_start or False,
+                            "window_end": window_end or False,
+                            "report_timezone": report_timezone,
+                            "trigger_kind": trigger_kind,
+                            "trigger_ref": trigger_ref,
+                            "run_key": run_key,
+                            "request_fingerprint": request_fingerprint,
+                        }
+                    )
+                )
+        except pg_errors.UniqueViolation as error:
+            self._raise_planning_unique_violation(error)
+
+    @api.model
+    def _raise_planning_unique_violation(self, error):
+        # Odoo uses REPEATABLE READ. A planner that waited on the advisory lock
+        # can still own a snapshot taken before the winning transaction committed,
+        # so the lookups above may not see that winner. The known unique indexes
+        # remain authoritative and become the same domain rejections as the
+        # visible fast paths. Unrelated integrity failures keep their traceback.
+        messages = {
+            "mc_sync_run_active_uq": (
+                "Another synchronization already owns this source scope."
+            ),
+            "marketing_center_sync_run_source_run_key_unique": (
+                "This synchronization occurrence was created concurrently."
+            ),
+        }
+        message = messages.get(error.diag.constraint_name)
+        if not message:
+            raise error
+        raise ValidationError(_(message)) from None
 
     @api.model
     def _apply_entity_page(self, run, payload, *, expected_cursor_sequence):
@@ -232,6 +353,26 @@ class MarketingCenterSyncService(models.AbstractModel):
             raise ValidationError(
                 _("The synchronization page reporting context does not match the run.")
             )
+        # Atomicity belongs to the provider-neutral boundary.  Adapters may wrap
+        # their own job attempt as an additional fence, but a future adapter must
+        # never be able to commit half a page merely because it forgot to do so.
+        with self.env.cr.savepoint():
+            return self._apply_entity_page_atomic(
+                run,
+                page,
+                expected_cursor_sequence=expected_cursor_sequence,
+            )
+
+    @api.model
+    def _apply_entity_page_atomic(
+        self,
+        run,
+        page,
+        *,
+        expected_cursor_sequence,
+    ):
+        if not self._lock_active_run(run):
+            return run
         if not self._validate_fencing(run):
             return run
         cursor = self._locked_cursor(run)
@@ -296,9 +437,11 @@ class MarketingCenterSyncService(models.AbstractModel):
             raise ValidationError(
                 _("The performance page reporting context does not match the run.")
             )
-        if not self._validate_fencing(run):
-            return run
         with self.env.cr.savepoint():
+            if not self._lock_active_run(run):
+                return run
+            if not self._validate_fencing(run):
+                return run
             cursor = self._locked_cursor(run)
             if cursor.cursor_sequence != expected_cursor_sequence:
                 raise ValidationError(
@@ -362,6 +505,25 @@ class MarketingCenterSyncService(models.AbstractModel):
         return run
 
     @api.model
+    def _lock_active_run(self, run):
+        """Serialize cancellation/watchdog with every page application.
+
+        ``False`` is a normal concurrent-cancellation outcome.  The caller then
+        leaves the terminal run untouched instead of turning an operator cancel
+        into a provider contract failure and retrying it.
+        """
+
+        self.env.cr.execute(
+            "SELECT state FROM marketing_center_sync_run WHERE id = %s FOR UPDATE",
+            [run.id],
+        )
+        row = self.env.cr.fetchone()
+        if not row:
+            raise ValidationError(_("The synchronization run no longer exists."))
+        run.invalidate_recordset(["state", "finished_at", "error_summary"])
+        return row[0] in {"planned", "queued", "running"}
+
+    @api.model
     def _validate_fencing(self, run):
         source = run.source_id.sudo()
         connection = run.connection_id.sudo()
@@ -421,6 +583,21 @@ class MarketingCenterSyncService(models.AbstractModel):
             self.env.cr.execute(
                 "SELECT id FROM marketing_center_sync_cursor WHERE id = %s FOR UPDATE",
                 [cursor.id],
+            )
+            # The provider reads the cursor before crossing the network boundary.
+            # Re-read every mutable transport field after taking the row lock so a
+            # cached pre-I/O snapshot can never win over a concurrent committed
+            # advance.
+            cursor.invalidate_recordset(
+                [
+                    "cursor_sequence",
+                    "cursor_value",
+                    "cursor_digest",
+                    "provider_job_ref",
+                    "watermark",
+                    "last_success_run_id",
+                    "last_advanced_at",
+                ]
             )
             return cursor
         return (
@@ -485,8 +662,12 @@ class MarketingCenterSyncService(models.AbstractModel):
     def _transition(self, run, state, extra_values=None):
         if state not in _ALLOWED_TRANSITIONS.get(run.state, set()):
             raise ValidationError(
-                _("Invalid synchronization transition from %s to %s.")
-                % (run.state, state)
+                _(
+                    "Invalid synchronization transition from %(source)s to "
+                    "%(target)s.",
+                    source=run.state,
+                    target=state,
+                )
             )
         values = dict(extra_values or {})
         values["state"] = state
@@ -582,12 +763,18 @@ class MarketingCenterSyncService(models.AbstractModel):
             raise ValidationError(
                 _("The performance UTC window is invalid.")
             ) from error
-        if (
-            start_local.timetz().replace(tzinfo=None) != datetime.time.min
-            or end_local.timetz().replace(tzinfo=None) != datetime.time.min
-        ):
+        try:
+            expected_start = local_date_boundary_utc(
+                start_local.date(), report_timezone
+            )
+            expected_end = local_date_boundary_utc(end_local.date(), report_timezone)
+        except LocalDateBoundaryError as error:
             raise ValidationError(
-                _("Performance windows must start and end at local midnight.")
+                _("The performance UTC window is invalid.")
+            ) from error
+        if window_start != expected_start or window_end != expected_end:
+            raise ValidationError(
+                _("Performance windows must use the local reporting boundaries.")
             )
         if (end_local.date() - start_local.date()).days > 31:
             raise ValidationError(
@@ -605,9 +792,12 @@ class MarketingCenterSyncService(models.AbstractModel):
         window_end,
         report_timezone,
     ):
-        if grain not in {"account", "campaign"}:
+        if grain not in {"account", "campaign", "ad_group", "ad", "keyword"}:
             raise ValidationError(
-                _("Performance synchronization requires account or campaign grain.")
+                _(
+                    "Performance synchronization requires account, campaign, "
+                    "ad group, ad, or keyword grain."
+                )
             )
         if not window_start:
             raise ValidationError(

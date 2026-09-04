@@ -1,0 +1,21 @@
+{
+    "name": "Marketing Center",
+    "summary": "Install the supported Soloz Marketing Center suite",
+    "version": "16.0.1.0.0",
+    "category": "Marketing",
+    "author": "Soloz Technologies",
+    "website": "https://github.com/lcsztl/marketing-center",
+    "license": "AGPL-3",
+    "depends": [
+        "marketing_center_contact_center_crm",
+        "marketing_center_dashboard",
+        "marketing_center_google",
+        "marketing_center_meta_crm",
+        "marketing_center_sale_account",
+        "marketing_center_website_crm",
+    ],
+    "data": [],
+    "installable": True,
+    "application": True,
+    "auto_install": False,
+}

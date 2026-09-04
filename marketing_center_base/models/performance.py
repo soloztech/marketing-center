@@ -43,7 +43,13 @@ class MarketingCenterMetricDaily(models.Model):
         related="source_id.company_id", store=True, readonly=True, index=True
     )
     grain = fields.Selection(
-        [("account", "Account"), ("campaign", "Campaign")],
+        [
+            ("account", "Account"),
+            ("campaign", "Campaign"),
+            ("ad_group", "Ad group"),
+            ("ad", "Ad"),
+            ("keyword", "Keyword"),
+        ],
         required=True,
         index=True,
         readonly=True,

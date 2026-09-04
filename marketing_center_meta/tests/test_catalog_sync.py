@@ -17,6 +17,7 @@ from odoo.addons.meta_api_base.services.errors import (
 from odoo.addons.queue_job.exception import RetryableJobError
 
 from ..services.adapter import MetaAdAccount
+from .common import create_meta_profile
 
 _ADAPTER_PATH = (
     "odoo.addons.marketing_center_meta.models.catalog_sync.MetaMarketingReadAdapter"
@@ -27,15 +28,12 @@ class TestMetaCatalogSync(SavepointCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.profile = cls.env["marketing.center.meta.profile"].create(
-            {
-                "name": "Meta catalog laboratory",
-                "company_id": cls.env.company.id,
-                "external_app_id": "123456789",
-                "credential_backend": "environment",
-                "app_secret_ref": "ODOO_META_CATALOG_APP_SECRET",
-                "access_token_ref": "ODOO_META_CATALOG_READER_TOKEN",
-            }
+        cls.meta_app, cls.profile = create_meta_profile(
+            cls.env,
+            name="Meta catalog laboratory",
+            external_app_id="123456789",
+            app_secret_ref="ODOO_META_CATALOG_APP_SECRET",
+            access_token_ref="ODOO_META_CATALOG_READER_TOKEN",
         )
         account = MetaAdAccount(
             external_ref="act_123",
@@ -73,7 +71,8 @@ class TestMetaCatalogSync(SavepointCase):
             trigger_kind="manual",
             trigger_ref="test:%s" % uuid.uuid4(),
         )
-        self.service._enqueue_page(run, self.service._cursor_snapshot(run)[0])
+        cursor_sequence = self.service._restart_catalog_cursor(run)
+        self.service._enqueue_page(run, cursor_sequence)
         return run
 
     def _page(self, run, items=(), **values):
@@ -194,6 +193,44 @@ class TestMetaCatalogSync(SavepointCase):
         self.assertTrue(second["has_more"])
         self.assertEqual(self.service._cursor_snapshot(run)[0], 2)
 
+    def test_cursor_mismatch_reschedules_exact_authoritative_page(self):
+        run = self._plan()
+        expected_sequence = self.service._cursor_snapshot(run)[0]
+        authoritative_sequence = expected_sequence + 2
+        old_job_uuid = run.queue_job_uuid
+        sync_service = self.env["marketing.center.sync.service"]
+        cursor = sync_service._locked_cursor(run)
+        sync_service._write_cursor(
+            cursor,
+            {"cursor_sequence": authoritative_sequence},
+        )
+
+        with patch(_ADAPTER_PATH) as adapter_class:
+            result = run.with_context(
+                job_uuid=old_job_uuid
+            )._job_sync_meta_catalog_page(expected_sequence)
+
+        run.invalidate_recordset(["queue_job_uuid", "state"])
+        replacement = (
+            self.env["queue.job"]
+            .sudo()
+            .search([("uuid", "=", run.queue_job_uuid)], limit=1)
+        )
+        self.assertEqual(
+            result,
+            {
+                "cursor_changed": True,
+                "rescheduled": True,
+                "cursor_sequence": authoritative_sequence,
+            },
+        )
+        self.assertEqual(run.state, "queued")
+        self.assertNotEqual(run.queue_job_uuid, old_job_uuid)
+        self.assertTrue(
+            replacement.identity_key.endswith(":%s" % authoritative_sequence)
+        )
+        adapter_class.assert_not_called()
+
     def test_profile_rotation_during_io_discards_page(self):
         run = self._plan()
         page = self._page(
@@ -296,6 +333,65 @@ class TestMetaCatalogSync(SavepointCase):
         )
         self.assertEqual(replacement.state, "planned")
 
+    def test_new_full_sweep_discards_failed_predecessor_cursor(self):
+        run = self._plan()
+        self._execute(
+            run,
+            0,
+            self._page(run, next_cursor="poisoned-predecessor", has_more=True),
+        )
+        current_job_uuid = run.queue_job_uuid
+        self.service._finish_failure(
+            run,
+            current_job_uuid,
+            classification="permanent",
+            summary="Synthetic terminal predecessor.",
+        )
+        self.assertEqual(run.state, "failed")
+
+        replacement = self.service._plan_sweep(
+            self.source,
+            self.connection,
+            trigger_kind="retry",
+            trigger_ref="restart:%s" % uuid.uuid4(),
+        )
+        sequence = self.service._restart_catalog_cursor(replacement)
+        self.service._enqueue_page(replacement, sequence)
+        result, adapter_class = self._execute(
+            replacement,
+            sequence,
+            self._page(replacement),
+        )
+
+        call = adapter_class.return_value.fetch_catalog_page.call_args
+        self.assertEqual(call.args[1], "campaign")
+        self.assertEqual(call.kwargs["after"], "")
+        self.assertTrue(result["has_more"])
+
+    def test_daily_catalog_scheduler_is_idempotent(self):
+        now = datetime.datetime(2026, 9, 1, 12, 0)
+        first = self.service._cron_enqueue_meta_catalog(
+            source_ids=[self.source.id],
+            now=now,
+        )
+        second = self.service._cron_enqueue_meta_catalog(
+            source_ids=[self.source.id],
+            now=now,
+        )
+
+        self.assertEqual(first, {"queued": 1, "skipped": 0, "failed": 0})
+        self.assertEqual(second, {"queued": 0, "skipped": 1, "failed": 0})
+        runs = self.env["marketing.center.sync.run"].search(
+            [
+                ("source_id", "=", self.source.id),
+                ("sync_kind", "=", "catalog"),
+                ("trigger_kind", "=", "scheduled"),
+            ]
+        )
+        self.assertEqual(len(runs), 1)
+        self.assertEqual(runs.state, "queued")
+        self.assertEqual(runs.trigger_ref, "catalog:2026-09-01")
+
     def test_cursor_cycle_is_bounded_before_a_third_provider_call(self):
         run = self._plan()
         with patch(
@@ -390,6 +486,17 @@ class TestMetaCatalogSync(SavepointCase):
 
     def test_unexpected_successor_enqueue_rolls_back_complete_page(self):
         run = self._plan()
+        cursor_before = self.env["marketing.center.sync.cursor"].search(
+            [("source_id", "=", self.source.id)], limit=1
+        )
+        self.assertTrue(cursor_before)
+        cursor_snapshot = (
+            cursor_before.id,
+            cursor_before.cursor_sequence,
+            cursor_before.cursor_value,
+            cursor_before.cursor_digest,
+            cursor_before.last_success_run_id.id,
+        )
         job = (
             self.env["queue.job"]
             .sudo()
@@ -417,8 +524,16 @@ class TestMetaCatalogSync(SavepointCase):
                 [("external_ref", "=", "act_123/campaigns/rollback")]
             )
         )
-        self.assertFalse(
-            self.env["marketing.center.sync.cursor"].search(
-                [("source_id", "=", self.source.id)]
-            )
+        cursor_after = self.env["marketing.center.sync.cursor"].search(
+            [("source_id", "=", self.source.id)], limit=1
+        )
+        self.assertEqual(
+            (
+                cursor_after.id,
+                cursor_after.cursor_sequence,
+                cursor_after.cursor_value,
+                cursor_after.cursor_digest,
+                cursor_after.last_success_run_id.id,
+            ),
+            cursor_snapshot,
         )

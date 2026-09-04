@@ -72,6 +72,58 @@ class TestMarketingAttributionService(SavepointCase):
         self.assertEqual(revision.evidence_ids.disposition, "conflict")
         self.assertEqual(revision.evidence_ids.related_touchpoint_id, original)
 
+    def test_a_b_a_records_three_monotonic_revisions(self):
+        first_a = self.service._ingest_touchpoint(self.company, self._dto())
+        state_b = self.service._ingest_touchpoint(
+            self.company, self._dto(utm={"source": "facebook", "campaign": "wind"})
+        )
+        second_a = self.service._ingest_touchpoint(
+            self.company,
+            self._dto(
+                source_evidence_ref="contact-center-touchpoint-third-observation"
+            ),
+        )
+
+        self.assertEqual(first_a.revision_sequence, 1)
+        self.assertEqual(state_b.revision_sequence, 2)
+        self.assertEqual(second_a.revision_sequence, 3)
+        self.assertNotEqual(first_a.touchpoint_id, second_a.touchpoint_id)
+        revisions = self.env["marketing.attribution.touchpoint"].search(
+            [("canonical_key", "=", first_a.canonical_key)],
+            order="revision_sequence",
+        )
+        self.assertEqual(revisions.mapped("revision_sequence"), [1, 2, 3])
+        self.assertEqual(revisions.mapped("utm_campaign"), ["solar", "wind", "solar"])
+
+    def test_enrichment_and_correction_have_explicit_dispositions(self):
+        first = self.service._ingest_touchpoint(self.company, self._dto())
+        enriched = self.service._ingest_touchpoint(
+            self.company,
+            self._dto(
+                source_evidence_ref="enriched-evidence",
+                revision_kind="enrichment",
+                asset_refs={"meta.ad_id": "123"},
+            ),
+        )
+        corrected = self.service._ingest_touchpoint(
+            self.company,
+            self._dto(
+                source_evidence_ref="corrected-evidence",
+                revision_kind="correction",
+                utm={"source": "facebook", "campaign": "corrected"},
+            ),
+        )
+
+        self.assertEqual(first.disposition, "accepted")
+        self.assertEqual(enriched.disposition, "enriched")
+        self.assertEqual(corrected.disposition, "revised")
+        dispositions = (
+            self.env["marketing.attribution.evidence"]
+            .search([("touchpoint_id.canonical_key", "=", first.canonical_key)])
+            .mapped("disposition")
+        )
+        self.assertEqual(set(dispositions), {"accepted", "enriched", "revised"})
+
     def test_new_evidence_or_mapper_version_preserves_lineage_without_duplication(self):
         first = self.service._ingest_touchpoint(self.company, self._dto())
         second = self.service._ingest_touchpoint(

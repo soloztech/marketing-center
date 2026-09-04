@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record
+    id="view_marketing_contact_center_response_episode_tree"
+    model="ir.ui.view"
+  >
+        <field
+      name="name"
+    >marketing.contact.center.response.episode.tree</field>
+        <field name="model">marketing.contact.center.response.episode</field>
+        <field name="arch" type="xml">
+            <tree create="false" edit="false" delete="false">
+                <field name="started_at" />
+                <field name="sequence" />
+                <field name="channel_binding_id" />
+                <field name="start_message_binding_id" />
+                <field name="response_id" />
+                <field name="company_id" />
+            </tree>
+        </field>
+    </record>
+
+    <record
+    id="view_marketing_contact_center_response_episode_form"
+    model="ir.ui.view"
+  >
+        <field
+      name="name"
+    >marketing.contact.center.response.episode.form</field>
+        <field name="model">marketing.contact.center.response.episode</field>
+        <field name="arch" type="xml">
+            <form create="false" edit="false" delete="false">
+                <sheet>
+                    <group>
+                        <field name="company_id" />
+                        <field name="public_ref" />
+                        <field name="channel_binding_id" />
+                        <field name="sequence" />
+                        <field name="start_message_binding_id" />
+                        <field name="started_at" />
+                        <field name="observed_at" />
+                        <field name="started_event_id" />
+                        <field name="response_id" />
+                        <field name="policy_version" />
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record
+    id="action_marketing_contact_center_response_episodes"
+    model="ir.actions.act_window"
+  >
+        <field name="name">Response Episodes</field>
+        <field
+      name="res_model"
+    >marketing.contact.center.response.episode</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <menuitem
+    id="menu_marketing_contact_center_response_episodes"
+    name="Response Episodes"
+    parent="marketing_center_base.menu_marketing_center_attribution"
+    action="action_marketing_contact_center_response_episodes"
+    sequence="35"
+    groups="marketing_center_contact_center.group_marketing_contact_center_admin"
+  />
+</odoo>

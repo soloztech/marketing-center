@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_marketing_center_meta_lead_route_tree" model="ir.ui.view">
+        <field name="name">marketing.center.meta.lead.route.tree</field>
+        <field name="model">marketing.center.meta.lead.route</field>
+        <field name="arch" type="xml">
+            <tree delete="false">
+                <field name="name" />
+                <field name="webhook_page_id" />
+                <field name="external_form_id" />
+                <field name="lead_profile_id" />
+                <field name="source_id" />
+                <field name="reconcile_state" />
+                <field name="last_reconciled_at" />
+                <field name="active" />
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_marketing_center_meta_lead_route_form" model="ir.ui.view">
+        <field name="name">marketing.center.meta.lead.route.form</field>
+        <field name="model">marketing.center.meta.lead.route</field>
+        <field name="arch" type="xml">
+            <form delete="false">
+                <header>
+                    <button
+            name="action_configure_webhook"
+            string="Configure webhook"
+            type="object"
+            class="oe_highlight"
+            groups="marketing_center_base.group_marketing_center_admin"
+          />
+                    <button
+            name="action_enqueue_reconciliation"
+            string="Reconcile now"
+            type="object"
+            groups="marketing_center_base.group_marketing_center_admin"
+          />
+                    <field
+            name="reconcile_state"
+            widget="statusbar"
+            statusbar_visible="idle,queued,running,partial,error,paused"
+          />
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name" />
+                            <field name="company_id" />
+                            <field
+                name="webhook_page_id"
+                options="{'no_create': True, 'no_create_edit': True}"
+                domain="[('company_id', '=', company_id)]"
+              />
+                            <field name="external_form_id" />
+                            <field
+                name="lead_profile_id"
+                options="{'no_create': True, 'no_create_edit': True}"
+                domain="[('company_id', '=', company_id), ('reader_kind', '=', 'lead_reader')]"
+              />
+                            <field
+                name="source_id"
+                options="{'no_create': True, 'no_create_edit': True}"
+                domain="[('company_id', '=', company_id), ('service', '=', 'meta.ads'), ('active', '=', True)]"
+                attrs="{'required': [('active', '=', True)], 'readonly': [('source_id', '!=', False)]}"
+              />
+                        </group>
+                        <group>
+                            <field name="public_ref" />
+                            <field name="meta_app_id" />
+                            <field name="route_revision" />
+                            <field name="active" />
+                            <field name="reconcile_enabled" />
+                            <field
+                name="reconcile_lookback_hours"
+                attrs="{'invisible': [('reconcile_enabled', '=', False)]}"
+              />
+                        </group>
+                    </group>
+                    <div class="alert alert-info" role="status">
+                        The Meta Ads source is the security boundary for this route.
+                        Only users on its active team roster can read the route and
+                        resulting submissions; administrators retain company-wide
+                        access.
+                    </div>
+                    <notebook>
+                        <page string="Reconciliation">
+                            <group>
+                                <field name="reconcile_since" />
+                                <field name="reconcile_after" />
+                                <field name="reconcile_page_count" />
+                                <field name="reconcile_attempts" />
+                                <field
+                  name="reconcile_job_uuid"
+                  groups="base.group_system"
+                />
+                                <field name="last_reconciled_at" />
+                                <field name="last_reconcile_error_class" />
+                                <field name="last_reconcile_error_message" />
+                            </group>
+                        </page>
+                        <page string="Submissions">
+                            <field name="submission_ids" nolabel="1">
+                                <tree
+                  create="false"
+                  edit="false"
+                  delete="false"
+                >
+                                    <field name="provider_created_at" />
+                                    <field name="leadgen_id" />
+                                    <field name="origin" />
+                                    <field name="state" />
+                                    <field name="field_count" />
+                                    <field name="touchpoint_id" />
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record
+    id="view_marketing_center_meta_lead_submission_tree"
+    model="ir.ui.view"
+  >
+        <field name="name">marketing.center.meta.lead.submission.tree</field>
+        <field name="model">marketing.center.meta.lead.submission</field>
+        <field name="arch" type="xml">
+            <tree create="false" edit="false" delete="false">
+                <field name="provider_created_at" />
+                <field name="route_id" />
+                <field name="leadgen_id" />
+                <field name="origin" />
+                <field name="state" />
+                <field name="attempts" />
+                <field name="field_count" />
+                <field name="touchpoint_id" />
+            </tree>
+        </field>
+    </record>
+
+    <record
+    id="view_marketing_center_meta_lead_submission_form"
+    model="ir.ui.view"
+  >
+        <field name="name">marketing.center.meta.lead.submission.form</field>
+        <field name="model">marketing.center.meta.lead.submission</field>
+        <field name="arch" type="xml">
+            <form create="false" edit="false" delete="false">
+                <header>
+                    <button
+            name="action_requeue"
+            string="Requeue"
+            type="object"
+            groups="marketing_center_base.group_marketing_center_admin"
+            attrs="{'invisible': [('state', 'not in', ['review', 'blocked', 'dead', 'stale'])]}"
+          />
+                    <field
+            name="state"
+            widget="statusbar"
+            statusbar_visible="pending,processing,ingested,review,blocked,dead,stale"
+          />
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="route_id" />
+                            <field name="origin" />
+                            <field name="leadgen_id" />
+                            <field name="page_id_hint" />
+                            <field name="form_id_hint" />
+                            <field name="ad_id_hint" />
+                            <field
+                name="legacy_adgroup_id_hint"
+                groups="marketing_center_base.group_marketing_center_admin"
+              />
+                        </group>
+                        <group>
+                            <field name="public_ref" />
+                            <field name="company_id" />
+                            <field name="hint_created_at" />
+                            <field name="provider_created_at" />
+                            <field name="provider_ad_id" />
+                            <field name="provider_campaign_id" />
+                            <field name="field_count" />
+                            <field name="touchpoint_id" />
+                        </group>
+                    </group>
+                    <group string="Safe diagnostics">
+                        <field name="attempts" />
+                        <field name="processed_at" />
+                        <field name="provider_payload_sha256" />
+                        <field name="last_error_class" />
+                        <field name="last_error_message" />
+                    </group>
+                    <notebook groups="base.group_system">
+                        <page string="Private extracted fields">
+                            <field name="field_ids" nolabel="1">
+                                <tree
+                  create="false"
+                  edit="false"
+                  delete="false"
+                >
+                                    <field name="sequence" />
+                                    <field name="field_name" />
+                                    <field name="value_count" />
+                                    <field name="values_sha256" />
+                                    <field name="values_json" />
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record
+    id="action_marketing_center_meta_lead_routes"
+    model="ir.actions.act_window"
+  >
+        <field name="name">Meta Lead Ads Routes</field>
+        <field name="res_model">marketing.center.meta.lead.route</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <record
+    id="action_marketing_center_meta_lead_submissions"
+    model="ir.actions.act_window"
+  >
+        <field name="name">Meta Lead Submissions</field>
+        <field name="res_model">marketing.center.meta.lead.submission</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <menuitem
+    id="menu_marketing_center_meta_lead_routes"
+    name="Meta Lead Ads Routes"
+    parent="marketing_center_base.menu_marketing_center_configuration"
+    action="action_marketing_center_meta_lead_routes"
+    sequence="26"
+    groups="marketing_center_base.group_marketing_center_admin"
+  />
+    <menuitem
+    id="menu_marketing_center_meta_lead_submissions"
+    name="Meta Lead Submissions"
+    parent="marketing_center_base.menu_marketing_center_attribution"
+    action="action_marketing_center_meta_lead_submissions"
+    sequence="30"
+    groups="marketing_center_base.group_marketing_center_viewer"
+  />
+</odoo>

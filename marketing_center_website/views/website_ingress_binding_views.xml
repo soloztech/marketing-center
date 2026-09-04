@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+  <record id="view_marketing_website_ingress_binding_tree" model="ir.ui.view">
+    <field name="name">marketing.website.ingress.binding.tree</field>
+    <field name="model">marketing.website.ingress.binding</field>
+    <field name="arch" type="xml">
+      <tree>
+        <field name="website_id" />
+        <field name="company_id" />
+        <field name="endpoint_id" />
+        <field name="endpoint_config_revision" />
+        <field name="active" />
+      </tree>
+    </field>
+  </record>
+
+  <record id="view_marketing_website_ingress_binding_form" model="ir.ui.view">
+    <field name="name">marketing.website.ingress.binding.form</field>
+    <field name="model">marketing.website.ingress.binding</field>
+    <field name="arch" type="xml">
+      <form>
+        <sheet>
+          <div class="oe_title">
+            <label for="website_id" />
+            <h1><field name="website_id" /></h1>
+          </div>
+          <group>
+            <group>
+              <field name="company_id" />
+              <field name="active" />
+            </group>
+            <group>
+              <field name="endpoint_id" />
+              <field name="endpoint_public_ref" readonly="1" />
+              <field name="endpoint_config_revision" readonly="1" />
+            </group>
+          </group>
+          <div class="alert alert-info" role="alert">
+            The browser receives only the endpoint route and its public routing
+            key. Landing events are validated and persisted by Web Ingress; this
+            adapter does not create a second ledger.
+          </div>
+          <notebook>
+            <page string="Website actions">
+              <field name="action_ids" options="{'no_create': True}">
+                <tree>
+                  <field name="name" />
+                  <field name="kind" />
+                  <field name="route_ref" />
+                  <field name="source_path" />
+                  <field name="form_model_id" />
+                  <field name="active" />
+                </tree>
+              </field>
+            </page>
+          </notebook>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record
+    id="action_marketing_website_ingress_bindings"
+    model="ir.actions.act_window"
+  >
+    <field name="name">Website Ingress</field>
+    <field name="res_model">marketing.website.ingress.binding</field>
+    <field name="view_mode">tree,form</field>
+  </record>
+
+  <menuitem
+    id="menu_marketing_website_ingress_bindings"
+    name="Website Ingress"
+    parent="marketing_center_base.menu_marketing_center_configuration"
+    action="action_marketing_website_ingress_bindings"
+    sequence="55"
+    groups="marketing_center_base.group_marketing_center_admin"
+  />
+</odoo>

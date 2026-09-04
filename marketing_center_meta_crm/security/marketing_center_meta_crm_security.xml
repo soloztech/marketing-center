@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="rule_marketing_meta_crm_projection_company" model="ir.rule">
+        <field name="name">Meta CRM projections by active company</field>
+        <field
+      name="model_id"
+      ref="model_marketing_center_meta_crm_projection"
+    />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field
+      name="groups"
+      eval="[(4, ref('marketing_center_base.group_marketing_center_admin'))]"
+    />
+    </record>
+</odoo>

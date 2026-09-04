@@ -1,12 +1,20 @@
 import dataclasses
 import re
 
+from odoo.addons.meta_api_base.services import (
+    META_API_RUNTIME_CONTEXT_KEY,
+    META_API_RUNTIME_TOKEN,
+)
+from odoo.addons.meta_api_base.services.credentials import (
+    MetaCredentialResolutionError,
+    resolve_secret,
+)
 from odoo.addons.meta_api_base.services.errors import MetaApiError, MetaApiPausedError
 from odoo.addons.meta_api_base.services.graph import graph_debug_token, graph_request
 
 from .catalog import fetch_meta_catalog_page
-from .credentials import MetaCredentialResolutionError, resolve_profile_credentials
 from .insights import fetch_meta_insights_page
+from .lead_ads import fetch_meta_lead, fetch_meta_lead_page
 
 META_ADAPTER_KEY = "meta.graph"
 META_ADS_SERVICE = "meta.ads"
@@ -34,17 +42,6 @@ class MetaAdAccount:
     timezone: str
     account_status: int
     disable_reason: int
-
-
-class _GraphApp:
-    def __init__(self, profile, app_secret):
-        self.active = profile.active
-        self.external_app_id = profile.external_app_id
-        self.graph_version = profile.graph_version
-        self.app_secret = app_secret
-
-    def ensure_one(self):
-        return self
 
 
 def _bounded_text(value, label, limit, required=True):
@@ -122,15 +119,19 @@ def _ad_account(value):
 class MetaMarketingReadAdapter:
     """Credential-safe read-only boundary over ``meta_api_base``."""
 
-    def __init__(self, profile):
+    def __init__(self, profile, *, expected_app_revision):
         profile.ensure_one()
         self.profile = profile
         try:
-            credentials = resolve_profile_credentials(profile)
+            self._app = profile.meta_app_id.with_context(
+                **{META_API_RUNTIME_CONTEXT_KEY: META_API_RUNTIME_TOKEN}
+            )._resolve_runtime(expected_revision=expected_app_revision)
+            self._access_token = resolve_secret(
+                profile.credential_backend,
+                profile.access_token_ref,
+            )
         except MetaCredentialResolutionError as error:
             raise MetaApiPausedError(str(error)) from None
-        self._access_token = credentials.access_token
-        self._app = _GraphApp(profile, credentials.app_secret)
 
     def validate(self):
         payload = graph_debug_token(self._app, self._access_token)
@@ -138,15 +139,19 @@ class MetaMarketingReadAdapter:
         if not isinstance(data, dict) or data.get("is_valid") is not True:
             raise MetaApiPausedError("Meta authorization is invalid")
         app_id = _bounded_text(data.get("app_id"), "authorization App ID", 64)
-        if app_id != self.profile.external_app_id:
+        if app_id != self._app.external_app_id:
             raise MetaApiPausedError("Meta authorization belongs to another App")
         scopes = _normalized_scopes(data.get("scopes"))
         missing = set(self.profile.required_scope_keys()) - set(scopes)
         if missing:
             raise MetaApiPausedError("Meta authorization scope is unavailable")
         capabilities = _capabilities(scopes)
-        if not capabilities["read_entities"]:
-            raise MetaApiPausedError("Meta Ads read capability is unavailable")
+        capability = {
+            "ads_reader": "read_entities",
+            "lead_reader": "receive_leads",
+        }.get(getattr(self.profile, "reader_kind", "ads_reader"))
+        if not capability or not capabilities[capability]:
+            raise MetaApiPausedError("Meta reader capability is unavailable")
         return MetaReadValidation(
             token_type=_bounded_text(
                 data.get("type") or "unknown",
@@ -217,6 +222,18 @@ class MetaMarketingReadAdapter:
                 raise MetaApiError("Meta ad account pagination is invalid")
             seen_cursors.add(after)
         raise MetaApiError("Meta ad account discovery exceeded the page limit")
+
+    def fetch_lead(self, leadgen_id):
+        return fetch_meta_lead(self._app, self._access_token, leadgen_id)
+
+    def fetch_lead_page(self, form_id, *, after="", since=None):
+        return fetch_meta_lead_page(
+            self._app,
+            self._access_token,
+            form_id,
+            after=after,
+            since=since,
+        )
 
     def fetch_catalog_page(
         self,

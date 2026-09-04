@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="rule_marketing_sale_order_crm_link_own" model="ir.rule">
+        <field name="name">Marketing sales CRM links for own orders</field>
+        <field name="model_id" ref="model_marketing_sale_order_crm_link" />
+        <field
+      name="groups"
+      eval="[(4, ref('sales_team.group_sale_salesman'))]"
+    />
+        <field
+      name="domain_force"
+    >[('company_id', 'in', company_ids), ('order_id', '!=', False), '|', ('order_id.user_id', '=', user.id), ('order_id.user_id', '=', False)]</field>
+    </record>
+    <record id="rule_marketing_sale_order_crm_link_all" model="ir.rule">
+        <field
+      name="name"
+    >Marketing sales CRM links for all accessible orders</field>
+        <field name="model_id" ref="model_marketing_sale_order_crm_link" />
+        <field
+      name="groups"
+      eval="[(4, ref('sales_team.group_sale_salesman_all_leads'))]"
+    />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_marketing_event_sale_link_own" model="ir.rule">
+        <field name="name">Marketing event sales links for own orders</field>
+        <field name="model_id" ref="model_marketing_business_event_sale_link" />
+        <field
+      name="groups"
+      eval="[(4, ref('sales_team.group_sale_salesman'))]"
+    />
+        <field
+      name="domain_force"
+    >[('company_id', 'in', company_ids), ('order_id', '!=', False), '|', ('order_id.user_id', '=', user.id), ('order_id.user_id', '=', False)]</field>
+    </record>
+    <record id="rule_marketing_event_sale_link_all" model="ir.rule">
+        <field
+      name="name"
+    >Marketing event sales links for all accessible orders</field>
+        <field name="model_id" ref="model_marketing_business_event_sale_link" />
+        <field
+      name="groups"
+      eval="[(4, ref('sales_team.group_sale_salesman_all_leads'))]"
+    />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_marketing_sale_order_crm_link_system" model="ir.rule">
+        <field
+      name="name"
+    >Marketing sales CRM links for system administrators</field>
+        <field name="model_id" ref="model_marketing_sale_order_crm_link" />
+        <field name="groups" eval="[(4, ref('base.group_system'))]" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_marketing_event_sale_link_system" model="ir.rule">
+        <field
+      name="name"
+    >Marketing event sales links for system administrators</field>
+        <field name="model_id" ref="model_marketing_business_event_sale_link" />
+        <field name="groups" eval="[(4, ref('base.group_system'))]" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+</odoo>

@@ -1,8 +1,11 @@
 # Marketing Center — plano de arquitetura e implementação
 
-> Status: arquitetura fechada; fundação de atribuição, bridge com o Contact Center,
-> núcleo operacional read-only e primeiro conector Meta implementados e validados no
-> laboratório `odoo16-teste.soloz.com.br` em 2026-08-31.
+> Status: arquitetura atual implantada no laboratório; direção native-first aceita
+> em 2026-09-02, com escrita UTM e cutover ainda bloqueados por shadow e go/no-go.
+> A fundação greenfield consolidada de 2026-09-03 foi aplicada e validada no
+> SERVIDOR05. O fechamento complementar dos 15 addons e o primeiro baseline sem
+> migrations foram aplicados e validados em 2026-09-04; escrita UTM e cutover
+> continuam bloqueados pelos gates próprios.
 > Criado em 2026-08-28; arquitetura revisada em 2026-08-29.
 >
 > Escopo: Odoo 16 Industrial, Meta Ads, Meta Conversions API, Google Ads, Google
@@ -13,6 +16,17 @@
 > operacional de source, connection, catálogo, revisões, sync e performance diária.
 > Eventos de negócio, mutações e conectores restantes continuam organizados pelas
 > fases abaixo.
+
+> **Decisão de adaptação native-first — 2026-09-02:** antes de ampliar escrita,
+> conversões ou atribuição, a arquitetura native-first torna
+> `utm.*`, `link.tracker`, Website, CRM, Vendas e Financeiro as fontes operacionais
+> canônicas, preservando os ledgers próprios como complemento técnico. A decisão
+> foi aceita com oito gates; apenas ADR, inventário/baseline, correções isoladas,
+> menus técnicos e shadow estão liberados. Escrita UTM, desligamento de captura e
+> cutover não estão autorizados. Ver o
+> [plano de adaptação native-first](reviews/2026-09-01-native-first-adaptation-plan.md)
+> e a
+> [disposição consolidada](../contact-center/reviews/2026-09-02-native-first-roadmap-and-ux-disposition.md).
 
 ## Estado implementado — 2026-08-29
 
@@ -144,12 +158,140 @@ não deve ser reutilizado.
 
 Pendências imediatas, em ordem:
 
-1. provisionar um perfil Meta reader próprio para Ads, comprovar `ads_read` e executar
-   discovery, catálogo e Insights reais nas ad accounts permitidas;
-2. completar o catálogo Meta com lead forms e datasets/pixels;
-3. implementar Lead Ads por webhook e pull reconciliador;
+1. evoluir a identidade do mesmo Meta App no `meta_api_base`, criar
+   `meta_webhook_base` e fazer o cutover direto dos controllers de laboratório;
+2. provisionar perfis separados Page, Ads reader e Lead reader, comprovar scopes,
+   tasks e access tier e executar discovery/catálogo/Insights reais;
+3. completar o catálogo Meta com lead forms e datasets/pixels e implementar o
+   consumer `leadgen` + GET do lead + pull reconciliador;
 4. fazer o spike do runtime Google e então criar `google_api_base` e
    `marketing_center_google`.
+
+## Estado implementado — 2026-09-01
+
+A auditoria independente foi confrontada com o código e resultou em consolidação,
+sem troca das fronteiras arquiteturais:
+
+- `marketing_center_base` `16.0.1.5.0` possui touchpoint efetivo, resolução explícita
+  de source (`resolved`, `unresolved`, `ambiguous`, `unsupported`), histórico
+  A→B→A, fatos de negócio imutáveis e valores canônicos em micros;
+- `marketing_center_contact_center` `16.0.2.1.0` emite lifecycle de conversa e
+  preserva a identidade completa da evidência operacional;
+- `marketing_center_crm` e `marketing_center_contact_center_crm` materializam fatos
+  de lead/etapa e correlação M:N conversa↔lead↔touchpoint, sem transformá-la em
+  crédito causal;
+- `marketing_center_sale`, `marketing_center_account` e
+  `marketing_center_sale_account` registram proposta, pedido, fatura, crédito,
+  pagamentos parciais e reversões como conceitos distintos e reconciliáveis;
+- `marketing_center_meta` `16.0.2.0.0` recebe o hint `leadgen` pelo callback técnico,
+  recupera o lead via Graph, sanitiza PII, converge webhook/pull por `leadgen_id` e
+  projeta o touchpoint antes de qualquer integração futura com CRM;
+- `marketing_center_dashboard` `16.0.1.0.0` entrega a primeira visão gerencial
+  read-only, com linha não atribuível, freshness e ocultação de totais quando a
+  cobertura de sync é parcial;
+- o spike Google no runtime real escolheu REST oficial v25 atrás de
+  `google_api_base`; o SDK permanece substituível e não é dependência do processo
+  Odoo nesta fase.
+
+O release canônico no servidor05 concluiu instalação, upgrade, replay e smoke com
+92 testes isolados e 320 integrados, sem falhas ou erros, HTTP público 200 e produção
+intocada:
+`scans/raw/20260901-odoo16-marketing-center-leads-finance-dashboard/release/20260901T122900890762Z`.
+
+Pendências reais após esse corte:
+
+1. implementar `marketing_center_google` read-only sobre o `google_api_base` já
+   instalado e validado no Odoo;
+2. provisionar credenciais Meta Ads/Lead dedicadas e executar discovery, catálogo,
+   Insights e Lead Ads reais;
+3. projetar formulários e datasets/pixels por suas fronteiras corretas (Page e
+   Business/ad account), sem inseri-los artificialmente no sweep de campanha;
+4. implementar captura first-party (`marketing_center_web_ingress`) antes de
+   conversões outbound ou atribuição causal;
+5. somente depois: conversion events/deliveries, Data Manager, Meta CAPI e mudanças
+   assistidas.
+
+### Corte consolidado — Google observability, Website→CRM e dashboard
+
+O sexto corte foi aplicado no servidor05 em 2026-09-01 e substitui a lista de
+pendências operacionais do corte anterior:
+
+- `marketing_center_base` `16.0.1.7.0`, bridges Contact Center/CRM e addons
+  Sale/Accounting preservam fatos, correlações M:N e o ledger sem fabricar crédito
+  causal;
+- `marketing_center_dashboard` `16.0.1.1.0` distingue conversas da primeira resposta
+  e ciclos operacionais, mantendo custo de plataforma, fatos Odoo e atribuição em
+  linhas semanticamente separadas;
+- `marketing_center_google` `16.0.1.1.0` entrega catálogo/performance read-only,
+  Change History e Delivery Diagnostics via REST oficial v25, com paginação bounded,
+  fencing, cooldown, retry e observações imutáveis;
+- `marketing_center_web_ingress` e `marketing_center_website` `16.0.2.0.0` capturam
+  landing, formulário e handoff WhatsApp sem ler valores do formulário nem copiar PII
+  para o ledger;
+- `marketing_center_website_crm` `16.0.1.2.2` mantém o `crm.lead` nativo como fonte
+  canônica e cria intent/correlação durável a partir de comprovante assinado, com
+  recuperação limitada e sem alterar UTMs nativas;
+- o boundary HTTP aceita tanto a string usada por testes unitários quanto o objeto
+  `Response` produzido pelos wrappers reais do Odoo; o mesmo response, status,
+  headers e cookies são preservados;
+- gates finais: 109/109 no base, 496/496 integrados e 89/89 Website/CRM; instalação
+  offline e replay idempotente concluídos, HTTP privado/público 200 e console do
+  navegador sem erros;
+- validação Google real: dez janelas de Change History concluídas sem alteração no
+  período e dois snapshots de Delivery Diagnostics concluídos, totalizando 124
+  observações, sem run ativo ou falho;
+- evidência canônica:
+  `scans/raw/20260901-odoo16-marketing-center-website-crm-google-observability/release/20260901T184433945695Z`.
+
+Próximos cortes, em ordem:
+
+1. Performance DTO v2 com conversões e valor reportados pela plataforma, seguida de
+   Google GAQL e apresentação de conversões/CPA sem misturar atribuição Odoo;
+2. produtor automático de candidatos/resultados de atribuição sobre links já
+   correlacionados, mantendo política/modelo/versionamento explícitos;
+3. completar Meta com forms e datasets/pixels e validar Ads/Lead reader reais;
+4. integrar `website.visitor`, `link.tracker`, `utm.*` e identificadores first-party
+   adicionais no addon Website, sem tornar o Website dependência do core;
+5. somente depois, conversões outbound, mutações assistidas e automação controlada.
+
+### Consolidação da distribuição — um aplicativo, componentes internos
+
+Em 2026-09-01, a árvore completa foi revisada antes de continuar a expansão. A
+decisão é preservar os 14 componentes atuais: eles separam providers, aplicativos
+Odoo opcionais e bridges entre domínios, sem criar outros serviços ou bancos.
+
+- `marketing_center_suite` é a fachada de instalação completa da Soloz e o único
+  módulo marcado como aplicativo no catálogo do Odoo;
+- `marketing_center_base` continua dono do único menu raiz e de todos os contratos
+  canônicos, mas passa a ser componente técnico;
+- o suite não possui modelos, tabelas, regras, menus, controllers ou jobs: suas seis
+  dependências-folha resolvem exatamente os 14 componentes funcionais;
+- módulos de cola permanecem com instalação explícita (`auto_install=False`) para
+  não ativar efeitos de negócio de forma implícita;
+- instalações menores continuam possíveis selecionando os componentes técnicos;
+- a dependência direta de `marketing_center_website_crm` sobre
+  `marketing_center_web_ingress` passa a ser declarada no manifest;
+- a instalação limpa do suite e o fechamento exato das dependências passam a fazer
+  parte do gate canônico de release.
+
+O release consolidado foi aplicado no servidor05 e validou:
+
+- 112 testes do núcleo, 507 integrados, 89 de Website/CRM e 4 do contrato do suite,
+  todos sem falhas ou erros;
+- os 15 módulos instalados nas versões esperadas (14 componentes funcionais e a
+  fachada técnica), seguidos por replay integral idempotente;
+- somente `marketing_center_suite` com `application=True`; todos os componentes
+  internos permanecem fora do catálogo de aplicativos;
+- Odoo e DB manager em execução, HTTP privado e público 200, rota Traefik restaurada
+  byte a byte e produção intocada.
+
+Evidência canônica:
+`scans/raw/20260901-odoo16-marketing-center-suite-consolidation/release/20260901T195842795779Z`.
+
+O mapa normativo de camadas, fluxo ponta a ponta e critérios para novos addons está
+em [`ARCHITECTURE.md`](ARCHITECTURE.md). O número de addons não deve ser apresentado
+ao usuário como número de aplicações: todos executam no mesmo Odoo, banco e
+JobRunner.
 
 ## Objetivo
 
@@ -219,7 +361,7 @@ runbooks de 2026-08-04. Evidências e inventários desses documentos continuam v
 | n8n como orquestrador | somente periférico/protótipo; não é ledger nem caminho crítico |
 | Chatwoot como cockpit | fora do Marketing Center; o Contact Center Odoo é a fonte de conversa |
 | Evolution/gateway isolado | transportes legados não definem atribuição; adapters emitem o DTO do seu domínio e bridges traduzem contratos |
-| API gateway de marketing separado | não criar agora; ingresso público fica em `marketing_center_web_ingress` + Traefik |
+| API gateway de marketing separado | não criar agora; captura first-party fica em `marketing_center_web_ingress` e webhooks Meta entram por `meta_webhook_base`, ambos atrás do Traefik |
 | panorama martech/open source | referência de componentes, não dependência runtime |
 | upload legado Google Ads | novos fluxos usam Data Manager; exceção exige ADR e token allowlisted |
 
@@ -229,15 +371,17 @@ O Marketing Center terá um core de domínio próprio. Ele não será uma extens
 Contact Center nem do CRM. Somente os clientes técnicos das plataformas serão
 compartilhados. Cada domínio mantém seu próprio contrato: o Contact Center conserva
 seu `AttributionDTO` e sua evidência operacional; o Marketing Center possui
-`MarketingTouchpointDTO` e o ledger canônico da jornada de marketing. A integração
+`MarketingTouchpointDTO` e o ledger canônico de evidência da jornada de marketing.
+Esse ledger não substitui a classificação operacional nativa em `utm.*`. A integração
 entre eles ocorre exclusivamente pelo addon opcional
 `marketing_center_contact_center`.
 
 ```text
-Meta Graph APIs
-    -> meta_api_base
-        -> contact_center_meta -> contact_center_base
-        -> marketing_center_meta -> marketing_center_base
+Meta App / Graph APIs
+    -> meta_api_base                    # identidade técnica + transporte
+    -> meta_webhook_base                # callback técnico único
+        -> messages -> contact_center_meta -> contact_center_base
+        -> leadgen  -> marketing_center_meta -> marketing_center_base
 
 Google APIs
     -> google_api_base
@@ -249,7 +393,7 @@ contact_center_base
     -> AttributionDTO + evidência operacional
 
 marketing_center_base
-    -> MarketingTouchpointDTO + ledger canônico de marketing
+    -> MarketingTouchpointDTO + ledger canônico de evidência de marketing
 
 contact_center_base <--- marketing_center_contact_center ---> marketing_center_base
                        depende dos dois cores
@@ -261,11 +405,12 @@ Regras:
 
 - `marketing_center_base` não conhece campos crus de Meta ou Google.
 - Cada plataforma entra por addon próprio e implementa contratos do base.
-- `meta_api_base` e `google_api_base` são infraestrutura técnica, não domínio de
-  marketing. Compartilham autenticação, cliente HTTP/SDK, quota, health e roteamento,
-  mas não compartilham campanhas com conversas.
-- Credenciais de leitura e escrita são perfis distintos. Mensageria e Ads podem usar
-  Apps/tokens Meta diferentes mesmo consumindo o mesmo cliente técnico.
+- `meta_api_base`, `meta_webhook_base` e `google_api_base` são infraestrutura técnica,
+  não domínio de marketing. Compartilham identidade/autenticação, transporte, quota,
+  health e ingresso quando aplicável, mas não compartilham campanhas com conversas.
+- Contact Center e Marketing Center usam o mesmo Meta App e o mesmo callback técnico,
+  mas credenciais Page, Ads reader e Lead reader são perfis/referências distintos por
+  purpose, capability e blast radius.
 - `queue_job` da OCA sera o executor padrao para ingestao, sync, export, retry e
   reconciliacao.
 - Toda chamada externa ocorre fora da transacao da UI.
@@ -286,6 +431,12 @@ Regras:
 - O WordPress atual e, depois, o Website Odoo devem capturar UTMs/click IDs antes de
   depender de atribuição de plataforma.
 - Nomes de campanha/adset/anuncio sao snapshots de apresentacao, nunca chaves.
+- Providers e bridges apenas propõem atribuição. Somente `marketing_center_crm`
+  aplica a tupla nativa `campaign_id/source_id/medium_id`, de forma atômica,
+  fill-only, com lock/CAS, revisão, receipt e tombstone de override humano.
+- `utm.*` usa taxonomia global compartilhada no Odoo 16; o mapping company-scoped
+  controla aplicação e visibilidade, mas não transforma os cadastros UTM em registros
+  privados por empresa. Nomes UTM não podem carregar informação confidencial.
 
 ## Fontes Canônicas
 
@@ -293,7 +444,8 @@ Regras:
 |---|---|---|
 | estrutura, status e gasto de campanha | Google/Meta | Odoo guarda projeção e revisões |
 | impressões, cliques e atribuição reportada | Google/Meta | não equivale à receita real |
-| sessão, landing, UTM e click ID first-party | ledger do Marketing Center | evidência própria |
+| UTM e clique de link controlado pelo Odoo | `utm.*` e `link.tracker.click` | classificação/operação nativas; não prometem identificar cada clique físico |
+| landing, referrer, click ID e sessão não cobertos pelo Odoo | ledger do Marketing Center | evidência própria para externo/headless/handoff |
 | referral/origem observada em mensagem | Contact Center | evidência operacional, importável pelo bridge |
 | conversa e SLA | Contact Center | não pertence ao Marketing Center |
 | lead, etapa, responsável e oportunidade | CRM | fatos comerciais internos |
@@ -420,32 +572,31 @@ Regras da ponte:
 
 ## Relação com `contact_center_meta`
 
-`contact_center_meta` e `marketing_center_meta` compartilharão o addon técnico
-`meta_api_base`, mas continuarão sendo consumidores independentes. Essa separação é
-obrigatória porque:
+`contact_center_meta` e `marketing_center_meta` compartilham a identidade/transporte
+do `meta_api_base` e o ingresso técnico do `meta_webhook_base`, mas continuam sendo
+consumidores independentes. Essa separação é obrigatória porque:
 
 - Messaging usa Page/Instagram messaging permissions.
 - Ads/Insights usa ad accounts, Business Manager e Marketing API.
 - CAPI usa dataset/pixel e outro conjunto de eventos.
 - rate limit, health, escopos e risco de escrita são diferentes por perfil/conexão.
 
-O primeiro release de `meta_api_base` é propositalmente stateless e possui somente
-o contrato técnico comprovadamente comum: Graph versionado, `appsecret_proof`,
-limites de resposta, assinatura/HMAC e taxonomia neutra de erros. Apps, referências
-de credencial, capabilities, health, jobs e deliveries continuam pertencendo a cada
-consumidor.
+O release instalado de `meta_api_base` começou stateless, com Graph versionado,
+`appsecret_proof`, limites de resposta, assinatura/HMAC e taxonomia neutra de erros.
+A evolução aprovada no ADR de 2026-08-31 acrescenta identidade técnica revisionada do
+Meta App e referências externas de segredo, sem incorporar modelos de conversa,
+campanha, lead ou atribuição.
 
-Perfis persistentes, registry de consumidores e ledger técnico só migram para o
-shared core de forma aditiva quando pelo menos dois consumidores demonstrarem a
-mesma semântica, lifecycle e ACL. Até lá, compartilhar esses modelos criaria
-acoplamento entre Messaging, Ads e CAPI em vez de reuso técnico.
+`meta_webhook_base` adiciona o único callback público do App, delivery/dedupe técnico
+e registry de rotas. Ele não conhece DTOs de domínio: `messages` é processado por
+`contact_center_meta`; `page/leadgen`, por `marketing_center_meta`; consumer ausente
+ou campo desconhecido permanece `unrouted` e reprocessável.
 
-O ledger de delivery não substitui o ledger de atribuição: o primeiro prova que um
-POST externo chegou; o segundo guarda o fato de negócio normalizado. No contrato
-vigente, cada consumidor possui seu controller, dedupe, ledger, fila e estado de
-processamento. O `contact_center_meta` emite `EventDTO` e `AttributionDTO` do Contact
-Center; o `marketing_center_meta` emitirá `MarketingTouchpointDTO` quando o fluxo de
-Lead Ads for implementado. A tradução da evidência operacional do Contact Center
+O ledger técnico de delivery não substitui nenhum ledger de domínio: ele prova que um
+POST externo chegou e foi roteado. Cada consumer conserva dedupe semântico, fila e
+estado de processamento próprios. O `contact_center_meta` emite `EventDTO` e
+`AttributionDTO`; o `marketing_center_meta` emite `MarketingTouchpointDTO` depois de
+recuperar e validar o Lead Ads. A tradução da evidência operacional do Contact Center
 cabe somente ao bridge.
 
 ## Addons Previstos
@@ -473,19 +624,46 @@ Infraestrutura Meta compartilhável por mensageria e marketing.
 
 Responsabilidades:
 
+- identidade técnica revisionada do Meta App, com App ID e referência externa
+  allowlisted para App Secret;
 - cliente HTTP Graph versionado e bounded;
 - `appsecret_proof` e extração segura de request metadata;
 - classificação neutra de falhas, `Retry-After` e respostas malformadas;
-- primitives de assinatura/HMAC para uso pelos controllers consumidores.
+- primitives de assinatura/HMAC para uso pelo ingresso compartilhado;
+- contrato comum para resolução de referências de segredo fora do PostgreSQL.
 
-Não possui App/perfil persistente, segredo, job, paginação específica de recurso,
-capability, health, webhook público, delivery ledger, conversa, campanha, lead,
-touchpoint ou regra comercial. Esses elementos permanecem no consumidor até existir
-um contrato aditivo realmente comum.
+Não possui segredo em texto claro, webhook público, regra de roteamento, paginação
+específica de recurso, conversa, campanha, lead, touchpoint ou regra comercial.
+Capabilities funcionais, jobs e projeções continuam no consumer.
 
 Hospedagem: repositório técnico compartilhado `integration-core`. Tanto o Contact
 Center quanto o Marketing Center o consomem como dependência externa versionada;
 nenhum dos dois passa a depender do repositório do outro.
+
+### `meta_webhook_base`
+
+Ingresso técnico único para os webhooks do Meta App compartilhado.
+
+Responsabilidades:
+
+- handshake `hub.*` e validação de `X-Hub-Signature-256` sobre o corpo exato;
+- endpoint revisionado com referência externa do verify token;
+- Page/asset, referência externa do Page token e reconciliação da união de
+  subscriptions solicitada pelos consumers;
+- limite de método/content type/tamanho antes de parsear;
+- delivery técnica sanitizada, digest, dedupe, estados e replay;
+- decomposição bounded de `entry[]/changes[]` e registry aditivo de consumers;
+- roteamento `messages -> contact_center_meta` e
+  `page/leadgen -> marketing_center_meta`;
+- acknowledge rápido, sem Graph API nem regra de domínio no request síncrono;
+- estado `unrouted` quando o campo é desconhecido ou o consumer não está instalado.
+
+Não cria DTO, conversa, mensagem, lead, campanha ou touchpoint. Não depende de
+Contact Center nem Marketing Center; os addons consumers dependem dele e registram
+seus handlers. Hospedagem: `integration-core`, ao lado de `meta_api_base`.
+
+Contrato e cutover: ver
+[`reviews/2026-08-31-shared-meta-app-webhook-adr.md`](reviews/2026-08-31-shared-meta-app-webhook-adr.md).
 
 ### `google_api_base`
 
@@ -689,7 +867,10 @@ Responsabilidades:
 - criar `marketing.business.event` de classe lifecycle;
 - reconstruir historico de estagios a partir do chatter quando possivel;
 - deduplicar leads por regras configuraveis;
-- propagar UTM/campaign/source/medium nativos do Odoo quando coerente;
+- ser o único aplicador da tupla UTM nativa no lead, a partir de propostas de
+  providers/bridges e do contrato `first_trusted_assignment`;
+- aplicar a tupla em um único write fill-only com lock/CAS, preimage, after-image,
+  policy/mapping revision, receipt idempotente, fencing e tombstone de edição humana;
 - preservar IDs externos em modelos proprios, nao apenas nos campos UTM nativos.
 
 Regra: `utm.campaign`, `utm.source` e `utm.medium` do Odoo continuam uteis para
@@ -742,11 +923,16 @@ Responsabilidades:
 - opcionalmente reaproveitar `link.tracker` do Odoo quando ele preservar a granularidade
   necessaria.
 
-Decisao: usar recursos nativos do Odoo quando servirem, mas o ledger canonico deve ser
-proprio. Link tracker mede clique; nao substitui touchpoint de negocio.
+Decisão: recursos nativos do Odoo são canônicos no seu domínio. `link.tracker.click`
+é a fonte do clique de links controlados pelo Odoo; para cada clique nativo elegível,
+o Marketing Center não cria um segundo fato canônico. O ledger próprio permanece para
+click IDs, externo/headless, referrer, handoff WhatsApp, correlação M:N e evidência que
+o modelo nativo não representa. `link_tracker` permanece dependência opcional; uma
+correlação customizada deve usar bridge próprio.
 
-Dependências: `marketing_center_base`, `marketing_center_web_ingress`, `website` e
-`link_tracker`.
+Dependências do adapter atual: `marketing_center_web_ingress` e `website` (o primeiro
+já traz o base). `link_tracker` permanece opcional e, quando integrado, entra por
+bridge próprio; não deve ser dependência obrigatória do Website adapter.
 
 ### `marketing_center_ui`
 
@@ -774,10 +960,12 @@ estabilizados.
 contact_center_meta
         -> contact_center_base
         -> meta_api_base
+        -> meta_webhook_base
 
 marketing_center_meta
         -> marketing_center_base
         -> meta_api_base
+        -> meta_webhook_base
 
 marketing_center_google
 marketing_center_ga4
@@ -806,7 +994,8 @@ dependência de core, e os dois cores instalam e operam isoladamente.
 
 Topologia de release obrigatória:
 
-- repositório `integration-core`: `meta_api_base` e `google_api_base`;
+- repositório `integration-core`: `meta_api_base`, `meta_webhook_base` e
+  `google_api_base`;
 - repositório `contact-center`: somente `contact_center_*`;
 - repositório `marketing-center`: `marketing_center_*`;
 - releases autônomos de Contact Center e Marketing Center dependem somente das bases
@@ -834,9 +1023,9 @@ Regra de namespace:
 
 - `marketing.attribution.*`: atribuição e evidência first-party pertencentes ao
   `marketing_center_base`;
-- `meta.api.*` / `google.api.*`: namespace reservado apenas para persistência técnica
-  futura que seja realmente compartilhada; o primeiro `meta_api_base` não cria
-  modelos;
+- `meta.api.*` / `meta.webhook.*` / `google.api.*`: namespace reservado somente à
+  identidade, transporte, credenciais por purpose, deliveries e estado técnico
+  realmente compartilhados; nunca contém conversa, campanha, lead ou atribuição;
 - `marketing.center.*`: domínio de campanha, métrica, sync e operação;
 - `marketing.business.*` / `marketing.conversion.*`: fatos internos e deliveries;
 - modelos bridge mantêm o prefixo do domínio que os possui.
@@ -1228,10 +1417,12 @@ Roster próprio, sem dependência do Contact Center:
 
 Grupos iniciais:
 
-- `Marketing Viewer`: lê dashboards, performance e touchpoints já vinculados ao seu
-  roster, sem identificadores sensíveis. Touchpoint ainda não resolvido para uma
-  source permanece admin-only.
-- `Marketing Analyst`: executa sync read-only, cria analises e change requests draft.
+- `Marketing Viewer`: lê dashboards, fontes, entidades, performance e runs vinculados
+  ao seu roster, sem identificadores sensíveis. O ledger bruto e a projeção de
+  touchpoints efetivos permanecem admin-only.
+- `Marketing Analyst`: cria análises e change requests draft sobre o escopo visível.
+  Disparar sync continua reservado ao administrador porque cruza a fronteira de I/O
+  e usa credenciais externas, ainda que o adapter seja read-only.
 - `Marketing Operator`: prepara campanhas/alteracoes `PAUSED`, mas nao aprova sozinho.
 - `Marketing Manager`: aprova mudancas dentro dos tetos configurados.
 - `Marketing Administrator`: configura conexoes, credenciais, policies e scopes.
@@ -1307,20 +1498,25 @@ capturar conversões tardias; a janela histórica é reaberta por job explícito
 ### Webhook Meta
 
 ```text
-POST no controller do consumer Meta
-    -> consumer limita tamanho e seleciona seu App/perfil
-    -> meta_api_base fornece verificação HMAC
-    -> consumer persiste delivery sanitizada e deduplicada
-    -> commit + 2xx
-    -> queue_job do próprio consumer
-        -> contact_center_meta: EventDTO + AttributionDTO do Contact Center; ou
-        -> marketing_center_meta: MarketingTouchpointDTO / Lead Ads
+POST no callback único do meta_webhook_base
+    -> limita tamanho e resolve a identidade revisionada do App
+    -> meta_api_base fornece App Secret por referência + verificação HMAC
+    -> persiste delivery/change sanitizada, deduplicada e roteável
+    -> agenda consumer na mesma transação curta + 2xx
+    -> messages -> queue_job do contact_center_meta
+    -> leadgen  -> queue_job do marketing_center_meta
+                    -> GET /v26.0/{leadgen_id} com o perfil Lead
+                    -> valida DTO -> MarketingTouchpointDTO / ledger
 ```
 
-Nenhum consumer faz I/O lento antes do acknowledge. Evento desconhecido permanece
-`unrouted` para diagnóstico; não é descartado nem convertido em touchpoint genérico.
-Um ingress/registry Meta compartilhado exige ADR e contrato aditivo futuro; não é
-responsabilidade vigente do `meta_api_base`.
+Nenhum consumer nem o router faz I/O Graph antes do acknowledge. Evento desconhecido
+ou sem consumer permanece `unrouted`; não é descartado nem convertido em touchpoint
+genérico. O webhook `leadgen` é somente hint: PII e IDs canônicos adicionais vêm do
+GET autenticado e o pull reconciliador converge pelo mesmo `leadgen_id`.
+
+No laboratório o cutover dos controllers antigos é direto, sem dual-write e sem
+migração obrigatória do histórico técnico. Ledgers canônicos já existentes em cada
+domínio permanecem intactos.
 
 ### Conversão server-side
 
@@ -1661,17 +1857,23 @@ Aceite:
 
 ### Fase 1 - Fundações compartilhadas
 
-Status: **parcialmente entregue**. `meta_api_base` stateless foi instalado e a
-facade do `contact_center_meta` foi migrada sem regressão. O runtime Google, o
-spike de um eventual ingress compartilhado e qualquer contrato persistente comum
-continuam pendentes.
+Status: **entregue**. `meta_api_base` revisionado, `meta_webhook_base` e o cutover do
+`contact_center_meta` foram implantados sem regressão. O `google_api_base` REST v25
+também foi instalado isoladamente e passou 33/33 testes Odoo, apply e replay no
+servidor05. Os consumers e suas credenciais permanecem independentes.
 
 Entregas:
 
 - scaffold de `meta_api_base` e `google_api_base` no repositório
   `integration-core`;
 - extração do transporte Graph e HMAC hoje presentes em `contact_center_meta`,
-  preservando seus contratos públicos; roteamento e ledger continuam no consumer;
+  preservando seus contratos públicos;
+- identidade técnica do mesmo Meta App em `meta_api_base` e perfis Page/Ads/Lead
+  separados por purpose, referência de segredo e capability;
+- `meta_webhook_base` com callback, delivery/dedupe técnico, registry e replay sem
+  importar nenhum domínio;
+- handlers independentes: mensagens no `contact_center_meta` e `leadgen` no
+  `marketing_center_meta`;
 - spike real do SDK Google Ads no mesmo runtime do Odoo 16/OCB;
 - resolvers, perfis reader/writer, capability, fencing e health consumer-specific sem
   segredo no banco/log;
@@ -1682,8 +1884,11 @@ Entregas:
 Aceite:
 
 - Contact Center continua recebendo/enviando Meta Messaging sem regressão;
-- Meta webhook de mensageria e Lead Ads pertence e é roteado pelo respectivo
-  consumer; um ingress comum só entra por ADR futuro;
+- um único callback do Meta App valida/persiste uma vez e roteia mensagem e Lead Ads
+  somente ao consumer correspondente;
+- Page, Ads e Lead usam referências de token distintas no mesmo App;
+- cutover de laboratório ocorre sem dual-write; endpoints antigos deixam de receber
+  novas deliveries e histórico técnico antigo não precisa ser migrado;
 - nenhuma base técnica compartilhada depende de Contact Center, Marketing Center,
   CRM ou Website;
 - decisão documentada entre SDK Google no worker Odoo ou adapter isolado;
@@ -1692,10 +1897,11 @@ Aceite:
 
 ### Fase 2 - `marketing_center_base`
 
-Status: **parcialmente entregue**. DTO/ledger de atribuição, source/connection,
-team/roster, catálogo/revisões, sync run/cursor e performance diária de
-conta/campanha estão no laboratório. Business/conversion events, delivery e change
-request/approval seguem pendentes.
+Status: **núcleo read-only entregue**. DTO/ledger de atribuição,
+source/connection, team/roster, catálogo/revisões, sync run/cursor, performance,
+touchpoint efetivo, resolução de source e business events estão no laboratório.
+Conversion event/delivery e change request/approval pertencem aos cortes posteriores
+de escrita e seguem pendentes.
 
 Entregas:
 
@@ -1724,6 +1930,11 @@ Aceite:
 
 ### Fase 2.1 - Captura first-party no WordPress atual
 
+Status: **contrato e runtime entregues; integração WordPress legada não executada**.
+O `marketing_center_web_ingress` está implantado e o Website Odoo já consome o mesmo
+contrato. Um proxy WordPress só será criado se o legado continuar necessário durante
+a migração.
+
 Entregas:
 
 - scaffold e contrato HTTP versionado do `marketing_center_web_ingress`;
@@ -1741,6 +1952,11 @@ Aceite:
 - E2E sintético não envia evento a dataset/pixel de produção.
 
 ### Fase 3 - Google Ads read-only
+
+Status: **primeiro corte entregue e validado externamente**. Discovery, catálogo,
+performance nos cinco grains (`account`, `campaign`, `ad_group`, `ad`, `keyword`),
+Change History e Delivery Diagnostics estão no servidor05. Conversões e valor
+reportados pela plataforma permanecem no próximo corte do DTO de performance.
 
 Entregas:
 
@@ -1761,18 +1977,21 @@ Aceite:
 
 ### Fase 4 - Meta Ads read-only e Lead Ads
 
-Status: **parcialmente entregue**. Perfil reader, validação de App/scopes,
-discovery de ad accounts, projeção provider-neutral, catálogo ordenado de
-campaign/adset/ad/creative e Insights diário de conta/campanha foram implantados.
-Forms/datasets e Lead Ads permanecem pendentes; o Insights aguarda credencial
-`ads_read` para validação real.
+Status: **read-only implementado, validação externa parcial**. Perfil reader,
+validação de App/scopes, discovery de ad accounts, projeção provider-neutral,
+catálogo ordenado de campaign/adset/ad/creative, Insights diário de conta/campanha e
+Lead Ads webhook+pull foram implantados. Forms/datasets permanecem pendentes; o
+Insights e Lead Ads aguardam credenciais dedicadas para validação real.
 
 Entregas:
 
 - conector Meta Ads;
 - sync de ad accounts/campaigns/adsets/ads/creatives/forms/datasets;
 - Insights diarios;
-- webhook e pull seguro/reconciliador de Lead Ads;
+- handler `page/leadgen` registrado no `meta_webhook_base`; o webhook é hint e o
+  consumer recupera o lead por `GET /v26.0/{leadgen_id}` somente depois do
+  acknowledge;
+- pull seguro/reconciliador por form/ad, convergindo com webhook por `leadgen_id`;
 - Lead Ads vira `MarketingTouchpointDTO` e `marketing.attribution.touchpoint` antes de
   criar/vincular CRM.
 
@@ -1780,6 +1999,7 @@ Aceite:
 
 - replay de lead nao duplica;
 - lead com campanha/adset/ad/form preserva IDs externos;
+- `adgroup_id` legado não é promovido a `adset_id`; IDs canônicos vêm do pull;
 - lead sem mapeamento fica em quarentena/review;
 - Insights reconcilia gasto por dia/conta/campanha;
 - access tier, App Review, Business Verification, Page tasks e scopes necessários
@@ -1790,6 +2010,9 @@ As Fases 3 e 4 podem ser implementadas em paralelo depois do base. A primeira te
 conta/campanha/dia, com linha explícita `não atribuível` em vez de descartar lacunas.
 
 ### Fase 5 - Ponte Contact Center
+
+Status: **entregue no laboratório**, incluindo backfill/replay, resolução de source,
+lifecycle de conversa e correlação posterior com CRM por addon glue.
 
 Entregas:
 
@@ -1814,6 +2037,10 @@ Aceite:
 
 ### Fase 6 - Pontes CRM, Sale e Accounting
 
+Status: **primeiro corte entregue no laboratório**. Eventos e links tipados de CRM,
+Sale e Accounting, incluindo pagamentos parciais e reversões, estão instalados; o
+crédito causal permanece deliberadamente fora desta fase.
+
 Entregas:
 
 - addons `marketing_center_crm`, `marketing_center_sale` e
@@ -1835,6 +2062,12 @@ Aceite:
 
 ### Fase 7 - Migração para Website Odoo
 
+Status: **primeiro bridge entregue no laboratório, ainda não native-first completo**.
+Landing, formulário, handoff WhatsApp e correlação durável com o `crm.lead` usam o
+ledger técnico. O controller atual ainda não inclui `website_crm` no MRO cooperativo;
+integrações com `website.visitor`, `link.tracker`, `utm.*`, identificadores adicionais
+e ferramental de migração permanecem pendentes e bloqueadas até os testes da adaptação.
+
 Entregas:
 
 - adapter nativo para `website`, `utm.*`, `link.tracker` e `website.visitor`;
@@ -1845,7 +2078,8 @@ Entregas:
 
 Aceite:
 
-- formulário Odoo cria touchpoint antes do lead;
+- formulário Odoo bem-sucedido cria correlação exata e idempotente entre o lead
+  nativo e o touchpoint, sem copiar valores do formulário;
 - clique WhatsApp cria touchpoint mesmo se a conversa chegar depois;
 - `gclid/gbraid/wbraid/fbclid/fbc/fbp` preservados quando presentes;
 - teste end-to-end com landing -> lead/conversa.
@@ -1872,6 +2106,10 @@ Aceite:
 - CAPI com `event_time` acima de sete dias é terminal antes da chamada.
 
 ### Fase 9 - Dashboards operacionais
+
+Status: **primeira visão gerencial entregue**. Cobertura, freshness, custo/clique,
+touchpoints efetivos e fatos Odoo são exibidos sem crédito causal; filtros avançados,
+alertas e exportação gerencial continuam evolutivos.
 
 Entregas:
 
@@ -2122,6 +2360,24 @@ Mesmo que LGPD nao seja o foco agora, o design deve evitar vazamento acidental:
 - rollback operacional documentado;
 - primeiro lote de mudancas limitado a objetos `PAUSED`.
 
+## Matriz de autoridade native-first
+
+| Responsabilidade | Autoridade |
+|---|---|
+| classificação operacional de campanha/origem/meio | `utm.*` e documentos nativos |
+| clique de link controlado pelo Odoo | `link.tracker.click` |
+| landing, click IDs, externo/headless e handoff WhatsApp | `marketing_center_web_ingress` |
+| evidência de jornada e atribuição calculada | `marketing_center_base` |
+| mapeamento provider → UTM e política versionada | `marketing_center_base` |
+| proposta de atribuição | adapters e bridges de origem |
+| aplicação atômica/receipt da tupla UTM no lead | `marketing_center_crm` |
+| convergência touchpoint↔caso↔lead | `marketing_center_contact_center_crm` |
+| MRO/correlação Website→CRM | `marketing_center_website_crm` |
+| fatos comerciais | CRM, Sale e Account nativos |
+| causalidade pedido→fatura→pagamento | bridges Sale/Account tipados |
+| conversa, caso, SLA e evidência operacional | Contact Center |
+| dashboard native-first | `marketing_center_dashboard`, com dependências e ACL explícitas |
+
 ## Decisões Fechadas e Gates em Aberto
 
 Fechadas neste plano:
@@ -2136,9 +2392,25 @@ Fechadas neste plano:
 - duas persistências não são ledgers canônicos concorrentes: uma preserva evidência
   operacional de atendimento e a outra modela a jornada de marketing;
 - Meta e Google possuem bases técnicas compartilháveis, sem compartilhar domínio;
+- Contact Center e Marketing Center usam o mesmo Meta App, com identidade/transporte
+  em `meta_api_base`, callback único em `meta_webhook_base` e tokens Page/Ads/Lead
+  separados por purpose;
+- `messages` é rota exclusiva do consumer de Contact Center e `page/leadgen`, do
+  consumer de Marketing; webhook Lead Ads é hint seguido de GET autenticado;
+- o cutover de laboratório para o ingresso único é direto, sem dual-write e sem
+  migração obrigatória do histórico técnico anterior;
 - `queue_job` executa todo I/O assíncrono;
 - read-only precede conversões e mutações;
 - Odoo nativo (`utm.*`, `link.tracker`, CRM, Website) é integrado por projeção/bridge;
+- `utm.*`, CRM, Sale e Account são as fontes operacionais; touchpoints e Business
+  Events são evidência técnica, causalidade, ocorrência/reversão e insumo de
+  atribuição/conversão, não telas substitutas dos documentos nativos;
+- providers e bridges produzem propostas de atribuição; `marketing_center_crm` é o
+  único escritor automático da tupla UTM do lead;
+- a política de projeção é `first_trusted_assignment`: tupla atômica, fill-only,
+  revisão/fencing, receipt e override humano soberano;
+- `link_tracker` é opcional e canônico para cliques nativos elegíveis; Web Ingress
+  permanece para click IDs, externo/headless, referrer e handoff WhatsApp;
 - métricas de plataforma, fatos Odoo e atribuição calculada são categorias distintas;
 - campanha criada por API nasce `PAUSED`; exclusão externa não faz parte do MVP;
 - `marketing_center_web_ingress` pertence ao Marketing Center e não expõe
@@ -2153,14 +2425,88 @@ Fechadas neste plano:
 Gates que precisam de evidência na respectiva fase:
 
 - SDK Google Ads dentro do processo Odoo ou worker isolado;
-- Apps Meta separados ou compartilhados por perfil de credencial (padrão: separados
-  por risco/escopo);
+- scopes, Page tasks, Leads Access Manager e access tier efetivos de cada perfil Meta
+  Page/Ads/Lead no App compartilhado;
 - combinações de breakdowns e janelas de reprocessamento;
 - thresholds de aprovação e tetos de budget;
 - política de conversão, valor, dedupe e ajustes por destino;
 - prazo de retenção de delivery/payload técnico;
 - volume que dispara particionamento ou warehouse;
 - modelo de atribuição default para cada relatório.
+
+Gates específicos da adaptação native-first:
+
+- baseline recuperável dos três repositórios (`contact-center`, `marketing-center` e
+  `integration-core`) antes de release/cutover; isso não exige backup a cada iteração
+  do laboratório;
+- MRO cooperativo de `website_crm` e prova `HttpCase` de visitor → formulário → lead;
+- mapping UTM versionado, taxonomia global aceita e assignment/receipt atômico em
+  shadow antes de qualquer escrita;
+- semântica de clique baseada em “não criar segundo fato para clique nativo elegível”,
+  não em promessa de um registro por clique físico;
+- causalidade pedido–linha–fatura–reconciliação validada; UTM isolada de fatura
+  agrupada/pagamento não prova atribuição financeira;
+- dependências e ACL explícitas do dashboard sobre CRM/Sale/Account;
+- ciclo de vida de identificadores protegidos definido antes de cutover/outbox. Por
+  decisão de produto, esse item não bloqueia o desenvolvimento read-only/shadow nem o
+  Contact Center.
+
+## Ordem de execução native-first liberada — 2026-09-02
+
+1. Consolidar ADR, inventário, baseline reproduzível e mover telas cruas para menu
+   técnico sem alterar registros.
+2. Corrigir o MRO do Website CRM e o contrato do clique nativo.
+3. Implementar mapping e assignment/receipt UTM somente em shadow.
+4. Validar causalidade financeira e reconstruir o dashboard com dependências/ACL
+   explícitas.
+5. Executar dry-run/backfill e reconciliar resultados nativos com os ledgers.
+6. Realizar go/no-go específico. Só depois liberar escrita UTM e desligamento seletivo
+   de produtores duplicados.
+7. Dashboard native-first definitivo e outboxes Meta CAPI/Google Data Manager ficam
+   depois do cutover.
+
+Bindings reais entre equipes CRM e Contact Center exigem mapeamento operacional
+validado por uma pessoa; o código da ponte já existe, mas não deve inferir equivalência
+entre times pelo nome ou pelo supervisor.
+
+## Primeiro corte native-first aplicado — 2026-09-02
+
+O primeiro corte executável da adaptação foi aplicado e validado no SERVIDOR05, sem
+liberar escrita UTM ou cutover:
+
+- `marketing_center_website 16.0.2.1.1` preserva o contrato de captura first-party e
+  exclui de seu fato próprio o clique elegível que já pertence ao fluxo nativo de
+  `link.tracker.click`. `link_tracker` permanece opcional e não se torna dependência do
+  core ou dos addons Website;
+- `marketing_center_website_crm 16.0.1.3.0` entra no MRO cooperativo do controller
+  nativo `website_crm`, preservando seus hooks de telefone, geolocalização, visitante e
+  criação do lead. O bridge correlaciona o formulário ao `crm.lead` nativo sem substituir
+  o CRM como fonte operacional;
+- o contrato deixa explícito que a exclusão de clique evita um segundo fato canônico
+  para o fluxo nativo elegível; ela não promete um registro por clique físico;
+- a suíte Website passou **93/93** testes. O release completo passou **117/117** base,
+  **533/533** integrados e **4/4** da suíte;
+- a árvore final aplicada tem SHA-256
+  `c0fdc3ed8fde3f7bf13a5935581b2d82fc2029628c6d70b89e9573d8af68f36c` e a evidência
+  canônica está em `scans/raw/20260902-native-first-marketing-qunit-cleanup`;
+- a primeira execução foi abortada antes de alterar a base principal por uma assertion
+  frágil sobre metadata. As fontes anteriores e a rota foram restauradas, os serviços
+  voltaram com HTTP 200 e o ocorrido ficou preservado em
+  `scans/raw/20260902-native-first-marketing-release`. Após corrigir a assertion, a
+  segunda execução concluiu upgrade, replay e validação;
+- nenhum produtor de tracking foi desligado, nenhum cutover foi realizado e nenhuma
+  escrita UTM automática foi habilitada. Shadow, reconciliação e go/no-go continuam
+  obrigatórios antes dessas mudanças;
+- nenhum binding CRM é criado automaticamente. O inventário `CRM-MAP` pertence ao
+  Contact Center e continua exigindo validação humana e ação administrativa explícita.
+- o smoke QUnit inicial comprovou os **11/11** testes funcionais, mas encontrou o banner
+  assíncrono da base neutralizada como poluição externa do DOM. O patch `16.0.2.1.1`
+  limita a limpeza ao wrapper de `#oe_neutralize_banner`, sem remover `document.body`.
+  Depois de novo release completo, QUnit passou **11/11**, **45/45** em minificado e
+  `debug=assets`, e o painel gerencial abriu sem erro ou warning no console. Evidências
+  visuais estão em `output/playwright/20260902-cc-native-first-release`.
+
+Produção não foi acessada nem alterada.
 
 ## Definição de Pronto por Fase
 
@@ -2175,6 +2521,126 @@ Uma fase só é concluída quando:
 - `plan.md` registra o entregue, desvios e próxima decisão;
 - funcionalidades de fases posteriores continuam desabilitadas por capability/policy.
 
+## Fechamento do Contra-check e Cross-check de 2026-09-01
+
+O contra-check da auditoria independente foi concluído sobre a árvore consolidada,
+incluindo as alterações paralelas. Foram corrigidos neste ciclo:
+
+- identidade v2 do bridge Contact Center → Marketing Center;
+- fronteiras diárias em fusos com transição à meia-noite;
+- invalidação do cursor após lock e testes reais de concorrência;
+- recuperação autoritativa de `cursor_changed` em Meta e Google;
+- writes no-op de perfis sem revisão/health falsa;
+- proteção system-only das referências de credencial Meta;
+- filtros e navegação operacional dos sync runs;
+- estado terminal após esgotar retries reais do OCA `queue_job` em Meta e Google.
+
+O cross-check posterior também resultou em:
+
+- pin fail-closed do schema v1 do Contact Center no bridge;
+- contrato Graph v26 único para catálogo, Insights e Lead Ads;
+- continuidade na cadeia v1 para replay histórico inequívoco e bloqueio explícito
+  de cadeias colididas ou já divididas entre v1/v2;
+- cobertura de meia-noite ambígua e da ação system-only que abre o `queue.job`
+  exato.
+
+O servidor05 recebeu a árvore exata de 335 arquivos, hash
+`04dabe9d95f63b74586a10486b8a7ea0006e9fff5b3941a91edac924455365fe`, com 726
+testes verdes, upgrade e replay idempotente, HTTP público/privado 200 e nenhuma
+alteração em produção. A disposição completa, inclusive refutações e backlog, está
+em `reviews/2026-09-01-independent-audit-cross-check-disposition.md`.
+
+Permanecem como decisões deliberadas, não correções automáticas: remotes/commits dos
+repositórios, política LGPD/retenção, migração das cadeias v1/v2 já divididas,
+planner/backfill multipágina resumível e política avançada de rate limit/health.
+
+## Fechamento da Verificação da Disposição — 2026-09-01
+
+A verificação posterior foi confrontada novamente com código e laboratório. As
+duas lacunas de teste acima foram fechadas: há prova dirigida dos sete campos
+invalidados após o lock e dois workers reais disputam a mesma página tanto no
+catálogo quanto em performance.
+
+O contra-check adicional também corrigiu três riscos de domínio/operação:
+
+- conflito presente já na primeira revisão fica no ledger como `conflict` e não
+  entra na projeção efetiva;
+- o bridge opcional não executa mais mapper/validação durante o `write()` do
+  Contact Center; a falha fica contida no job assíncrono;
+- o backfill de atribuição distribui um job idempotente por fonte, evitando rollback
+  do lote inteiro quando uma única cadeia histórica exige decisão explícita.
+
+O caso histórico já dividido v1/v2 continua deliberadamente bloqueado para migração
+auditada; não foi escolhida automaticamente uma das duas cadeias imutáveis.
+
+O novo release do servidor05 instalou `marketing_center_base` 16.0.1.7.3 e
+`marketing_center_contact_center` 16.0.3.0.2. Foram validados 117 testes base, 528
+integrados, 89 Website e 4 da suíte (738 no total), sem falhas. A árvore implantada
+tem 335 arquivos e hash
+`1f69e011e13105f18824550d4f2ee5f814cba344bfb30c1310bc6cc4057d9e0d`; upgrade,
+replay e HTTP 200 passaram, sem tocar produção. A disposição completa está em
+`reviews/2026-09-01-cross-check-disposition-verification-response.md`.
+
+Continuam backlog, sem serem mascarados como concluídos: migração histórica v1/v2,
+planner multipágina resumível, runner neutro antes do terceiro provedor, headers de
+uso Meta, tombstones autoritativos, persistência operacional de erros Graph, health
+periódico, justiça/capacidade de crons e topologia Git/CI/off-host.
+
+## Fechamento da Verificação da Resposta — 2026-09-02
+
+O novo contra-check confirmou a corrida entre jobs de atribuição, restaurou a
+separação de prioridade entre tráfego vivo (40) e backfill (55), endureceu a
+validação da empresa e fechou três lacunas dirigidas de teste. A alegação de que os
+sete campos invalidados não possuíam teste isolado foi refutada: o teste específico
+já pré-carrega e verifica cada campo após o lock.
+
+Uma inspeção ao vivo encontrou 363 jobs históricos de response episodes falhando
+por associar delivery a mensagens enviadas pelo dispositivo. O SQL de seleção foi
+alinhado ao invariante do ledger: delivery é evidência apenas para `agent`, enquanto
+`external_device` usa a própria mensagem. Os 363 jobs foram reprocessados pelo
+JobRunner, gerando 6.224 sinais; o estado final ficou com 600 cursores, zero job
+ativo/falho e zero mensagem externa confirmada sem signal.
+
+O servidor05 recebeu `marketing_center_contact_center` 16.0.3.0.3. Passaram
+117 testes base, 533 integrados, 89 Website e 4 da suíte, sem falhas. A árvore de
+335 arquivos tem SHA-256
+`432a4e85dba0aef1c4c60f53e5045c82adcf01e437b8a49b917d1570a64496e7`; upgrade,
+replay, convergência da fila e HTTP 200 foram comprovados sem tocar produção.
+
+D3 (coordenador paginado/resumível para installs grandes), D4 (planner/migration
+explícito em upgrades que exijam remapeamento) e o workflow de resolução de
+conflito permanecem backlog deliberado. A disposição completa está em
+`reviews/2026-09-02-verification-response-check-disposition.md`.
+
+## Fundação Greenfield do Marketing Center — 2026-09-03
+
+O pente-fino greenfield consolidou e implantou os 15 addons do Marketing Center nas
+versões pinadas pelo release. A árvore aplicada contém **373 arquivos** e SHA-256
+`be49fb73123af364e6e84d5bc8d7096d7d5e6cf1d2db70b086a953f49f9e570c`.
+
+O release canônico no SERVIDOR05 concluiu todos os gates:
+
+- **120/120** testes base, **633/633** integrados, **119/119** Website/HTTP e
+  **5/5** da facade completa, sem falha ou erro;
+- upgrade offline e replay idempotente da base principal com status **0**;
+- os 15 addons instalados exatamente nas versões pinadas;
+- convergência com zero job ativo, falho, inesperado ou projeção falha;
+- QUnit `marketing_center_website` em minificado e `debug=assets`: **11/11** testes
+  e **45/45** assertions em cada execução, sem falha de asset, página ou runtime;
+- HTTP privado e público **200**, com a rota de teste restaurada ao mesmo hash;
+- `status=applied_and_validated` e `production_touched=false`.
+
+As cinco tentativas intermediárias que pararam nas suítes base, integrada ou
+Website foram todas classificadas como `failed_recovered` e
+`pre_database_change`: as fontes anteriores foram restauradas, os serviços voltaram
+com HTTP 200 e nenhuma delas alterou a base principal. Elas serviram para corrigir
+testes e contratos antes do apply final, sem mascarar falhas.
+
+Evidência canônica:
+`scans/raw/20260903-odoo16-marketing-center-greenfield-foundation/release/20260903T233620975902Z`.
+O registro detalhado está em
+`reviews/2026-09-03-greenfield-foundation-release-validation.md`.
+
 ## Fontes e Referencias
 
 Documentos locais:
@@ -2186,6 +2652,7 @@ Documentos locais:
 - [Plano do Contact Center](../contact-center/plan.md)
 - [Meta Click-to-WhatsApp](../contact-center/research/meta-click-to-whatsapp-attribution.md)
 - [Meta Messenger e Instagram](../contact-center/research/meta-messenger-instagram.md)
+- [ADR — App e ingresso de webhooks Meta compartilhados](reviews/2026-08-31-shared-meta-app-webhook-adr.md)
 
 Fontes oficiais consultadas:
 
@@ -2207,9 +2674,114 @@ Fontes oficiais consultadas:
 - Meta Conversions API usage/Test Events: https://developers.facebook.com/documentation/ads-commerce/conversions-api/using-the-api.md
 - Meta CAPI parameters: https://developers.facebook.com/docs/marketing-api/conversions-api/parameters
 - Meta Lead Ads retrieval: https://developers.facebook.com/documentation/ads-commerce/marketing-api/guides/lead-ads/retrieving.md
+- Meta Webhooks for Leads: https://developers.facebook.com/docs/graph-api/webhooks/getting-started/webhooks-for-leadgen
+- Meta permissions / `leads_retrieval`: https://developers.facebook.com/docs/permissions#leads_retrieval
 
 Bibliotecas/referencias de codigo:
 
 - Google Ads Python client: https://github.com/googleads/google-ads-python
 - Google Ads MCP oficial: https://github.com/googleads/google-ads-mcp
 - Meta Business SDK Python: https://github.com/facebook/facebook-python-business-sdk
+
+## Fechamento dos addons restantes e contra-check independente — candidato de 2026-09-03
+
+O fechamento passa a cobrir também os seis addons que não receberam o mesmo
+inventário módulo a módulo na primeira revisão:
+
+- `marketing_center_contact_center`;
+- `marketing_center_crm`;
+- `marketing_center_contact_center_crm`;
+- `marketing_center_web_ingress`;
+- `marketing_center_website`;
+- `marketing_center_website_crm`.
+
+O contra-check confirmou três defeitos objetivos do parecer independente e duas
+lacunas adicionais encontradas ao seguir os fluxos completos:
+
+1. crons Meta/Google sem cursor justo foram centralizados em scheduler rotativo,
+   transacional e separado por lane;
+2. jobs Lead Ads são reancorados à empresa dona e detectam ciclos não imediatos de
+   cursor, além de impor teto de páginas e tamanho;
+3. o handoff WhatsApp do Website só intercepta links marcados/configurados e, em
+   qualquer falha de telemetria, continua no `href` original validado e same-origin;
+4. o bridge Contact Center + CRM deixou de fazer fan-out M×N síncrono e passou a jobs
+   paginados, idempotentes e resumíveis, mantendo revogação síncrona;
+5. a materialização dos episódios de resposta passa a ter cutoff e cursores seek
+   persistentes, para que uma conversa grande não seja processada numa única
+   transação e mensagens live não ultrapassem o histórico.
+
+O alerta da view SQL do dashboard foi medido no SERVIDOR05: com 310 métricas, 229
+touchpoints efetivos, 40 resolutions e 3.945 eventos de negócio, o plano completo
+executou em **18,414 ms**. Isso refuta uma falha atual, mas não certifica escala. O
+plano mostra um lateral lookup de sync run por métrica e deve ser repetido em
+cardinalidade representativa, com orçamento de latência e buffers, antes de produção.
+Nenhum split será feito apenas porque o SQL tem muitas linhas.
+
+A ausência de retenção completa é aceita como gate real, não como autorização para
+apagar ledgers imutáveis. O desenho produtivo deverá separar identificadores/payloads
+apagáveis da prova mínima de dedupe, replay e auditoria, com `retain_until`, legal
+hold, purge paginado e observabilidade.
+
+Nesse ponto o bloco ainda era **candidato**, condicionado à prova das suítes,
+upgrade, replay, QUnit, smoke, versões e hash exato no SERVIDOR05. O resultado final
+está registrado na atualização de 2026-09-04 abaixo; produção não foi acessada por
+essa validação.
+
+## Atualização do fechamento greenfield — 2026-09-04
+
+O inventário linha a linha dos seis addons restantes foi concluído. As críticas
+externas sobre injustiça dos crons, contexto multiempresa e fallback do handoff
+WhatsApp descreviam riscos reais de estados anteriores, mas já estão corrigidas na
+árvore consolidada: schedulers usam rotação persistente por lane, jobs reancoram a
+empresa exata e falhas de telemetria preservam o `href` original validado e
+same-origin.
+
+O `marketing_center_contact_center` chegou à versão `16.0.3.3.0`, com **36** testes.
+Após provar no banco a drenagem completa dos cursores e sinais, foram removidos os
+estados/campo `legacy_*` e o runtime passou a ter uma única semântica de
+materialização. A suíte integrada consolidada contém **660** testes.
+
+Como este projeto ainda não possui baseline produtivo, a transição foi executada
+primeiro no SERVIDOR05 e só então **33 hooks históricos de migration em 12 addons**
+foram removidos. O release agora rejeita qualquer diretório `migrations/`: a primeira
+instalação produtiva deverá nascer diretamente no schema corrente. Depois desse
+baseline, toda evolução de schema voltará a exigir migrations versionadas.
+
+A etapa transitória está comprovada por release `applied_and_validated`, com
+**123/123** testes base, **660/660** integrados, **123/123** Website/HTTP e **5/5**
+da facade; upgrade e replay offline passaram, as filas convergiram, QUnit passou em
+minificado e `debug=assets` com **12/12 testes e 49/49 assertions** por modo, HTTP
+privado/público respondeu 200 e produção não foi tocada. Evidência:
+`scans/raw/20260903-odoo16-marketing-center-remaining-addons-closeout/release/20260904-stage-b-direct-r2/summary.json`.
+
+O release canônico da árvore **já sem migrations** também concluiu com
+`status=applied_and_validated`. A segunda execução confirmou **123/123** testes base,
+**660/660** integrados, **123/123** Website/HTTP e **5/5** da facade; upgrade e
+replay offline com status zero; zero job ativo/falho/inesperado; QUnit minificado e
+`debug=assets` com **12/12 testes e 49/49 assertions** por modo; e HTTP privado e
+público 200. A árvore final possui 346 arquivos e SHA-256
+`ecc5e80744ba17a2133cc3fe4d4ff7f50ea3e180a1ec5cfda59ee50b00a5543e`.
+
+Evidência canônica do primeiro baseline:
+`scans/raw/20260903-odoo16-marketing-center-remaining-addons-closeout/release/20260904-final-no-migrations/summary.json`.
+
+Com isso, o fechamento greenfield do Marketing Center está concluído no SERVIDOR05,
+sem tocar produção. Os gates abaixo continuam deliberadamente abertos para a entrada
+produtiva; eles não invalidam o baseline técnico comprovado.
+
+Permanecem gates de produção, sem serem confundidos com defeitos já corrigidos:
+
+- política LGPD/retenção com separação entre valor apagável e prova mínima, legal
+  hold, purge paginado e observabilidade;
+- rate limit autoritativo no edge para ingresso público;
+- `EXPLAIN (ANALYZE, BUFFERS)` do dashboard em cardinalidade representativa; no
+  laboratório o plano atual levou **18,414 ms**, o que não prova escala;
+- os **3** registros históricos `ingress_provenance='unclassified'` são preservados
+  como evidência imutável; o runtime atual não cria novos registros nessa condição.
+
+A disposição detalhada está em
+`reviews/2026-09-04-remaining-addons-greenfield-review.md`.
+
+O índice conjunto deste baseline, incluindo os limites com Contact Center e
+Integration Core, está em
+`../reviews/2026-09-04-greenfield-baseline-cross-repo.md`.

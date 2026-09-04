@@ -3,14 +3,13 @@ import datetime
 import re
 from typing import Any, Dict, Mapping, Optional, Tuple
 
-import pytz
-
 from .dto import canonical_json, sha256_text
+from .timezone import LocalDateBoundaryError, local_date_boundary_utc
 
 PERFORMANCE_METRIC_SCHEMA_VERSION = 1
 PERFORMANCE_PAGE_SCHEMA_VERSION = 1
 
-PERFORMANCE_GRAINS = frozenset({"account", "campaign"})
+PERFORMANCE_GRAINS = frozenset({"account", "campaign", "ad_group", "ad", "keyword"})
 PERFORMANCE_DIMENSIONS = frozenset(
     {
         "country",
@@ -182,30 +181,15 @@ def _serialize(value: Any) -> Any:
 
 def _expected_utc_bounds(report_date: datetime.date, timezone_name: str):
     try:
-        timezone = pytz.timezone(timezone_name)
-        local_start = timezone.localize(
-            datetime.datetime.combine(report_date, datetime.time.min),
-            is_dst=None,
+        local_start = local_date_boundary_utc(report_date, timezone_name)
+        local_end = local_date_boundary_utc(
+            report_date + datetime.timedelta(days=1), timezone_name
         )
-        local_end = timezone.localize(
-            datetime.datetime.combine(
-                report_date + datetime.timedelta(days=1),
-                datetime.time.min,
-            ),
-            is_dst=None,
-        )
-    except (
-        pytz.UnknownTimeZoneError,
-        pytz.AmbiguousTimeError,
-        pytz.NonExistentTimeError,
-    ) as error:
+    except (LocalDateBoundaryError, OverflowError) as error:
         raise PerformanceDTOValidationError(
             "report_timezone cannot define reproducible daily UTC bounds"
         ) from error
-    return (
-        local_start.astimezone(pytz.UTC).replace(tzinfo=None),
-        local_end.astimezone(pytz.UTC).replace(tzinfo=None),
-    )
+    return local_start, local_end
 
 
 @dataclasses.dataclass(frozen=True)
@@ -507,8 +491,3 @@ class PerformanceIngestResult:
     disposition: str
     revision_sequence: int
     content_hash: str
-
-
-# Transitional alias for callers that adopted the earlier draft name. The public
-# provider-neutral contract is MarketingPerformanceDTO.
-PerformanceMetricDTO = MarketingPerformanceDTO

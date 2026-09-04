@@ -19,6 +19,7 @@ from odoo.addons.queue_job.exception import RetryableJobError
 
 from ..services.adapter import MetaAdAccount
 from ..services.insights import normalize_insights_window
+from .common import create_meta_profile
 
 _ADAPTER_PATH = (
     "odoo.addons.marketing_center_meta.models.insights_sync." "MetaMarketingReadAdapter"
@@ -33,15 +34,12 @@ class TestMetaInsightsSync(SavepointCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.profile = cls.env["marketing.center.meta.profile"].create(
-            {
-                "name": "Meta Insights laboratory",
-                "company_id": cls.env.company.id,
-                "external_app_id": "987654321",
-                "credential_backend": "environment",
-                "app_secret_ref": "ODOO_META_INSIGHTS_APP_SECRET",
-                "access_token_ref": "ODOO_META_INSIGHTS_READER_TOKEN",
-            }
+        cls.meta_app, cls.profile = create_meta_profile(
+            cls.env,
+            name="Meta Insights laboratory",
+            external_app_id="987654321",
+            app_secret_ref="ODOO_META_INSIGHTS_APP_SECRET",
+            access_token_ref="ODOO_META_INSIGHTS_READER_TOKEN",
         )
         cls.account_ref = "act_987654"
         cls.currency = cls.env.company.currency_id.name
@@ -157,6 +155,43 @@ class TestMetaInsightsSync(SavepointCase):
                 sequence
             )
         return result, adapter_class
+
+    def test_cursor_mismatch_reschedules_exact_authoritative_page(self):
+        run, expected_sequence = self._plan("account")
+        authoritative_sequence = expected_sequence + 2
+        old_job_uuid = run.queue_job_uuid
+        sync_service = self.env["marketing.center.sync.service"]
+        cursor = sync_service._locked_cursor(run)
+        sync_service._write_cursor(
+            cursor,
+            {"cursor_sequence": authoritative_sequence},
+        )
+
+        with patch(_ADAPTER_PATH) as adapter_class:
+            result = run.with_context(
+                job_uuid=old_job_uuid
+            )._job_sync_meta_insights_page(expected_sequence)
+
+        run.invalidate_recordset(["queue_job_uuid", "state"])
+        replacement = (
+            self.env["queue.job"]
+            .sudo()
+            .search([("uuid", "=", run.queue_job_uuid)], limit=1)
+        )
+        self.assertEqual(
+            result,
+            {
+                "cursor_changed": True,
+                "rescheduled": True,
+                "cursor_sequence": authoritative_sequence,
+            },
+        )
+        self.assertEqual(run.state, "queued")
+        self.assertNotEqual(run.queue_job_uuid, old_job_uuid)
+        self.assertTrue(
+            replacement.identity_key.endswith(":%s" % authoritative_sequence)
+        )
+        adapter_class.assert_not_called()
 
     def test_account_and_historical_campaign_are_projected_exactly(self):
         account_run, account_sequence = self._plan("account")
@@ -515,3 +550,40 @@ class TestMetaInsightsSync(SavepointCase):
                 trigger_kind="manual",
                 trigger_ref="test:%s" % uuid.uuid4(),
             )
+
+    def test_closed_insights_scheduler_is_daily_and_idempotent(self):
+        now = datetime.datetime(2026, 9, 1, 15, 0)
+        first = self.service._cron_enqueue_closed_insights(
+            source_ids=[self.source.id],
+            now=now,
+        )
+        second = self.service._cron_enqueue_closed_insights(
+            source_ids=[self.source.id],
+            now=now,
+        )
+
+        self.assertEqual(first, {"queued": 2, "skipped": 0, "failed": 0})
+        self.assertEqual(second, {"queued": 0, "skipped": 2, "failed": 0})
+        runs = self.env["marketing.center.sync.run"].search(
+            [
+                ("source_id", "=", self.source.id),
+                ("sync_kind", "=", "metrics"),
+                ("trigger_kind", "=", "scheduled"),
+            ],
+            order="grain",
+        )
+        self.assertEqual(len(runs), 2)
+        self.assertEqual(set(runs.mapped("grain")), {"account", "campaign"})
+        self.assertEqual(set(runs.mapped("state")), {"queued"})
+        self.assertEqual(
+            set(runs.mapped("trigger_ref")),
+            {"closed:2026-08-31:account", "closed:2026-08-31:campaign"},
+        )
+        self.assertEqual(
+            set(runs.mapped("window_start")),
+            {datetime.datetime(2026, 8, 25, 3, 0)},
+        )
+        self.assertEqual(
+            set(runs.mapped("window_end")),
+            {datetime.datetime(2026, 9, 1, 3, 0)},
+        )

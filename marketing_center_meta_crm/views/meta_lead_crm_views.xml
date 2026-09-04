@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_meta_lead_route_form_crm" model="ir.ui.view">
+        <field name="name">marketing.center.meta.lead.route.form.crm</field>
+        <field name="model">marketing.center.meta.lead.route</field>
+        <field
+      name="inherit_id"
+      ref="marketing_center_meta.view_marketing_center_meta_lead_route_form"
+    />
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page
+          string="CRM"
+          groups="marketing_center_base.group_marketing_center_admin"
+        >
+                    <group>
+                        <group>
+                            <field name="crm_auto_create_lead" />
+                            <field
+                name="crm_lead_type"
+                attrs="{'invisible': [('crm_auto_create_lead', '=', False)]}"
+              />
+                            <field
+                name="crm_lead_title_prefix"
+                attrs="{'invisible': [('crm_auto_create_lead', '=', False)]}"
+              />
+                        </group>
+                        <group
+              attrs="{'invisible': [('crm_auto_create_lead', '=', False)]}"
+            >
+                            <field
+                name="crm_team_id"
+                options="{'no_create': True, 'no_create_edit': True}"
+                domain="['|', ('company_id', '=', False), ('company_id', '=', company_id)]"
+              />
+                            <field
+                name="crm_user_id"
+                options="{'no_create': True, 'no_create_edit': True}"
+              />
+                            <field name="crm_tag_ids" widget="many2many_tags" />
+                        </group>
+                    </group>
+                    <div class="alert alert-info" role="alert">
+                        Only authenticated Lead Ads submissions create CRM records.
+                        Custom answers remain private and are not copied to the CRM.
+                    </div>
+                    <button
+            name="action_enqueue_crm_backfill"
+            type="object"
+            string="Reconcile CRM leads"
+            class="btn-secondary"
+            attrs="{'invisible': [('crm_auto_create_lead', '=', False)]}"
+          />
+                    <field name="crm_projection_ids" nolabel="1">
+                        <tree create="false" edit="false" delete="false">
+                            <field name="submission_id" />
+                            <field name="state" />
+                            <field name="lead_id" />
+                            <field name="attempts" />
+                            <field name="processed_at" />
+                        </tree>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_meta_lead_submission_form_crm" model="ir.ui.view">
+        <field
+      name="name"
+    >marketing.center.meta.lead.submission.form.crm</field>
+        <field name="model">marketing.center.meta.lead.submission</field>
+        <field
+      name="inherit_id"
+      ref="marketing_center_meta.view_marketing_center_meta_lead_submission_form"
+    />
+        <field name="arch" type="xml">
+            <xpath expr="//sheet/group[1]/group[2]" position="inside">
+                <field
+          name="crm_projection_id"
+          groups="marketing_center_base.group_marketing_center_admin"
+        />
+                <field
+          name="crm_lead_id"
+          groups="marketing_center_base.group_marketing_center_admin"
+        />
+                <button
+          name="action_open_crm_lead"
+          type="object"
+          string="Open CRM lead"
+          class="oe_link"
+          attrs="{'invisible': [('crm_lead_id', '=', False)]}"
+          groups="marketing_center_base.group_marketing_center_admin"
+        />
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_marketing_meta_crm_projection_tree" model="ir.ui.view">
+        <field name="name">marketing.center.meta.crm.projection.tree</field>
+        <field name="model">marketing.center.meta.crm.projection</field>
+        <field name="arch" type="xml">
+            <tree create="false" edit="false" delete="false">
+                <field name="submission_id" />
+                <field name="route_id" />
+                <field name="state" />
+                <field name="lead_id" />
+                <field name="lead_display_ref" optional="hide" />
+                <field name="attempts" />
+                <field name="processed_at" />
+                <button
+          name="action_retry"
+          type="object"
+          string="Retry"
+          attrs="{'invisible': [('state', 'not in', ['failed', 'skipped'])]}"
+        />
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_marketing_meta_crm_projection_form" model="ir.ui.view">
+        <field name="name">marketing.center.meta.crm.projection.form</field>
+        <field name="model">marketing.center.meta.crm.projection</field>
+        <field name="arch" type="xml">
+            <form create="false" edit="false" delete="false">
+                <header>
+                    <button
+            name="action_retry"
+            type="object"
+            string="Retry"
+            attrs="{'invisible': [('state', 'not in', ['failed', 'skipped'])]}"
+          />
+                    <button
+            name="action_open_lead"
+            type="object"
+            string="Open CRM lead"
+            attrs="{'invisible': [('lead_id', '=', False)]}"
+          />
+                    <field name="state" widget="statusbar" />
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="company_id" />
+                            <field name="submission_id" />
+                            <field name="route_id" />
+                            <field name="touchpoint_id" />
+                            <field name="lead_id" />
+                            <field
+                name="lead_model"
+                groups="base.group_system"
+              />
+                            <field
+                name="lead_res_id"
+                groups="base.group_system"
+              />
+                            <field name="lead_display_ref" />
+                            <field name="assertion_id" />
+                        </group>
+                        <group>
+                            <field name="public_ref" />
+                            <field name="attempts" />
+                            <field
+                name="queue_job_uuid"
+                groups="base.group_system"
+              />
+                            <field name="processed_at" />
+                            <field name="last_error_class" />
+                            <field name="last_error_message" />
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record
+    id="action_marketing_meta_crm_projections"
+    model="ir.actions.act_window"
+  >
+        <field name="name">Meta CRM Projections</field>
+        <field name="res_model">marketing.center.meta.crm.projection</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <menuitem
+    id="menu_marketing_meta_crm_projections"
+    name="Meta CRM Projections"
+    parent="marketing_center_base.menu_marketing_center_attribution"
+    action="action_marketing_meta_crm_projections"
+    sequence="32"
+    groups="marketing_center_base.group_marketing_center_admin"
+  />
+</odoo>

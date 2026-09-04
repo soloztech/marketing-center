@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record
+    id="view_marketing_attribution_asset_resolution_tree"
+    model="ir.ui.view"
+  >
+        <field name="name">marketing.attribution.asset.resolution.tree</field>
+        <field name="model">marketing.attribution.asset.resolution</field>
+        <field name="arch" type="xml">
+            <tree
+        create="false"
+        edit="false"
+        delete="false"
+        decoration-success="state == 'resolved'"
+        decoration-warning="state == 'unresolved'"
+        decoration-danger="state == 'ambiguous'"
+        decoration-muted="state == 'unsupported'"
+      >
+                <field name="last_attempted_at" />
+                <field name="state" />
+                <field name="asset_namespace" />
+                <field name="asset_value" />
+                <field name="source_id" />
+                <field name="entity_id" />
+                <field name="reason" />
+                <field name="company_id" groups="base.group_multi_company" />
+            </tree>
+        </field>
+    </record>
+
+    <record
+    id="view_marketing_attribution_asset_resolution_form"
+    model="ir.ui.view"
+  >
+        <field name="name">marketing.attribution.asset.resolution.form</field>
+        <field name="model">marketing.attribution.asset.resolution</field>
+        <field name="arch" type="xml">
+            <form create="false" edit="false" delete="false">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="state" />
+                            <field name="reason" />
+                            <field name="asset_namespace" />
+                            <field name="asset_value" />
+                            <field name="target_kind" />
+                            <field name="mapped_entity_type" />
+                        </group>
+                        <group>
+                            <field name="source_id" />
+                            <field name="entity_id" />
+                            <field name="canonical_external_ref" />
+                            <field
+                name="company_id"
+                groups="base.group_multi_company"
+              />
+                            <field name="touchpoint_id" />
+                        </group>
+                    </group>
+                    <group
+            string="Resolution telemetry"
+            groups="marketing_center_base.group_marketing_center_admin"
+          >
+                        <group>
+                            <field name="provider_key" />
+                            <field name="service_key" />
+                            <field name="resolver_version" />
+                            <field name="canonical_key" />
+                        </group>
+                        <group>
+                            <field name="source_candidate_count" />
+                            <field name="entity_candidate_count" />
+                            <field name="attempt_count" />
+                            <field name="first_attempted_at" />
+                            <field name="last_attempted_at" />
+                            <field name="resolved_at" />
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record
+    id="view_marketing_attribution_asset_resolution_search"
+    model="ir.ui.view"
+  >
+        <field name="name">marketing.attribution.asset.resolution.search</field>
+        <field name="model">marketing.attribution.asset.resolution</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="asset_namespace" />
+                <field name="asset_value" />
+                <field name="source_id" />
+                <field name="entity_id" />
+                <filter
+          name="unresolved"
+          string="Unresolved"
+          domain="[('state', '=', 'unresolved')]"
+        />
+                <filter
+          name="ambiguous"
+          string="Ambiguous"
+          domain="[('state', '=', 'ambiguous')]"
+        />
+                <filter
+          name="unsupported"
+          string="Unsupported"
+          domain="[('state', '=', 'unsupported')]"
+        />
+                <group expand="0" string="Group By">
+                    <filter
+            name="group_state"
+            string="State"
+            context="{'group_by': 'state'}"
+          />
+                    <filter
+            name="group_namespace"
+            string="Asset namespace"
+            context="{'group_by': 'asset_namespace'}"
+          />
+                    <filter
+            name="group_source"
+            string="Source"
+            context="{'group_by': 'source_id'}"
+          />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record
+    id="action_marketing_attribution_asset_resolutions"
+    model="ir.actions.act_window"
+  >
+        <field name="name">Asset Resolution</field>
+        <field name="res_model">marketing.attribution.asset.resolution</field>
+        <field name="view_mode">tree,form</field>
+        <field
+      name="search_view_id"
+      ref="view_marketing_attribution_asset_resolution_search"
+    />
+        <field name="context">{'create': False}</field>
+        <field name="help" type="html">
+            <p
+      >Technical matching between public asset references, marketing sources and catalog entities.</p>
+            <p
+      >This reconstructible projection does not assert causal attribution.</p>
+        </field>
+    </record>
+
+    <record
+    id="view_marketing_attribution_touchpoint_resolution_form"
+    model="ir.ui.view"
+  >
+        <field
+      name="name"
+    >marketing.attribution.touchpoint.asset.resolution.form</field>
+        <field name="model">marketing.attribution.touchpoint</field>
+        <field
+      name="inherit_id"
+      ref="view_marketing_attribution_touchpoint_form"
+    />
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page
+          string="Asset Resolution"
+          groups="marketing_center_base.group_marketing_center_admin"
+        >
+                    <field name="asset_resolution_ids" nolabel="1">
+                        <tree create="false" edit="false" delete="false">
+                            <field name="state" />
+                            <field name="asset_namespace" />
+                            <field name="asset_value" />
+                            <field name="source_id" />
+                            <field name="entity_id" />
+                            <field name="reason" />
+                            <field name="last_attempted_at" />
+                        </tree>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <menuitem
+    id="menu_marketing_center_asset_resolutions"
+    name="Asset Resolution"
+    parent="menu_marketing_center_catalog"
+    action="action_marketing_attribution_asset_resolutions"
+    sequence="15"
+    groups="marketing_center_base.group_marketing_center_viewer"
+  />
+</odoo>

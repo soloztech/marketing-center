@@ -32,6 +32,7 @@ EVIDENCE_LEVELS = frozenset(
     }
 )
 CONSENT_STATES = frozenset({"denied", "granted", "unknown"})
+REVISION_KINDS = frozenset({"conflict", "correction", "enrichment", "observation"})
 _TOKEN_RE = re.compile(r"^[a-z0-9][a-z0-9._:-]{0,127}$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _UTM_KEYS = frozenset({"campaign", "content", "medium", "source", "term"})
@@ -319,6 +320,7 @@ class MarketingTouchpointDTO:
     channel: str
     touchpoint_type: str
     evidence_level: str
+    revision_kind: str = "observation"
     observed_at: Optional[datetime.datetime] = None
     source_evidence_ref: str = ""
     source_schema_version: str = ""
@@ -403,6 +405,10 @@ class MarketingTouchpointDTO:
         if evidence_level not in EVIDENCE_LEVELS:
             raise AttributionDTOValidationError("evidence_level is invalid")
         object.__setattr__(self, "evidence_level", evidence_level)
+        revision_kind = _token(self.revision_kind, "revision_kind")
+        if revision_kind not in REVISION_KINDS:
+            raise AttributionDTOValidationError("revision_kind is invalid")
+        object.__setattr__(self, "revision_kind", revision_kind)
         object.__setattr__(
             self, "landing_url", sanitize_url(self.landing_url, "landing_url")
         )
@@ -420,9 +426,11 @@ class MarketingTouchpointDTO:
             asset_refs[key] = _bounded_text(value, "asset_refs.%s" % key, 512)
         object.__setattr__(self, "asset_refs", asset_refs)
         identifiers = tuple(
-            item
-            if isinstance(item, MarketingIdentifierDTO)
-            else MarketingIdentifierDTO.from_dict(item)
+            (
+                item
+                if isinstance(item, MarketingIdentifierDTO)
+                else MarketingIdentifierDTO.from_dict(item)
+            )
             for item in tuple(self.identifiers or ())
         )
         if len(identifiers) > 64:
@@ -453,9 +461,11 @@ class MarketingTouchpointDTO:
                 if isinstance(payload.get(field_name), str):
                     payload[field_name] = _datetime_from_iso(payload[field_name])
             payload["identifiers"] = tuple(
-                item
-                if isinstance(item, MarketingIdentifierDTO)
-                else MarketingIdentifierDTO.from_dict(item)
+                (
+                    item
+                    if isinstance(item, MarketingIdentifierDTO)
+                    else MarketingIdentifierDTO.from_dict(item)
+                )
                 for item in tuple(payload.get("identifiers") or ())
             )
             if not isinstance(payload.get("privacy"), PrivacySnapshotDTO):
@@ -493,6 +503,7 @@ class MarketingTouchpointDTO:
             "channel": self.channel,
             "touchpoint_type": self.touchpoint_type,
             "evidence_level": self.evidence_level,
+            "revision_kind": self.revision_kind,
             "network": self.network,
             "landing_url": self.landing_url,
             "referrer_url": self.referrer_url,

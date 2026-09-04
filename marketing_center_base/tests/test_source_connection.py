@@ -51,6 +51,86 @@ class TestMarketingSourceConnection(SavepointCase):
                 timezone="Brazil/Not_A_Zone",
             )
 
+    def test_scheduler_batch_rotates_past_the_lowest_source_ids(self):
+        service = "fair.scheduler.%s" % uuid.uuid4().hex
+        sources = self.env["marketing.center.source"]
+        for position in range(3):
+            sources |= self._source(
+                name="Fair source %s" % position,
+                service=service,
+                external_account_ref="fair_%s_%s" % (position, uuid.uuid4().hex),
+            )
+        cursor_key = "test.fair.%s" % uuid.uuid4().hex
+        domain = [
+            ("active", "=", True),
+            ("service", "=", service),
+            ("state", "=", "active"),
+        ]
+        selected = []
+        for _iteration in range(4):
+            batch = self.env["marketing.center.source"]._fair_scheduler_batch(
+                domain,
+                cursor_key=cursor_key,
+                limit=1,
+            )
+            selected.append(batch.id)
+
+        ordered = sources.sorted("id").ids
+        self.assertEqual(selected, ordered + ordered[:1])
+
+    def test_scheduler_batch_rejects_unbounded_or_unsafe_arguments(self):
+        source_model = self.env["marketing.center.source"]
+        with self.assertRaises(ValidationError):
+            source_model._fair_scheduler_batch([], cursor_key="../unsafe", limit=1)
+        with self.assertRaises(ValidationError):
+            source_model._fair_scheduler_batch([], cursor_key="safe", limit=0)
+
+    def test_scheduler_wraps_companies_and_rolls_back_cursor(self):
+        other_company = self.env["res.company"].create(
+            {"name": "Fair scheduler company %s" % uuid.uuid4().hex}
+        )
+        service = "fair.multi.%s" % uuid.uuid4().hex
+        sources = self.env["marketing.center.source"]
+        for position, company in enumerate(
+            (self.env.company, other_company, self.env.company)
+        ):
+            sources |= self._source(
+                name="Multi-company fair source %s" % position,
+                company_id=company.id,
+                service=service,
+                external_account_ref="multi_%s_%s" % (position, uuid.uuid4().hex),
+            )
+        cursor_key = "test.multi.%s" % uuid.uuid4().hex
+        domain = [("service", "=", service)]
+        first = self.env["marketing.center.source"]._fair_scheduler_batch(
+            domain,
+            cursor_key=cursor_key,
+            limit=2,
+        )
+        rolled_back_ids = []
+        with self.assertRaises(RuntimeError):
+            with self.env.cr.savepoint():
+                rolled_back_ids.extend(
+                    self.env["marketing.center.source"]
+                    ._fair_scheduler_batch(
+                        domain,
+                        cursor_key=cursor_key,
+                        limit=2,
+                    )
+                    .ids
+                )
+                raise RuntimeError("rollback scheduler cursor")
+        repeated = self.env["marketing.center.source"]._fair_scheduler_batch(
+            domain,
+            cursor_key=cursor_key,
+            limit=2,
+        )
+
+        ordered = sources.sorted("id").ids
+        self.assertEqual(first.ids, ordered[:2])
+        self.assertEqual(rolled_back_ids, ordered[2:] + ordered[:1])
+        self.assertEqual(repeated.ids, rolled_back_ids)
+
     def test_connection_rotation_is_fenced_and_runtime_is_protected(self):
         source = self._source()
         connection = self._connection(source)
@@ -111,3 +191,23 @@ class TestMarketingSourceConnection(SavepointCase):
         connection = self._connection(source)
         with self.assertRaises(AccessError):
             connection.write({"source_id": other.id})
+
+    def test_source_external_identity_freezes_after_first_binding(self):
+        source = self._source(external_account_ref="draft_%s" % uuid.uuid4())
+        revision = source.configuration_revision
+        source.write(
+            {
+                "service": "google.ads",
+                "external_account_ref": "customers/%s" % uuid.uuid4().int,
+                "external_account_id": "1234567890",
+            }
+        )
+        self.assertEqual(source.service, "google.ads")
+        self.assertEqual(source.configuration_revision, revision + 1)
+        self._connection(source, adapter_key="google.ads", profile_revision=0)
+        with self.assertRaises(AccessError):
+            source.write({"external_account_ref": "customers/reassigned"})
+        with self.assertRaises(AccessError):
+            source.write({"external_account_id": "9999999999"})
+        with self.assertRaises(AccessError):
+            source.write({"service": "meta.ads"})

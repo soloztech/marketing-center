@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_marketing_website_crm_correlation_admin,marketing.website.crm.correlation administrator,model_marketing_website_crm_correlation,marketing_center_base.group_marketing_center_admin,1,0,0,0
+access_marketing_website_crm_intent_admin,marketing.website.crm.intent administrator,model_marketing_website_crm_intent,marketing_center_base.group_marketing_center_admin,1,0,0,0

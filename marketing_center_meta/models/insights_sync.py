@@ -2,8 +2,6 @@ import datetime
 import logging
 import uuid
 
-import pytz
-
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 
@@ -60,6 +58,80 @@ class MarketingCenterMetaInsightsService(models.AbstractModel):
     _inherit = "marketing.center.meta.catalog.service"
 
     @api.model
+    def _closed_reporting_dates(self, source, *, now=None, lookback_days=7):
+        try:
+            lookback_days = int(lookback_days)
+        except (TypeError, ValueError) as error:
+            raise ValidationError(_("The Insights lookback is invalid.")) from error
+        if isinstance(lookback_days, bool) or not 1 <= lookback_days <= 31:
+            raise ValidationError(_("The Insights lookback is invalid."))
+        date_to = self._source_local_date(source, now) - datetime.timedelta(days=1)
+        return date_to - datetime.timedelta(days=lookback_days - 1), date_to
+
+    @api.model
+    def _cron_enqueue_closed_insights(
+        self,
+        source_ids=None,
+        limit=50,
+        now=None,
+        lookback_days=7,
+    ):
+        """Queue closed daily windows independently for each source and grain."""
+
+        result = {"queued": 0, "skipped": 0, "failed": 0}
+        for source in self._scheduled_sources(
+            source_ids, limit=limit, scheduler_key="insights"
+        ):
+            scoped_service = self.with_company(source.company_id).with_context(
+                allowed_company_ids=[source.company_id.id]
+            )
+            scoped_source = scoped_service.env["marketing.center.source"].browse(
+                source.id
+            )
+            try:
+                connection = scoped_service._insights_reader_connection(scoped_source)
+                date_from, date_to = scoped_service._closed_reporting_dates(
+                    scoped_source,
+                    now=now,
+                    lookback_days=lookback_days,
+                )
+            except Exception as error:  # pylint: disable=broad-except
+                _logger.error(
+                    "Meta Insights scheduling preflight failed for source %s (%s)",
+                    source.public_ref,
+                    error.__class__.__name__,
+                )
+                result["failed"] += len(META_INSIGHTS_GRAINS)
+                continue
+            for grain in META_INSIGHTS_GRAINS:
+                try:
+                    with self.env.cr.savepoint():
+                        run = scoped_service._plan_insights(
+                            scoped_source,
+                            connection,
+                            grain=grain,
+                            date_from=date_from,
+                            date_to=date_to,
+                            trigger_kind="scheduled",
+                            trigger_ref="closed:%s:%s" % (date_to.isoformat(), grain),
+                        )
+                        if run.state != "planned":
+                            result["skipped"] += 1
+                            continue
+                        cursor_sequence = scoped_service._restart_insights_cursor(run)
+                        scoped_service._enqueue_insights_page(run, cursor_sequence)
+                        result["queued"] += 1
+                except Exception as error:  # pylint: disable=broad-except
+                    _logger.error(
+                        "Meta Insights scheduling failed for source %s grain %s (%s)",
+                        source.public_ref,
+                        grain,
+                        error.__class__.__name__,
+                    )
+                    result["failed"] += 1
+        return result
+
+    @api.model
     def _insights_reader_connection(self, source):
         connection = self._reader_connection(source)
         capabilities = connection.effective_capabilities_json or {}
@@ -105,7 +177,7 @@ class MarketingCenterMetaInsightsService(models.AbstractModel):
                 window_end,
             ) = normalize_insights_window(date_from, date_to, source.timezone)
             reporting_context = meta_insights_reporting_context(
-                profile.graph_version,
+                profile.meta_app_id.graph_version,
                 source.external_account_ref,
                 grain,
                 source.currency_id.name,
@@ -290,7 +362,11 @@ class MarketingCenterMetaInsightsService(models.AbstractModel):
             )
         cursor_sequence, after = self._insights_cursor_snapshot(run)
         if cursor_sequence != expected_cursor_sequence:
-            return {"cursor_changed": True}
+            return self._reschedule_current_cursor(
+                run,
+                job_uuid,
+                enqueue_method="_enqueue_insights_page",
+            )
         try:
             after = self._validated_insights_cursor(after)
         except MetaApiError as error:
@@ -323,7 +399,7 @@ class MarketingCenterMetaInsightsService(models.AbstractModel):
             expected_context_hash = sha256_text(
                 canonical_json(
                     meta_insights_reporting_context(
-                        profile.graph_version,
+                        profile.meta_app_id.graph_version,
                         run.source_id.external_account_ref,
                         run.grain,
                         run.source_id.currency_id.name,
@@ -348,7 +424,10 @@ class MarketingCenterMetaInsightsService(models.AbstractModel):
         date_to,
     ):
         try:
-            return MetaMarketingReadAdapter(profile).fetch_insights_page(
+            return MetaMarketingReadAdapter(
+                profile,
+                expected_app_revision=profile.meta_app_id.revision,
+            ).fetch_insights_page(
                 run.source_id.external_account_ref,
                 run.grain,
                 date_from=date_from,
@@ -465,7 +544,11 @@ class MarketingCenterMetaInsightsService(models.AbstractModel):
         if not self._lock_current_job(run, job_uuid):
             return {"orphan": True}
         meta_service = self.env["marketing.center.meta.service"]
-        if not meta_service._lock_current_profile(profile, run.profile_revision):
+        if not meta_service._lock_current_profile(
+            profile,
+            run.profile_revision,
+            profile.meta_app_id.revision,
+        ):
             return self._mark_insights_stale_before_io(run, job_uuid)
         sync_service = self.env["marketing.center.sync.service"]
         if not sync_service._validate_fencing(run):
@@ -566,13 +649,7 @@ class MarketingCenterSource(models.Model):
             raise AccessError(_("Only Marketing Center administrators can sync Meta."))
         service = self.env["marketing.center.meta.catalog.service"]
         connection = service._insights_reader_connection(self)
-        try:
-            zone = pytz.timezone(self.timezone)
-        except pytz.UnknownTimeZoneError as error:
-            raise ValidationError(_("The Meta source timezone is invalid.")) from error
-        today = pytz.UTC.localize(datetime.datetime.utcnow()).astimezone(zone).date()
-        date_to = today - datetime.timedelta(days=1)
-        date_from = date_to - datetime.timedelta(days=6)
+        date_from, date_to = service._closed_reporting_dates(self)
         occurrence = str(uuid.uuid4())
         for grain in META_INSIGHTS_GRAINS:
             run = service._plan_insights(

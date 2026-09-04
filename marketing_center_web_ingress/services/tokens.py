@@ -1,0 +1,1 @@
+WEB_INGRESS_INTERNAL_TOKEN = object()

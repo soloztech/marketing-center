@@ -1,8 +1,26 @@
+from psycopg2 import OperationalError, errors as pg_errors
+
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 
-from ..services.mapper import MAPPING_VERSION, ContactCenterAttributionMapper
+from odoo.addons.queue_job.exception import RetryableJobError
+
+from ..services.mapper import (
+    MAPPED_TOUCHPOINT_WRITE_FIELDS,
+    MAPPING_VERSION,
+    ContactCenterAttributionMapper,
+)
 from ..services.tokens import MARKETING_CONTACT_CENTER_LINK_WRITE_TOKEN
+
+_LIVE_ATTRIBUTION_JOB_PRIORITY = 40
+_BACKFILL_ATTRIBUTION_JOB_PRIORITY = 55
+_RETRYABLE_REVISION_CONSTRAINTS = frozenset(
+    {
+        "marketing_attribution_touchpoint_canonical_revision_unique",
+        "marketing_attr_cc_link_source_revision_unique",
+        "marketing_attr_cc_link_target_mapping_uniq",
+    }
+)
 
 
 class MarketingAttributionContactCenterLink(models.Model):
@@ -49,11 +67,22 @@ class MarketingAttributionContactCenterLink(models.Model):
             "The source content hash must be a SHA-256 digest.",
         ),
         (
-            "mapping_version_positive",
-            "check(mapping_version > 0)",
-            "The mapper version must be positive.",
+            "mapping_version_supported",
+            "check(mapping_version >= 2)",
+            "The mapper version predates the canonical bridge contract.",
         ),
     ]
+
+    def init(self):
+        # Every supported mapping derives the Marketing occurrence from the
+        # complete Contact Center canonical key. Enforce one source per target
+        # revision at the database boundary.
+        self.env.cr.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS "
+            "marketing_attr_cc_link_target_mapping_uniq "
+            "ON marketing_attr_cc_link "
+            "(company_id, marketing_touchpoint_id, mapping_version)"
+        )
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -62,6 +91,12 @@ class MarketingAttributionContactCenterLink(models.Model):
             is not MARKETING_CONTACT_CENTER_LINK_WRITE_TOKEN
         ):
             raise AccessError(_("Attribution links are created only by the bridge."))
+        if any(
+            values.get("mapping_version") != MAPPING_VERSION for values in vals_list
+        ):
+            raise ValidationError(
+                _("Attribution links must use the current bridge mapper version.")
+            )
         return super().create(vals_list)
 
     def write(self, values):  # pylint: disable=method-required-super
@@ -93,18 +128,49 @@ class ContactCenterAttributionTouchpoint(models.Model):
         return touchpoints
 
     def write(self, values):
+        should_enqueue = bool(set(values) & MAPPED_TOUCHPOINT_WRITE_FIELDS)
         result = super().write(values)
-        if not self.env.context.get("marketing_contact_center_skip_enqueue"):
-            self._enqueue_marketing_attribution_sync()
+        if should_enqueue and not self.env.context.get(
+            "marketing_contact_center_skip_enqueue"
+        ):
+            self.sudo()._enqueue_marketing_attribution_sync()
         return result
 
-    def _enqueue_marketing_attribution_sync(self):
+    def _marketing_attribution_identity_key(self, wake_scope="live"):
+        self.ensure_one()
+        if wake_scope == "live":
+            # A fixed per-touchpoint identity can lose a write committed while an
+            # older job is already running on its REPEATABLE READ snapshot.  One
+            # identity per source transaction coalesces all writes made together
+            # while preserving a durable wake-up for every later transaction.
+            self.env.cr.execute("SELECT txid_current()")
+            wake_ref = "tx:%s" % self.env.cr.fetchone()[0]
+        elif wake_scope == "backfill":
+            wake_ref = "backfill"
+        else:
+            raise ValidationError(
+                _("The Marketing attribution wake-up scope is invalid.")
+            )
+        return "marketing_contact_center:touchpoint:%s:v%s:%s" % (
+            self.public_ref,
+            MAPPING_VERSION,
+            wake_ref,
+        )
+
+    def _enqueue_marketing_attribution_sync(
+        self,
+        *,
+        priority=_LIVE_ATTRIBUTION_JOB_PRIORITY,
+        wake_scope="live",
+    ):
         for touchpoint in self.sudo():
-            touchpoint.with_company(touchpoint.company_id).with_delay(
-                identity_key="marketing_contact_center:touchpoint:%s"
-                % touchpoint.public_ref,
+            company = touchpoint.company_id
+            touchpoint.with_context(allowed_company_ids=[company.id]).with_company(
+                company
+            ).with_delay(
+                identity_key=touchpoint._marketing_attribution_identity_key(wake_scope),
                 max_retries=0,
-                priority=40,
+                priority=priority,
                 description="Marketing attribution bridge %s" % touchpoint.public_ref,
             )._job_sync_marketing_touchpoint()
         return True
@@ -114,13 +180,48 @@ class ContactCenterAttributionTouchpoint(models.Model):
         touchpoint = self.sudo().exists()
         if not touchpoint:
             return True
-        (
-            self.env["marketing.contact.center.attribution.service"]
-            .sudo()
-            .with_company(touchpoint.company_id)
-            ._sync_touchpoint(touchpoint)
-        )
+        company = touchpoint.company_id
+        try:
+            (
+                self.env["marketing.contact.center.attribution.service"]
+                .sudo()
+                .with_context(allowed_company_ids=[company.id])
+                .with_company(company)
+                ._sync_touchpoint(touchpoint)
+            )
+        except pg_errors.UniqueViolation as error:
+            if (
+                getattr(getattr(error, "diag", None), "constraint_name", None)
+                not in _RETRYABLE_REVISION_CONSTRAINTS
+            ):
+                raise
+            raise RetryableJobError(
+                "Marketing attribution bridge observed a concurrent revision",
+                seconds=None,
+            ) from None
+        except OperationalError:
+            raise RetryableJobError(
+                "Marketing attribution bridge hit a concurrent database operation"
+            ) from None
         return True
+
+    def _job_sync_marketing_touchpoint_batch(self):
+        touchpoints = self.sudo().exists().sorted("id")
+        touchpoints._enqueue_marketing_attribution_sync(
+            priority=_BACKFILL_ATTRIBUTION_JOB_PRIORITY
+        )
+        return {"processed": 0, "enqueued": len(touchpoints)}
+
+
+class ContactCenterAttributionIdentifier(models.Model):
+    _inherit = "contact.center.attribution.identifier"
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        identifiers = super().create(vals_list)
+        if not self.env.context.get("marketing_contact_center_skip_enqueue"):
+            identifiers.mapped("touchpoint_id")._enqueue_marketing_attribution_sync()
+        return identifiers
 
 
 class MarketingContactCenterAttributionService(models.AbstractModel):
@@ -137,14 +238,20 @@ class MarketingContactCenterAttributionService(models.AbstractModel):
         ):
             raise ValidationError(_("A single Contact Center touchpoint is required."))
         company = source.company_id
+        link_model = (
+            self.env["marketing.attribution.contact.center.link"]
+            .sudo()
+            .with_context(allowed_company_ids=[company.id])
+            .with_company(company)
+        )
         dto = ContactCenterAttributionMapper.to_dto(source)
         marketing_result = (
             self.env["marketing.attribution.service"]
             .sudo()
+            .with_context(allowed_company_ids=[company.id])
             .with_company(company)
             ._ingest_touchpoint(company, dto)
         )
-        link_model = self.env["marketing.attribution.contact.center.link"].sudo()
         existing = link_model.search(
             [
                 ("company_id", "=", company.id),
@@ -181,9 +288,10 @@ class MarketingContactCenterAttributionService(models.AbstractModel):
 
     @api.model
     def _enqueue_backfill(self, company=None, after_id=0, limit=200):
-        company = company or self.env.company
+        if company is None:
+            company = self.env.company
         if (
-            company._name != "res.company"
+            getattr(company, "_name", "") != "res.company"
             or len(company) != 1
             or company not in self.env.companies
         ):
@@ -199,7 +307,11 @@ class MarketingContactCenterAttributionService(models.AbstractModel):
                 limit=limit,
             )
         )
-        sources._enqueue_marketing_attribution_sync()
+        if sources:
+            sources._enqueue_marketing_attribution_sync(
+                priority=_BACKFILL_ATTRIBUTION_JOB_PRIORITY,
+                wake_scope="backfill",
+            )
         return {
             "enqueued": len(sources),
             "last_id": sources[-1:].id or after_id,

@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_marketing_dashboard_viewer,marketing.center.dashboard.overview viewer,model_marketing_center_dashboard_overview,marketing_center_base.group_marketing_center_viewer,1,0,0,0
+

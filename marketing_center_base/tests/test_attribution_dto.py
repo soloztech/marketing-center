@@ -74,3 +74,5 @@ class TestMarketingAttributionDTO(TransactionCase):
             MarketingIdentifierDTO(
                 namespace="meta.ctwa_clid", role="click", comparison_hash="raw"
             )
+        with self.assertRaises(AttributionDTOValidationError):
+            self._dto(revision_kind="guess")

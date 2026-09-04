@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record
+    id="view_marketing_center_connection_form_google"
+    model="ir.ui.view"
+  >
+        <field name="name">marketing.center.connection.form.google</field>
+        <field name="model">marketing.center.connection</field>
+        <field
+      name="inherit_id"
+      ref="marketing_center_base.view_marketing_center_connection_form"
+    />
+        <field name="arch" type="xml">
+            <field name="adapter_key" position="after">
+                <field
+          name="google_profile_id"
+          attrs="{'required': [('adapter_key', '=', 'google.ads.rest.v25')], 'invisible': [('adapter_key', '!=', 'google.ads.rest.v25')]}"
+        />
+                <field
+          name="google_identity_revision"
+          attrs="{'invisible': [('adapter_key', '!=', 'google.ads.rest.v25')]}"
+        />
+                <field
+          name="google_login_customer_id"
+          attrs="{'invisible': [('adapter_key', '!=', 'google.ads.rest.v25')]}"
+        />
+            </field>
+            <field name="profile_public_ref" position="attributes">
+                <attribute
+          name="attrs"
+        >{'readonly': [('adapter_key', '=', 'google.ads.rest.v25')]}</attribute>
+            </field>
+            <field name="profile_revision" position="attributes">
+                <attribute
+          name="attrs"
+        >{'readonly': [('adapter_key', '=', 'google.ads.rest.v25')]}</attribute>
+            </field>
+        </field>
+    </record>
+</odoo>

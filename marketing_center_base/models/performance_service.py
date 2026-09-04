@@ -6,6 +6,7 @@ from ..services.performance_dto import (
     PerformanceDTOValidationError,
     PerformanceIngestResult,
 )
+from ..services.serialization import acquire_advisory_xact_lock
 from ..services.tokens import MARKETING_PERFORMANCE_WRITE_TOKEN
 
 
@@ -15,17 +16,8 @@ class MarketingCenterPerformanceService(models.AbstractModel):
 
     @api.model
     def _upsert_metric(self, company, source, payload, sync_run=None):
-        company, source = self.env["marketing.center.catalog.service"]._validated_scope(
-            company, source
-        )
-        sync_run = sync_run.sudo().exists() if sync_run else sync_run
-        if sync_run and (
-            len(sync_run) != 1
-            or sync_run.source_id != source
-            or sync_run.company_id != company
-            or sync_run.sync_kind != "metrics"
-        ):
-            raise ValidationError(_("The sync run does not match the metric source."))
+        catalog_service = self.env["marketing.center.catalog.service"]
+        _company_id, source_id = catalog_service._scope_ids_for_lock(company, source)
         try:
             dto = (
                 payload
@@ -36,12 +28,23 @@ class MarketingCenterPerformanceService(models.AbstractModel):
             raise ValidationError(
                 _("Invalid performance metric: %s") % error
             ) from error
-        self._validate_metric_scope(source, dto, sync_run)
 
-        lock_key = "marketing_performance:%s:%s" % (source.id, dto.canonical_key)
-        self.env.cr.execute(
-            "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", [lock_key]
+        lock_key = "marketing_performance:%s:%s" % (source_id, dto.canonical_key)
+        acquire_advisory_xact_lock(
+            self.env.cr,
+            lock_key,
+            "Concurrent marketing metric ingestion requires a fresh snapshot",
         )
+        company, source = catalog_service._validated_scope(company, source)
+        sync_run = sync_run.sudo().exists() if sync_run else sync_run
+        if sync_run and (
+            len(sync_run) != 1
+            or sync_run.source_id != source
+            or sync_run.company_id != company
+            or sync_run.sync_kind != "metrics"
+        ):
+            raise ValidationError(_("The sync run does not match the metric source."))
+        self._validate_metric_scope(source, dto, sync_run)
         metric_model = self.env["marketing.center.metric.daily"].sudo()
         metric = metric_model.search(
             [

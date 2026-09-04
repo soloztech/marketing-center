@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+  <record id="rule_marketing_web_ingress_endpoint_company" model="ir.rule">
+    <field name="name">Web ingress endpoints by active company</field>
+    <field name="model_id" ref="model_marketing_web_ingress_endpoint" />
+    <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    <field
+      name="groups"
+      eval="[(4, ref('marketing_center_base.group_marketing_center_admin'))]"
+    />
+  </record>
+
+  <record id="rule_marketing_web_ingress_event_company" model="ir.rule">
+    <field name="name">Web ingress events by active company</field>
+    <field name="model_id" ref="model_marketing_web_ingress_event" />
+    <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    <field
+      name="groups"
+      eval="[(4, ref('marketing_center_base.group_marketing_center_admin'))]"
+    />
+  </record>
+
+  <record id="rule_marketing_web_ingress_click_value_company" model="ir.rule">
+    <field name="name">Protected click identifiers by active company</field>
+    <field name="model_id" ref="model_marketing_web_ingress_click_value" />
+    <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    <field
+      name="groups"
+      eval="[(4, ref('marketing_center_base.group_marketing_center_admin'))]"
+    />
+  </record>
+
+  <record id="rule_marketing_web_ingress_admission_company" model="ir.rule">
+    <field name="name">Web ingress admissions by active company</field>
+    <field name="model_id" ref="model_marketing_web_ingress_admission" />
+    <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    <field
+      name="groups"
+      eval="[(4, ref('marketing_center_base.group_marketing_center_admin'))]"
+    />
+  </record>
+</odoo>

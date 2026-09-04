@@ -1,0 +1,26 @@
+{
+    "name": "Marketing Center - Google Ads",
+    "summary": "Read-only Google Ads catalog, performance and observability",
+    "version": "16.0.1.1.3",
+    "category": "Marketing",
+    "author": "Soloz Technologies",
+    "website": "https://github.com/lcsztl/marketing-center",
+    "license": "AGPL-3",
+    "depends": [
+        "marketing_center_base",
+        "google_api_base",
+        "queue_job",
+    ],
+    "data": [
+        "security/marketing_center_google_security.xml",
+        "security/ir.model.access.csv",
+        "data/queue_job.xml",
+        "data/sync_cron.xml",
+        "views/google_profile_views.xml",
+        "views/marketing_connection_views.xml",
+        "views/google_observation_views.xml",
+        "views/marketing_source_views.xml",
+    ],
+    "installable": True,
+    "application": False,
+}

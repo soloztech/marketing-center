@@ -130,6 +130,16 @@ class MarketingCenterSyncRun(models.Model):
         readonly=True,
         groups="marketing_center_base.group_marketing_center_admin",
     )
+    deferred_until = fields.Datetime(
+        index=True,
+        readonly=True,
+        copy=False,
+        groups="marketing_center_base.group_marketing_center_admin",
+        help=(
+            "Earliest expected execution time for an intentionally deferred "
+            "successor. The watchdog treats this as valid progress."
+        ),
+    )
     started_at = fields.Datetime(index=True, readonly=True)
     finished_at = fields.Datetime(index=True, readonly=True)
     page_count = fields.Integer(required=True, default=0, readonly=True)
@@ -219,6 +229,43 @@ class MarketingCenterSyncRun(models.Model):
 
     def unlink(self):  # pylint: disable=method-required-super
         raise AccessError(_("Synchronization runs cannot be deleted."))
+
+    def action_cancel(self):
+        if not self.env.user.has_group(
+            "marketing_center_base.group_marketing_center_admin"
+        ):
+            raise AccessError(
+                _("Only Marketing Center administrators can cancel synchronizations.")
+            )
+        self.check_access_rights("read")
+        self.check_access_rule("read")
+        for run in self:
+            self.env["marketing.center.sync.service"]._cancel_run(run)
+        return True
+
+    def action_open_queue_job(self):
+        self.ensure_one()
+        if not self.env.user.has_group("base.group_system"):
+            raise AccessError(
+                _("Only Settings administrators can inspect synchronization jobs.")
+            )
+        if not self.queue_job_uuid or "queue.job" not in self.env:
+            raise ValidationError(_("This synchronization has no available queue job."))
+        job = (
+            self.env["queue.job"]
+            .sudo()
+            .search([("uuid", "=", self.queue_job_uuid)], limit=1)
+        )
+        if not job:
+            raise ValidationError(_("The queue job is no longer available."))
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Queue Job"),
+            "res_model": "queue.job",
+            "res_id": job.id,
+            "view_mode": "form",
+            "target": "current",
+        }
 
     @api.constrains("company_id", "source_id", "connection_id")
     def _check_scope_links(self):

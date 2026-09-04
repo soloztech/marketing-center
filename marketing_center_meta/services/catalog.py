@@ -12,6 +12,9 @@ from odoo.addons.marketing_center_base.services.catalog_dto import (
 from odoo.addons.meta_api_base.services.errors import MetaApiError
 from odoo.addons.meta_api_base.services.graph import graph_request
 
+from .datetime_utils import parse_meta_datetime
+from .graph_contract import require_marketing_graph_version
+
 META_CATALOG_CONTRACT_VERSION = "meta.marketing.catalog.v1"
 META_CATALOG_ENTITY_TYPES = ("campaign", "group", "ad", "creative")
 META_CATALOG_RUN_ENTITY_TYPE = "meta_account_catalog"
@@ -20,7 +23,6 @@ META_CATALOG_CURSOR_VERSION = 1
 _ACCOUNT_REF_RE = re.compile(r"^act_[0-9]+$")
 _OBJECT_ID_RE = re.compile(r"^[0-9]+$")
 _ENUM_RE = re.compile(r"^[A-Za-z0-9_:-]+$")
-_COMPACT_TIMEZONE_RE = re.compile(r"([+-][0-9]{2})([0-9]{2})$")
 _MAX_PAGE_ITEMS = 200
 _PAGE_LIMIT = 100
 _MAX_CURSOR_BYTES = 3072
@@ -167,7 +169,7 @@ def meta_catalog_spec(entity_type):
 def meta_catalog_reporting_context(graph_version, account_ref, entity_type):
     account_ref = _account_ref(account_ref)
     spec = meta_catalog_spec(entity_type)
-    graph_version = _bounded_text(graph_version, "Graph version", 16)
+    graph_version = require_marketing_graph_version(graph_version, "catalog")
     return {
         "provider": "meta",
         "graph_version": graph_version,
@@ -183,7 +185,7 @@ def meta_catalog_reporting_context(graph_version, account_ref, entity_type):
 
 def meta_catalog_sweep_reporting_context(graph_version, account_ref):
     account_ref = _account_ref(account_ref)
-    graph_version = _bounded_text(graph_version, "Graph version", 16)
+    graph_version = require_marketing_graph_version(graph_version, "catalog")
     return {
         "provider": "meta",
         "graph_version": graph_version,
@@ -275,6 +277,7 @@ def fetch_meta_catalog_page(
 ):
     """Fetch and normalize exactly one bounded Meta catalog page."""
 
+    require_marketing_graph_version(app.graph_version, "catalog")
     account_ref = _account_ref(account_ref)
     spec = meta_catalog_spec(entity_type)
     after = _bounded_text(
@@ -521,19 +524,9 @@ def _optional_datetime(value):
         return None
     value = _bounded_text(value, "object timestamp", 64)
     try:
-        normalized = "%s+00:00" % value[:-1] if value.endswith("Z") else value
-        # Meta commonly emits RFC-3339-like offsets as ``+0000``.  Python 3.10,
-        # used by the Odoo 16 runtime, requires the colon accepted by ISO-8601.
-        normalized = _COMPACT_TIMEZONE_RE.sub(r"\1:\2", normalized)
-        parsed = datetime.datetime.fromisoformat(normalized)
+        return parse_meta_datetime(value)
     except ValueError:
         raise MetaApiError("Meta object timestamp is invalid") from None
-    if not parsed.tzinfo or parsed.utcoffset() is None:
-        raise MetaApiError("Meta object timestamp is invalid")
-    return parsed.astimezone(datetime.timezone.utc).replace(
-        tzinfo=None,
-        microsecond=0,
-    )
 
 
 def _wire_datetime(value, label):

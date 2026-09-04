@@ -25,6 +25,25 @@
         <field name="model">marketing.center.sync.run</field>
         <field name="arch" type="xml">
             <form create="false" edit="false" delete="false">
+                <header>
+                    <button
+            name="action_cancel"
+            type="object"
+            string="Cancel"
+            class="btn-secondary"
+            groups="marketing_center_base.group_marketing_center_admin"
+            attrs="{'invisible': [('state', 'not in', ['planned', 'queued', 'running'])]}"
+          />
+                    <button
+            name="action_open_queue_job"
+            type="object"
+            string="Open Queue Job"
+            class="btn-secondary"
+            groups="base.group_system"
+            attrs="{'invisible': [('queue_job_uuid', '=', False)]}"
+          />
+                    <field name="state" widget="statusbar" />
+                </header>
                 <sheet>
                     <group>
                         <group>
@@ -36,7 +55,6 @@
                             <field name="entity_type" />
                             <field name="grain" />
                             <field name="scope_ref" />
-                            <field name="state" />
                         </group>
                         <group>
                             <field name="trigger_kind" />
@@ -66,6 +84,7 @@
                                 <field name="binding_revision" />
                                 <field name="profile_revision" />
                                 <field name="queue_job_uuid" />
+                                <field name="deferred_until" />
                                 <field name="provider_request_ids_json" />
                                 <field name="reporting_context_json" />
                                 <field name="error_class" />
@@ -88,10 +107,61 @@
         </field>
     </record>
 
+    <record id="view_marketing_sync_run_search" model="ir.ui.view">
+        <field name="name">marketing.center.sync.run.search</field>
+        <field name="model">marketing.center.sync.run</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="public_ref" />
+                <field name="source_id" />
+                <field name="scope_ref" />
+                <field name="trigger_ref" />
+                <filter
+          name="active_runs"
+          string="Active"
+          domain="[('state', 'in', ['planned', 'queued', 'running'])]"
+        />
+                <filter
+          name="failed_runs"
+          string="Failed"
+          domain="[('state', '=', 'failed')]"
+        />
+                <filter
+          name="finished_runs"
+          string="Finished"
+          domain="[('state', 'in', ['succeeded', 'partial', 'cancelled', 'stale'])]"
+        />
+                <separator />
+                <filter
+          name="group_source"
+          string="Source"
+          context="{'group_by': 'source_id'}"
+        />
+                <filter
+          name="group_kind"
+          string="Kind"
+          context="{'group_by': 'sync_kind'}"
+        />
+                <filter
+          name="group_state"
+          string="State"
+          context="{'group_by': 'state'}"
+        />
+                <filter
+          name="group_company"
+          string="Company"
+          context="{'group_by': 'company_id'}"
+          groups="base.group_multi_company"
+        />
+            </search>
+        </field>
+    </record>
+
     <record id="action_marketing_sync_runs" model="ir.actions.act_window">
         <field name="name">Synchronization Runs</field>
         <field name="res_model">marketing.center.sync.run</field>
         <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_marketing_sync_run_search" />
     </record>
 
     <record id="view_marketing_sync_cursor_tree" model="ir.ui.view">
