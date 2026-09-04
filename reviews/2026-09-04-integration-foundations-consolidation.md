@@ -1,7 +1,7 @@
 # Consolidação das fundações de integração
 
 Data: 2026-09-04  
-Estado: validado no laboratório; publicação GitHub em andamento
+Estado: validado no laboratório e publicado como pré-release coordenado
 
 ## Decisão
 
@@ -43,9 +43,9 @@ banco nem renomeação de módulos Odoo.
 - [x] suítes Odoo integradas de Marketing Center e Contact Center;
 - [x] cutover consolidado no SERVIDOR05 com resolução única dos 18 addons;
 - [x] smoke autenticado sem regressão funcional;
-- [ ] repositórios privados `soloztech/contact-center` e `soloztech/marketing-center`
+- [x] repositórios privados `soloztech/contact-center` e `soloztech/marketing-center`
       publicados com CI reproduzível;
-- [ ] tag/release candidato aponta para os commits validados.
+- [x] tag/release candidato aponta para os commits validados.
 
 ## Segurança do CI privado
 
@@ -63,6 +63,13 @@ publicar em ambos a tag coordenada `16.0.20260904.3-rc1`, habilitar Actions e s�
 disparar manualmente as duas suítes. Cada workflow consome a tag imutável do repositório
 irmão. Isso evita tanto o bootstrap circular quanto a redefinição posterior de uma CI já
 verde pela movimentação da outra branch.
+
+O resultado publicado usa `16.0.20260904.3-rc1`. Pre-commit e testes OCB ficaram verdes
+nos dois repositórios. O Actions usa permissão somente leitura, SHA obrigatório e uma
+allowlist exata dos quatro Actions versionados. Alertas de vulnerabilidade e correções
+automatizadas estão ativos. Branch protection/rulesets não estão disponíveis para os
+repositórios privados no plano atual da organização; a tag imutável e a restrição de
+escrita são os controles compensatórios até eventual upgrade do plano.
 
 ## Evidência do laboratório
 

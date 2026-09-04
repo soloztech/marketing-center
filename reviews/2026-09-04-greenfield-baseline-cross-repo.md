@@ -100,3 +100,19 @@ remaining gates are:
   uncertain delivery;
 - dashboard `EXPLAIN (ANALYZE, BUFFERS)` and p95/p99 budgets at representative volume;
 - an explicit production cutover and rollback window.
+
+## GitHub publication result
+
+Both private repositories were published with successful coordinated RC1 workflows:
+
+- Contact Center release:
+  <https://github.com/soloztech/contact-center/releases/tag/16.0.20260904.3-rc1>;
+- Marketing Center release:
+  <https://github.com/soloztech/marketing-center/releases/tag/16.0.20260904.3-rc1>;
+- Contact Center pre-commit/tests: runs `33879183325` and `33879183066`;
+- Marketing Center pre-commit/tests: runs `33879183314` and `33879183292`.
+
+Every final run succeeded. Repository Actions permissions are read-only and constrained
+to four exact SHA-pinned Actions. Vulnerability alerts and automated security fixes are
+enabled. The current organization plan does not expose branch protection/rulesets for
+private repositories, so that control remains an explicit platform-plan limitation.

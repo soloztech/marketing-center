@@ -2795,3 +2795,18 @@ Base, **660/660** integrados, **123/123** Website e **5/5** da facade. QUnit pas
 convergiram, o workspace de rollback e o root remoto `integration-core` foram removidos
 e a rota de teste retornou ao SHA-256 original e ao HTTP 200. Evidência:
 `scans/raw/20260903-odoo16-marketing-center-remaining-addons-greenfield-closeout/release/20260904T123542490166Z/summary.json`.
+
+## Publicação GitHub coordenada — ✅ RC1 em 2026-09-04
+
+O repositório privado `soloztech/marketing-center` foi publicado já contendo as quinze
+camadas funcionais e as três fundações técnicas consolidadas. A tag
+`16.0.20260904.3-rc1` referencia o candidato coordenado com Contact Center. A CI fixa
+também o conjunto compatível `google-auth`/`cryptography`/`pyOpenSSL`/`urllib3`,
+evitando que o resolver atualize apenas metade da pilha TLS do Odoo 16.
+
+O GitHub Actions passou pre-commit, detecção de dependências não lançadas e testes OCB:
+`https://github.com/soloztech/marketing-center/actions/runs/33879183314` e
+`https://github.com/soloztech/marketing-center/actions/runs/33879183292`. O release está
+em `https://github.com/soloztech/marketing-center/releases/tag/16.0.20260904.3-rc1`.
+Produção não foi acessada nem alterada; os gates operacionais permanecem os descritos
+acima.
