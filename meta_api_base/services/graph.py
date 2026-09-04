@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+import math
 import re
 from collections.abc import Mapping
 
@@ -18,7 +19,15 @@ from .signature import validate_graph_version
 _GRAPH_BASE_URL = "https://graph.facebook.com"
 _GRAPH_TIMEOUT = (5, 20)
 _GRAPH_PATH_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*$")
+_META_APP_ID_PATTERN = re.compile(r"^[0-9]{1,64}$")
+_GRAPH_MAX_PATH_BYTES = 2 * 1024
+_GRAPH_MAX_REQUEST_BYTES = 2 * 1024 * 1024
+_GRAPH_MAX_REQUEST_DEPTH = 32
+_GRAPH_MAX_REQUEST_NODES = 10_000
+_GRAPH_MAX_INTEGER_BITS = 4096
+_GRAPH_MAX_CREDENTIAL_BYTES = 64 * 1024
 _RATE_LIMIT_CODES = {4, 17, 32, 613}
+_BUSINESS_USE_CASE_RATE_LIMIT_CODES = range(80_000, 80_015)
 _AUTHENTICATION_CODES = {190}
 _PERMISSION_CODES = {10, 102, 200}
 _CALLER_FORBIDDEN_KEYS = {
@@ -27,6 +36,30 @@ _CALLER_FORBIDDEN_KEYS = {
     "client_secret",
     "appsecret_proof",
 }
+
+
+def _single_app(app):
+    """Return one ORM or runtime App under the shared minimal contract."""
+
+    ensure_one = getattr(app, "ensure_one", None)
+    if not callable(ensure_one):
+        raise MetaApiError("Meta App runtime is invalid")
+    try:
+        ensured = ensure_one()
+    except (AttributeError, TypeError, ValueError):
+        raise MetaApiError("Meta App runtime is invalid") from None
+    app = ensured if ensured is not None else app
+    if any(
+        not hasattr(app, field_name)
+        for field_name in ("active", "external_app_id", "graph_version", "app_secret")
+    ):
+        raise MetaApiError("Meta App runtime is invalid")
+    external_app_id = str(app.external_app_id or "")
+    if not _META_APP_ID_PATTERN.fullmatch(external_app_id):
+        raise MetaApiError("Meta App runtime is invalid")
+    if not isinstance(app.active, bool):
+        raise MetaApiError("Meta App runtime is invalid")
+    return app
 
 
 def _header(headers, name):
@@ -47,9 +80,9 @@ def _retry_after(response):
 def graph_appsecret_proof(app_secret, access_token):
     """Return Meta's token-bound proof without persisting either credential."""
 
-    if not isinstance(app_secret, str) or not app_secret:
+    if not _valid_credential(app_secret, minimum=16):
         raise MetaApiPausedError("Meta App credentials are unavailable")
-    if not isinstance(access_token, str) or not access_token:
+    if not _valid_credential(access_token, minimum=8):
         raise MetaApiPausedError("Meta authorization is unavailable")
     return hmac.new(
         app_secret.encode("utf-8"),
@@ -61,10 +94,23 @@ def graph_appsecret_proof(app_secret, access_token):
 def graph_app_access_token(app):
     """Build the standard App token in memory; callers must never persist it."""
 
-    app.ensure_one()
-    if not app.external_app_id or not app.app_secret:
+    app = _single_app(app)
+    if not _valid_credential(app.app_secret, minimum=16):
         raise MetaApiPausedError("Meta App credentials are unavailable")
     return "%s|%s" % (app.external_app_id, app.app_secret)
+
+
+def _valid_credential(value, *, minimum):
+    if not isinstance(value, str):
+        return False
+    try:
+        encoded = value.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return bool(
+        minimum <= len(encoded) <= _GRAPH_MAX_CREDENTIAL_BYTES
+        and not any(ord(character) < 32 or ord(character) == 127 for character in value)
+    )
 
 
 def _protected_key_present(value, *, depth=0, seen=None):
@@ -114,14 +160,88 @@ def _copy_request_mapping(value):
         raise MetaApiError("Meta Graph request parameters are invalid") from None
 
 
+def _validate_request_node(value, depth, remaining):
+    remaining[0] -= 1
+    if remaining[0] < 0 or depth > _GRAPH_MAX_REQUEST_DEPTH:
+        raise MetaApiError("Meta Graph request structure is too complex")
+    if isinstance(value, Mapping):
+        for key, child in value.items():
+            try:
+                encoded_key = key.encode("utf-8")
+            except (AttributeError, UnicodeEncodeError):
+                encoded_key = b""
+            if (
+                not isinstance(key, str)
+                or not key
+                or not encoded_key
+                or len(encoded_key) > 1024
+                or any(
+                    ord(character) < 32 or ord(character) == 127 for character in key
+                )
+            ):
+                raise MetaApiError("Meta Graph request parameters are invalid")
+            _validate_request_node(child, depth + 1, remaining)
+        return
+    if isinstance(value, (list, tuple)):
+        for child in value:
+            _validate_request_node(child, depth + 1, remaining)
+        return
+    if isinstance(value, str):
+        try:
+            encoded = value.encode("utf-8")
+        except UnicodeEncodeError:
+            raise MetaApiError("Meta Graph request parameters are invalid") from None
+        if len(encoded) > _GRAPH_MAX_REQUEST_BYTES:
+            raise MetaApiError("Meta Graph request is too large")
+        return
+    if isinstance(value, float) and not math.isfinite(value):
+        raise MetaApiError("Meta Graph request parameters are invalid")
+    if (
+        isinstance(value, int)
+        and not isinstance(value, bool)
+        and value.bit_length() > _GRAPH_MAX_INTEGER_BITS
+    ):
+        raise MetaApiError("Meta Graph request parameters are invalid")
+    if value is not None and not isinstance(value, (bool, int, float)):
+        raise MetaApiError("Meta Graph request parameters are invalid")
+
+
+def _bounded_request_size(*mappings):
+    """Validate one primitive request tree and enforce an aggregate byte bound."""
+
+    remaining = [_GRAPH_MAX_REQUEST_NODES]
+
+    total = 0
+    for mapping in mappings:
+        _validate_request_node(mapping, 0, remaining)
+        try:
+            encoded = json.dumps(
+                mapping,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                allow_nan=False,
+            ).encode("utf-8")
+        except (TypeError, ValueError):
+            raise MetaApiError("Meta Graph request parameters are invalid") from None
+        total += len(encoded)
+        if total > _GRAPH_MAX_REQUEST_BYTES:
+            raise MetaApiError("Meta Graph request is too large")
+
+
 def _validated_request(app, access_token, method, path, params, data, json_data):
-    app.ensure_one()
+    app = _single_app(app)
     method = str(method or "").upper()
     if method not in {"GET", "POST", "DELETE"}:
         raise MetaApiError("Meta Graph method is unsupported")
     path = str(path or "").strip("/")
-    if not _GRAPH_PATH_PATTERN.fullmatch(path) or any(
-        segment in {".", ".."} for segment in path.split("/")
+    try:
+        path_size = len(path.encode("utf-8"))
+    except UnicodeEncodeError:
+        raise MetaApiError("Meta Graph path is invalid") from None
+    if (
+        path_size > _GRAPH_MAX_PATH_BYTES
+        or not _GRAPH_PATH_PATTERN.fullmatch(path)
+        or any(segment in {".", ".."} for segment in path.split("/"))
     ):
         raise MetaApiError("Meta Graph path is invalid")
     version = str(app.graph_version or "")
@@ -129,21 +249,26 @@ def _validated_request(app, access_token, method, path, params, data, json_data)
         raise MetaApiError("Meta Graph version is invalid")
     if not app.active:
         raise MetaApiPausedError("Meta App is paused")
-    if not isinstance(access_token, str) or not access_token:
+    if not _valid_credential(access_token, minimum=8):
         raise MetaApiPausedError("Meta authorization is unavailable")
+    uses_form_body = data is not None
+    uses_json_body = json_data is not None
     params = _copy_request_mapping(params)
     data = _copy_request_mapping(data)
     json_data = _copy_request_mapping(json_data)
-    if data and json_data:
+    if uses_form_body and uses_json_body:
         raise MetaApiError("Meta Graph form and JSON bodies are mutually exclusive")
+    if method == "GET" and (uses_form_body or uses_json_body):
+        raise MetaApiError("Meta Graph GET requests cannot carry a body")
     proof = graph_appsecret_proof(app.app_secret, access_token)
     if method == "GET":
         params["appsecret_proof"] = proof
-    elif json_data:
+    elif uses_json_body:
         json_data["appsecret_proof"] = proof
     else:
         data["appsecret_proof"] = proof
-    return method, path, params, data, json_data
+    _bounded_request_size(params, data, json_data)
+    return app, method, path, params, data, json_data
 
 
 def _bounded_json(response, maximum):
@@ -191,12 +316,12 @@ def _graph_error_shape(payload):
     raw_code = error.get("code")
     try:
         code = int(raw_code)
-    except (TypeError, ValueError):
+    except (OverflowError, TypeError, ValueError):
         code = 0
     raw_subcode = error.get("error_subcode")
     try:
         subcode = int(raw_subcode)
-    except (TypeError, ValueError):
+    except (OverflowError, TypeError, ValueError):
         subcode = 0
     return code, subcode, error.get("is_transient") is True
 
@@ -204,7 +329,11 @@ def _graph_error_shape(payload):
 def _raise_graph_error(response, payload, *, mutating):
     status = int(getattr(response, "status_code", 0) or 0)
     code, subcode, provider_transient = _graph_error_shape(payload)
-    if status == 429 or code in _RATE_LIMIT_CODES:
+    if (
+        status == 429
+        or code in _RATE_LIMIT_CODES
+        or code in _BUSINESS_USE_CASE_RATE_LIMIT_CODES
+    ):
         raise MetaApiRateLimitError(
             "Meta Graph rate limit is active",
             retry_after_seconds=_retry_after(response) or 60,
@@ -223,7 +352,7 @@ def _raise_graph_error(response, payload, *, mutating):
             provider_code=code,
             provider_subcode=subcode,
         )
-    if status == 408:
+    if status in (408, 425):
         error_class = MetaApiUncertainError if mutating else MetaApiTransientError
         raise error_class(
             "Meta Graph request timed out",
@@ -282,7 +411,7 @@ def graph_request(
         or not 1024 <= max_response_bytes <= 1024 * 1024
     ):
         raise MetaApiError("Meta Graph response limit is invalid")
-    method, path, params, data, json_data = _validated_request(
+    app, method, path, params, data, json_data = _validated_request(
         app, access_token, method, path, params, data, json_data
     )
     effective_mutating = bool(mutating) or method in {"POST", "DELETE"}
@@ -313,7 +442,7 @@ def graph_request(
         # These statuses are self-describing. Classify them before decoding so an
         # empty/HTML proxy body cannot weaken authentication, throttling or an
         # uncertain mutation into a generic JSON failure.
-        if status in (401, 408, 429) or status >= 500:
+        if status in (401, 408, 425, 429) or status >= 500:
             _raise_graph_error(response, {}, mutating=effective_mutating)
         if status == 403:
             try:

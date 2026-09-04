@@ -1,12 +1,15 @@
 import hashlib
 import hmac
 import json
+import math
+import pickle
 from unittest import mock
 
 import requests
 
 from odoo.tests.common import SavepointCase
 
+from ..services.credentials import MetaRuntimeApp
 from ..services.errors import (
     MetaApiError,
     MetaApiPausedError,
@@ -104,6 +107,36 @@ class TestMetaGraphClient(SavepointCase):
         with self.assertRaises(MetaApiPausedError):
             graph_app_access_token(FakeGraphApp(app_secret=""))
 
+    def test_graph_helpers_accept_the_shared_runtime_app_contract(self):
+        runtime = MetaRuntimeApp(
+            active=True,
+            external_app_id=self.PAGE_ID,
+            graph_version="v26.0",
+            app_secret=self.APP_SECRET,
+            public_ref="00000000-0000-4000-8000-000000000001",
+            revision=3,
+            company_id=1,
+        )
+
+        self.assertIs(runtime.ensure_one(), runtime)
+        self.assertEqual(
+            graph_app_access_token(runtime),
+            "%s|%s" % (self.PAGE_ID, self.APP_SECRET),
+        )
+        self.assertNotIn(self.APP_SECRET, repr(runtime))
+        with self.assertRaises(TypeError):
+            pickle.dumps(runtime)
+
+    def test_graph_helpers_reject_objects_without_a_single_app_contract(self):
+        incomplete = mock.Mock(spec=["ensure_one"])
+        incomplete.ensure_one.return_value = incomplete
+        unicode_digits = FakeGraphApp(external_app_id="１０００００００００００００１")
+        for candidate in (object(), incomplete, unicode_digits):
+            with self.subTest(candidate=candidate), self.assertRaisesRegex(
+                MetaApiError, "runtime is invalid"
+            ):
+                graph_app_access_token(candidate)
+
     def test_get_uses_fixed_url_bearer_proof_and_copies_caller_params(self):
         response = FakeGraphResponse(payload={"id": self.PAGE_ID})
         params = {"fields": "id,name"}
@@ -186,6 +219,41 @@ class TestMetaGraphClient(SavepointCase):
             self.assertIsNone(kwargs[other_channel])
             self.assertEqual(next(iter(values.values())), original)
             self.assertTrue(response.closed)
+
+    def test_explicit_empty_json_keeps_its_selected_body_channel(self):
+        response = FakeGraphResponse(payload={"success": True})
+        with mock.patch(REQUEST_PATCH, return_value=response) as request_mock:
+            graph_request(
+                self.app,
+                self.PAGE_TOKEN,
+                "POST",
+                "%s/subscribed_apps" % self.PAGE_ID,
+                json_data={},
+                mutating=True,
+            )
+
+        request_values = request_mock.call_args.kwargs
+        self.assertIsNone(request_values["data"])
+        self.assertEqual(
+            request_values["json"]["appsecret_proof"],
+            graph_appsecret_proof(self.APP_SECRET, self.PAGE_TOKEN),
+        )
+
+    def test_get_rejects_explicit_body_even_when_empty(self):
+        for values in ({"data": {}}, {"json_data": {}}):
+            with self.subTest(values=values), mock.patch(
+                REQUEST_PATCH
+            ) as request_mock, self.assertRaisesRegex(
+                MetaApiError, "GET requests cannot carry a body"
+            ):
+                graph_request(
+                    self.app,
+                    self.PAGE_TOKEN,
+                    "GET",
+                    self.PAGE_ID,
+                    **values,
+                )
+            request_mock.assert_not_called()
 
     def test_debug_token_keeps_credentials_out_of_the_path_and_headers_are_private(
         self,
@@ -297,6 +365,25 @@ class TestMetaGraphClient(SavepointCase):
             self.assertEqual(raised.exception.classification, "permanent")
             self.assertTrue(response.closed)
 
+    def test_non_finite_provider_error_codes_are_normalized(self):
+        response = FakeGraphResponse(
+            status_code=400,
+            payload={
+                "error": {
+                    "code": float("inf"),
+                    "error_subcode": float("-inf"),
+                }
+            },
+        )
+        with mock.patch(REQUEST_PATCH, return_value=response), self.assertRaises(
+            MetaApiError
+        ) as raised:
+            graph_request(self.app, self.PAGE_TOKEN, "GET", self.PAGE_ID)
+
+        self.assertEqual(raised.exception.provider_code, 0)
+        self.assertEqual(raised.exception.provider_subcode, 0)
+        self.assertTrue(response.closed)
+
     def test_authentication_and_rate_limit_errors_have_stable_classes(self):
         authentication = (
             FakeGraphResponse(status_code=401, content=b"<html>proxy</html>"),
@@ -329,6 +416,48 @@ class TestMetaGraphClient(SavepointCase):
                 graph_request(self.app, self.PAGE_TOKEN, "GET", self.PAGE_ID)
             self.assertEqual(raised.exception.retry_after_seconds, retry_after)
             self.assertEqual(raised.exception.classification, "rate_limited")
+            self.assertIsInstance(raised.exception, MetaApiTransientError)
+            self.assertNotIsInstance(raised.exception, MetaApiPausedError)
+            self.assertTrue(response.closed)
+
+    def test_business_use_case_rate_limits_preserve_safe_metadata(self):
+        provider_message = "provider detail containing a secret-like value"
+        for code in range(80_000, 80_015):
+            response = FakeGraphResponse(
+                status_code=400,
+                payload={
+                    "error": {
+                        "code": code,
+                        "error_subcode": 2446079,
+                        "message": provider_message,
+                    }
+                },
+                headers={"Retry-After": "27"},
+            )
+            with self.subTest(code=code), mock.patch(
+                REQUEST_PATCH, return_value=response
+            ), self.assertRaises(MetaApiRateLimitError) as raised:
+                graph_request(self.app, self.PAGE_TOKEN, "GET", self.PAGE_ID)
+            error = raised.exception
+            self.assertEqual(error.classification, "rate_limited")
+            self.assertEqual(error.retry_after_seconds, 27)
+            self.assertEqual(error.http_status, 400)
+            self.assertEqual(error.provider_code, code)
+            self.assertEqual(error.provider_subcode, 2446079)
+            self.assertNotIn(provider_message, str(error))
+            self.assertTrue(response.closed)
+
+        for code in (79_999, 80_015):
+            response = FakeGraphResponse(
+                status_code=400,
+                payload={"error": {"code": code, "error_subcode": 2446079}},
+            )
+            with self.subTest(outside_code=code), mock.patch(
+                REQUEST_PATCH, return_value=response
+            ), self.assertRaises(MetaApiError) as raised:
+                graph_request(self.app, self.PAGE_TOKEN, "GET", self.PAGE_ID)
+            self.assertNotIsInstance(raised.exception, MetaApiRateLimitError)
+            self.assertEqual(raised.exception.provider_code, code)
             self.assertTrue(response.closed)
 
     def test_server_and_network_failure_distinguish_reads_from_mutations(self):
@@ -379,16 +508,17 @@ class TestMetaGraphClient(SavepointCase):
                 graph_request(self.app, self.PAGE_TOKEN, method, self.PAGE_ID)
 
     def test_http_timeout_distinguishes_reads_from_mutations(self):
-        for method, expected_error in (
-            ("GET", MetaApiTransientError),
-            ("POST", MetaApiUncertainError),
-        ):
-            response = FakeGraphResponse(status_code=408, content=b"")
-            with self.subTest(method=method), mock.patch(
-                REQUEST_PATCH, return_value=response
-            ), self.assertRaises(expected_error) as raised:
-                graph_request(self.app, self.PAGE_TOKEN, method, self.PAGE_ID)
-            self.assertEqual(raised.exception.http_status, 408)
+        for status in (408, 425):
+            for method, expected_error in (
+                ("GET", MetaApiTransientError),
+                ("POST", MetaApiUncertainError),
+            ):
+                response = FakeGraphResponse(status_code=status, content=b"")
+                with self.subTest(status=status, method=method), mock.patch(
+                    REQUEST_PATCH, return_value=response
+                ), self.assertRaises(expected_error) as raised:
+                    graph_request(self.app, self.PAGE_TOKEN, method, self.PAGE_ID)
+                self.assertEqual(raised.exception.http_status, status)
 
     def test_permission_errors_pause_with_safe_provider_metadata(self):
         response = FakeGraphResponse(
@@ -466,6 +596,38 @@ class TestMetaGraphClient(SavepointCase):
             {"method": "GET", "path": ""},
             {"method": "GET", "path": self.PAGE_ID, "max_response_bytes": 100},
             {"method": "GET", "path": self.PAGE_ID, "params": "fields=id"},
+            {"method": "GET", "path": "x" * 2049},
+            {"method": "GET", "path": "invalid\ud800path"},
+            {
+                "method": "GET",
+                "path": self.PAGE_ID,
+                "params": {"value": math.nan},
+            },
+            {
+                "method": "GET",
+                "path": self.PAGE_ID,
+                "params": {"invalid\ud800key": "value"},
+            },
+            {
+                "method": "GET",
+                "path": self.PAGE_ID,
+                "params": {"invalid\x7fkey": "value"},
+            },
+            {
+                "method": "GET",
+                "path": self.PAGE_ID,
+                "params": {"value": 1 << 4097},
+            },
+            {
+                "method": "POST",
+                "path": self.PAGE_ID,
+                "json_data": {"value": "x" * (2 * 1024 * 1024)},
+            },
+            {
+                "method": "POST",
+                "path": self.PAGE_ID,
+                "json_data": {"value": object()},
+            },
             {
                 "method": "GET",
                 "path": self.PAGE_ID,
@@ -495,3 +657,27 @@ class TestMetaGraphClient(SavepointCase):
         ):
             graph_debug_token(self.app, "")
         request_mock.assert_not_called()
+
+    def test_error_metadata_is_bounded_and_typed(self):
+        error = MetaApiError(
+            "safe",
+            retry_after_seconds=10**9,
+            http_status=-1,
+            provider_code=True,
+            provider_subcode=10**20,
+        )
+
+        self.assertEqual(error.retry_after_seconds, 86_400)
+        self.assertEqual(error.http_status, 0)
+        self.assertEqual(error.provider_code, 0)
+        self.assertEqual(error.provider_subcode, 2_147_483_647)
+
+        overflow = MetaApiError(
+            "safe",
+            retry_after_seconds=float("inf"),
+            http_status=float("-inf"),
+            provider_code=float("nan"),
+        )
+        self.assertEqual(overflow.retry_after_seconds, 0)
+        self.assertEqual(overflow.http_status, 0)
+        self.assertEqual(overflow.provider_code, 0)

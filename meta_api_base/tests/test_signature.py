@@ -55,6 +55,7 @@ class TestMetaSignature(SavepointCase):
             (self.SECRET, {"X-Hub-Signature-256": "sha256=xyz"}, body),
             (self.SECRET, {"X-Hub-Signature-256": signature}, "{}"),
             ("different-secret", {"X-Hub-Signature-256": signature}, body),
+            ("invalid\ud800secret", {"X-Hub-Signature-256": signature}, body),
         )
 
         for secret, headers, candidate_body in invalid_values:

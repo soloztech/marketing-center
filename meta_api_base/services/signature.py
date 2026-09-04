@@ -24,15 +24,21 @@ def verify_signature(secret, headers, body):
 
     signature = normalized_header(headers, "x-hub-signature-256")
     match = _SIGNATURE_PATTERN.fullmatch(signature)
+    try:
+        secret_bytes = secret.encode("utf-8")
+    except (AttributeError, UnicodeEncodeError):
+        secret_bytes = b""
     if (
         not match
         or not isinstance(secret, str)
         or not secret
+        or not secret_bytes
+        or len(secret_bytes) > 64 * 1024
         or not isinstance(body, (bytes, bytearray))
         or len(body) > MAX_WEBHOOK_BODY_BYTES
     ):
         return False
-    expected = hmac.new(secret.encode("utf-8"), bytes(body), hashlib.sha256).hexdigest()
+    expected = hmac.new(secret_bytes, bytes(body), hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, match.group(1).lower())
 
 

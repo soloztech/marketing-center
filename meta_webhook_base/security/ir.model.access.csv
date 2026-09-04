@@ -1,0 +1,8 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_meta_webhook_endpoint_system,meta.webhook.endpoint system,model_meta_webhook_endpoint,base.group_system,1,1,1,0
+access_meta_webhook_page_system,meta.webhook.page system,model_meta_webhook_page,base.group_system,1,1,1,0
+access_meta_webhook_asset_system,meta.webhook.asset system,model_meta_webhook_asset,base.group_system,1,1,1,0
+access_meta_webhook_subscription_system,meta.webhook.subscription system,model_meta_webhook_subscription,base.group_system,1,1,1,0
+access_meta_webhook_delivery_system,meta.webhook.delivery system,model_meta_webhook_delivery,base.group_system,1,0,0,0
+access_meta_webhook_item_system,meta.webhook.item system,model_meta_webhook_item,base.group_system,1,0,0,0
+access_meta_webhook_dispatch_system,meta.webhook.dispatch system,model_meta_webhook_dispatch,base.group_system,1,0,0,0

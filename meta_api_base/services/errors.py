@@ -13,10 +13,16 @@ class MetaApiError(Exception):
         provider_subcode=0,
     ):
         super().__init__(message)
-        self.retry_after_seconds = retry_after_seconds
-        self.http_status = http_status
-        self.provider_code = provider_code
-        self.provider_subcode = provider_subcode
+        self.retry_after_seconds = _bounded_nonnegative_int(
+            retry_after_seconds, maximum=86_400
+        )
+        self.http_status = _bounded_nonnegative_int(http_status, maximum=599)
+        self.provider_code = _bounded_nonnegative_int(
+            provider_code, maximum=2_147_483_647
+        )
+        self.provider_subcode = _bounded_nonnegative_int(
+            provider_subcode, maximum=2_147_483_647
+        )
 
 
 class MetaApiTransientError(MetaApiError):
@@ -37,7 +43,17 @@ class MetaApiPausedError(MetaApiError):
     classification = "paused"
 
 
-class MetaApiRateLimitError(MetaApiPausedError):
+class MetaApiRateLimitError(MetaApiTransientError):
     """Authoritative throttling response that is safe to retry after cooldown."""
 
     classification = "rate_limited"
+
+
+def _bounded_nonnegative_int(value, *, maximum):
+    try:
+        number = int(value)
+    except (OverflowError, TypeError, ValueError):
+        return 0
+    if isinstance(value, bool):
+        return 0
+    return max(0, min(number, maximum))
