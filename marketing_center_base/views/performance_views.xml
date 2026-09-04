@@ -11,19 +11,19 @@
                 <field name="entity_external_ref" />
                 <field name="has_impressions" invisible="1" />
                 <field
-          name="impressions"
-          attrs="{'invisible': [('has_impressions', '=', False)]}"
-        />
+                    name="impressions"
+                    attrs="{'invisible': [('has_impressions', '=', False)]}"
+                />
                 <field name="has_clicks" invisible="1" />
                 <field
-          name="clicks"
-          attrs="{'invisible': [('has_clicks', '=', False)]}"
-        />
+                    name="clicks"
+                    attrs="{'invisible': [('has_clicks', '=', False)]}"
+                />
                 <field name="has_cost_micros" invisible="1" />
                 <field
-          name="cost_micros"
-          attrs="{'invisible': [('has_cost_micros', '=', False)]}"
-        />
+                    name="cost_micros"
+                    attrs="{'invisible': [('has_cost_micros', '=', False)]}"
+                />
                 <field name="currency" />
                 <field name="last_observed_at" />
                 <field name="last_sync_state" />
@@ -52,19 +52,19 @@
                         <group>
                             <field name="has_impressions" invisible="1" />
                             <field
-                name="impressions"
-                attrs="{'invisible': [('has_impressions', '=', False)]}"
-              />
+                                name="impressions"
+                                attrs="{'invisible': [('has_impressions', '=', False)]}"
+                            />
                             <field name="has_clicks" invisible="1" />
                             <field
-                name="clicks"
-                attrs="{'invisible': [('has_clicks', '=', False)]}"
-              />
+                                name="clicks"
+                                attrs="{'invisible': [('has_clicks', '=', False)]}"
+                            />
                             <field name="has_cost_micros" invisible="1" />
                             <field
-                name="cost_micros"
-                attrs="{'invisible': [('has_cost_micros', '=', False)]}"
-              />
+                                name="cost_micros"
+                                attrs="{'invisible': [('has_cost_micros', '=', False)]}"
+                            />
                             <field name="currency" />
                             <field name="last_observed_at" />
                             <field name="last_sync_state" />
@@ -74,42 +74,32 @@
                     <notebook>
                         <page string="Revisions">
                             <field name="revision_ids" nolabel="1">
-                                <tree
-                  create="false"
-                  edit="false"
-                  delete="false"
-                >
+                                <tree create="false" edit="false" delete="false">
                                     <field name="revision_sequence" />
                                     <field name="observed_at" />
+                                    <field name="has_impressions" invisible="1" />
                                     <field
-                    name="has_impressions"
-                    invisible="1"
-                  />
-                                    <field
-                    name="impressions"
-                    attrs="{'invisible': [('has_impressions', '=', False)]}"
-                  />
+                                        name="impressions"
+                                        attrs="{'invisible': [('has_impressions', '=', False)]}"
+                                    />
                                     <field name="has_clicks" invisible="1" />
                                     <field
-                    name="clicks"
-                    attrs="{'invisible': [('has_clicks', '=', False)]}"
-                  />
+                                        name="clicks"
+                                        attrs="{'invisible': [('has_clicks', '=', False)]}"
+                                    />
+                                    <field name="has_cost_micros" invisible="1" />
                                     <field
-                    name="has_cost_micros"
-                    invisible="1"
-                  />
-                                    <field
-                    name="cost_micros"
-                    attrs="{'invisible': [('has_cost_micros', '=', False)]}"
-                  />
+                                        name="cost_micros"
+                                        attrs="{'invisible': [('has_cost_micros', '=', False)]}"
+                                    />
                                     <field name="content_hash" />
                                 </tree>
                             </field>
                         </page>
                         <page
-              string="Technical"
-              groups="marketing_center_base.group_marketing_center_admin"
-            >
+                            string="Technical"
+                            groups="marketing_center_base.group_marketing_center_admin"
+                        >
                             <group>
                                 <field name="public_ref" />
                                 <field name="period_start_utc" />
@@ -140,20 +130,20 @@
                 <field name="source_id" />
                 <field name="report_date" />
                 <filter
-          name="group_source"
-          string="Source"
-          context="{'group_by': 'source_id'}"
-        />
+                    name="group_source"
+                    string="Source"
+                    context="{'group_by': 'source_id'}"
+                />
                 <filter
-          name="group_grain"
-          string="Grain"
-          context="{'group_by': 'grain'}"
-        />
+                    name="group_grain"
+                    string="Grain"
+                    context="{'group_by': 'grain'}"
+                />
                 <filter
-          name="group_date"
-          string="Date"
-          context="{'group_by': 'report_date'}"
-        />
+                    name="group_date"
+                    string="Date"
+                    context="{'group_by': 'report_date'}"
+                />
             </search>
         </field>
     </record>

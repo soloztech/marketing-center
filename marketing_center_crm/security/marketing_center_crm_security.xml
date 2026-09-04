@@ -3,153 +3,105 @@
     <record id="rule_marketing_attribution_crm_link_own" model="ir.rule">
         <field name="name">Marketing attribution CRM links for own leads</field>
         <field name="model_id" ref="model_marketing_attribution_crm_link" />
+        <field name="groups" eval="[(4, ref('sales_team.group_sale_salesman'))]" />
         <field
-      name="groups"
-      eval="[(4, ref('sales_team.group_sale_salesman'))]"
-    />
-        <field
-      name="domain_force"
-    >[('company_id', 'in', company_ids), ('lead_id', '!=', False), '|', ('lead_id.user_id', '=', user.id), ('lead_id.user_id', '=', False)]</field>
+            name="domain_force"
+        >[('company_id', 'in', company_ids), ('lead_id', '!=', False), '|', ('lead_id.user_id', '=', user.id), ('lead_id.user_id', '=', False)]</field>
     </record>
     <record id="rule_marketing_attribution_crm_link_all" model="ir.rule">
         <field
-      name="name"
-    >Marketing attribution CRM links for all accessible leads</field>
+            name="name"
+        >Marketing attribution CRM links for all accessible leads</field>
         <field name="model_id" ref="model_marketing_attribution_crm_link" />
         <field
-      name="groups"
-      eval="[(4, ref('sales_team.group_sale_salesman_all_leads'))]"
-    />
+            name="groups"
+            eval="[(4, ref('sales_team.group_sale_salesman_all_leads'))]"
+        />
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>
     </record>
     <record id="rule_marketing_attribution_crm_revocation_own" model="ir.rule">
+        <field name="name">Marketing attribution CRM revocations for own leads</field>
+        <field name="model_id" ref="model_marketing_attribution_crm_revocation" />
+        <field name="groups" eval="[(4, ref('sales_team.group_sale_salesman'))]" />
         <field
-      name="name"
-    >Marketing attribution CRM revocations for own leads</field>
-        <field
-      name="model_id"
-      ref="model_marketing_attribution_crm_revocation"
-    />
-        <field
-      name="groups"
-      eval="[(4, ref('sales_team.group_sale_salesman'))]"
-    />
-        <field
-      name="domain_force"
-    >[('company_id', 'in', company_ids), ('lead_id', '!=', False), '|', ('lead_id.user_id', '=', user.id), ('lead_id.user_id', '=', False)]</field>
+            name="domain_force"
+        >[('company_id', 'in', company_ids), ('lead_id', '!=', False), '|', ('lead_id.user_id', '=', user.id), ('lead_id.user_id', '=', False)]</field>
     </record>
     <record id="rule_marketing_attribution_crm_revocation_all" model="ir.rule">
         <field
-      name="name"
-    >Marketing attribution CRM revocations for all accessible leads</field>
+            name="name"
+        >Marketing attribution CRM revocations for all accessible leads</field>
+        <field name="model_id" ref="model_marketing_attribution_crm_revocation" />
         <field
-      name="model_id"
-      ref="model_marketing_attribution_crm_revocation"
-    />
-        <field
-      name="groups"
-      eval="[(4, ref('sales_team.group_sale_salesman_all_leads'))]"
-    />
+            name="groups"
+            eval="[(4, ref('sales_team.group_sale_salesman_all_leads'))]"
+        />
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>
     </record>
-    <record
-    id="rule_marketing_attribution_crm_effective_link_own"
-    model="ir.rule"
-  >
+    <record id="rule_marketing_attribution_crm_effective_link_own" model="ir.rule">
         <field
-      name="name"
-    >Effective marketing attribution CRM links for own leads</field>
+            name="name"
+        >Effective marketing attribution CRM links for own leads</field>
+        <field name="model_id" ref="model_marketing_attribution_crm_effective_link" />
+        <field name="groups" eval="[(4, ref('sales_team.group_sale_salesman'))]" />
         <field
-      name="model_id"
-      ref="model_marketing_attribution_crm_effective_link"
-    />
-        <field
-      name="groups"
-      eval="[(4, ref('sales_team.group_sale_salesman'))]"
-    />
-        <field
-      name="domain_force"
-    >[('company_id', 'in', company_ids), ('lead_id', '!=', False), '|', ('lead_id.user_id', '=', user.id), ('lead_id.user_id', '=', False)]</field>
+            name="domain_force"
+        >[('company_id', 'in', company_ids), ('lead_id', '!=', False), '|', ('lead_id.user_id', '=', user.id), ('lead_id.user_id', '=', False)]</field>
     </record>
-    <record
-    id="rule_marketing_attribution_crm_effective_link_all"
-    model="ir.rule"
-  >
+    <record id="rule_marketing_attribution_crm_effective_link_all" model="ir.rule">
         <field
-      name="name"
-    >Effective marketing attribution CRM links for all accessible leads</field>
+            name="name"
+        >Effective marketing attribution CRM links for all accessible leads</field>
+        <field name="model_id" ref="model_marketing_attribution_crm_effective_link" />
         <field
-      name="model_id"
-      ref="model_marketing_attribution_crm_effective_link"
-    />
-        <field
-      name="groups"
-      eval="[(4, ref('sales_team.group_sale_salesman_all_leads'))]"
-    />
+            name="groups"
+            eval="[(4, ref('sales_team.group_sale_salesman_all_leads'))]"
+        />
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>
     </record>
     <record id="rule_marketing_business_event_crm_link_own" model="ir.rule">
         <field name="name">Marketing event CRM links for own leads</field>
         <field name="model_id" ref="model_marketing_business_event_crm_link" />
+        <field name="groups" eval="[(4, ref('sales_team.group_sale_salesman'))]" />
         <field
-      name="groups"
-      eval="[(4, ref('sales_team.group_sale_salesman'))]"
-    />
-        <field
-      name="domain_force"
-    >[('company_id', 'in', company_ids), ('lead_id', '!=', False), '|', ('lead_id.user_id', '=', user.id), ('lead_id.user_id', '=', False)]</field>
+            name="domain_force"
+        >[('company_id', 'in', company_ids), ('lead_id', '!=', False), '|', ('lead_id.user_id', '=', user.id), ('lead_id.user_id', '=', False)]</field>
     </record>
     <record id="rule_marketing_business_event_crm_link_all" model="ir.rule">
-        <field
-      name="name"
-    >Marketing event CRM links for all accessible leads</field>
+        <field name="name">Marketing event CRM links for all accessible leads</field>
         <field name="model_id" ref="model_marketing_business_event_crm_link" />
         <field
-      name="groups"
-      eval="[(4, ref('sales_team.group_sale_salesman_all_leads'))]"
-    />
+            name="groups"
+            eval="[(4, ref('sales_team.group_sale_salesman_all_leads'))]"
+        />
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>
     </record>
     <record id="rule_marketing_attribution_crm_link_system" model="ir.rule">
         <field
-      name="name"
-    >Marketing attribution CRM links for system administrators</field>
+            name="name"
+        >Marketing attribution CRM links for system administrators</field>
         <field name="model_id" ref="model_marketing_attribution_crm_link" />
         <field name="groups" eval="[(4, ref('base.group_system'))]" />
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>
     </record>
-    <record
-    id="rule_marketing_attribution_crm_revocation_system"
-    model="ir.rule"
-  >
+    <record id="rule_marketing_attribution_crm_revocation_system" model="ir.rule">
         <field
-      name="name"
-    >Marketing attribution CRM revocations for system administrators</field>
-        <field
-      name="model_id"
-      ref="model_marketing_attribution_crm_revocation"
-    />
+            name="name"
+        >Marketing attribution CRM revocations for system administrators</field>
+        <field name="model_id" ref="model_marketing_attribution_crm_revocation" />
         <field name="groups" eval="[(4, ref('base.group_system'))]" />
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>
     </record>
-    <record
-    id="rule_marketing_attribution_crm_effective_link_system"
-    model="ir.rule"
-  >
+    <record id="rule_marketing_attribution_crm_effective_link_system" model="ir.rule">
         <field
-      name="name"
-    >Effective marketing attribution CRM links for system administrators</field>
-        <field
-      name="model_id"
-      ref="model_marketing_attribution_crm_effective_link"
-    />
+            name="name"
+        >Effective marketing attribution CRM links for system administrators</field>
+        <field name="model_id" ref="model_marketing_attribution_crm_effective_link" />
         <field name="groups" eval="[(4, ref('base.group_system'))]" />
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>
     </record>
     <record id="rule_marketing_business_event_crm_link_system" model="ir.rule">
-        <field
-      name="name"
-    >Marketing event CRM links for system administrators</field>
+        <field name="name">Marketing event CRM links for system administrators</field>
         <field name="model_id" ref="model_marketing_business_event_crm_link" />
         <field name="groups" eval="[(4, ref('base.group_system'))]" />
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>
@@ -157,29 +109,22 @@
     <record id="rule_marketing_crm_lead_equivalence_own" model="ir.rule">
         <field name="name">Marketing CRM merge evidence for own leads</field>
         <field name="model_id" ref="model_marketing_crm_lead_equivalence" />
+        <field name="groups" eval="[(4, ref('sales_team.group_sale_salesman'))]" />
         <field
-      name="groups"
-      eval="[(4, ref('sales_team.group_sale_salesman'))]"
-    />
-        <field
-      name="domain_force"
-    >[('company_id', 'in', company_ids), ('target_lead_id', '!=', False), '|', ('target_lead_id.user_id', '=', user.id), ('target_lead_id.user_id', '=', False)]</field>
+            name="domain_force"
+        >[('company_id', 'in', company_ids), ('target_lead_id', '!=', False), '|', ('target_lead_id.user_id', '=', user.id), ('target_lead_id.user_id', '=', False)]</field>
     </record>
     <record id="rule_marketing_crm_lead_equivalence_all" model="ir.rule">
-        <field
-      name="name"
-    >Marketing CRM merge evidence for accessible leads</field>
+        <field name="name">Marketing CRM merge evidence for accessible leads</field>
         <field name="model_id" ref="model_marketing_crm_lead_equivalence" />
         <field
-      name="groups"
-      eval="[(4, ref('sales_team.group_sale_salesman_all_leads'))]"
-    />
+            name="groups"
+            eval="[(4, ref('sales_team.group_sale_salesman_all_leads'))]"
+        />
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>
     </record>
     <record id="rule_marketing_crm_lead_equivalence_system" model="ir.rule">
-        <field
-      name="name"
-    >Marketing CRM merge evidence for administrators</field>
+        <field name="name">Marketing CRM merge evidence for administrators</field>
         <field name="model_id" ref="model_marketing_crm_lead_equivalence" />
         <field name="groups" eval="[(4, ref('base.group_system'))]" />
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>

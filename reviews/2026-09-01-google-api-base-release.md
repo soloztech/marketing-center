@@ -1,12 +1,11 @@
 # Release — Google API Base
 
-Data: 2026-09-01  
-Ambiente: `odoo16-teste.soloz.com.br` / servidor05 / base neutralizada
+Data: 2026-09-01 Ambiente: `odoo16-teste.soloz.com.br` / servidor05 / base neutralizada
 
 ## Resultado
 
-`google_api_base` `16.0.1.0.0` foi instalado como terceiro addon do
-`integration-core`, depois de `meta_api_base` e `meta_webhook_base`.
+`google_api_base` `16.0.1.0.0` foi instalado como terceiro addon do `integration-core`,
+depois de `meta_api_base` e `meta_webhook_base`.
 
 - `meta_api_base`: 40/40 testes;
 - `meta_webhook_base`: 39/39 testes;

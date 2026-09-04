@@ -1,21 +1,20 @@
 # Plano de adaptação native-first do Marketing Center
 
-> Status: **direção arquitetural aceita em 2026-09-02, com gates obrigatórios**.
-> Este documento é normativo para a matriz de autoridade e para a sequência de
-> adaptação. A escrita UTM e o cutover continuam bloqueados até shadow, reconciliação e
-> go/no-go. Disposição em `reviews/2026-09-02-native-first-second-opinion.md` e
-> consolidação em
+> Status: **direção arquitetural aceita em 2026-09-02, com gates obrigatórios**. Este
+> documento é normativo para a matriz de autoridade e para a sequência de adaptação. A
+> escrita UTM e o cutover continuam bloqueados até shadow, reconciliação e go/no-go.
+> Disposição em `reviews/2026-09-02-native-first-second-opinion.md` e consolidação em
 > `../../contact-center/reviews/2026-09-02-native-first-roadmap-and-ux-disposition.md`.
 >
 > Data: 2026-09-01.
 >
 > Objetivo da revisão externa: confirmar se o corte entre Odoo nativo e os ledgers
-> próprios está correto antes de ampliar Performance, Meta CAPI, Google Data Manager
-> e escrita em campanhas.
+> próprios está correto antes de ampliar Performance, Meta CAPI, Google Data Manager e
+> escrita em campanhas.
 >
 > Árvore analisada: `infra-ai-ops`, branch `main`, commit de infraestrutura
-> `aaaf0733d8717f89515ff3c0bbdeb24e4c78d1cc`. Como `odoo16/addons/marketing-center`
-> é uma árvore local ignorada pelo repositório pai, o fingerprint determinístico do
+> `aaaf0733d8717f89515ff3c0bbdeb24e4c78d1cc`. Como `odoo16/addons/marketing-center` é
+> uma árvore local ignorada pelo repositório pai, o fingerprint determinístico do
 > código/configuração analisados é
 > `32cfa6f30d297b7190a636780259b2a6601b1cbbd08ddf1803d8e14f2023a85c`.
 
@@ -23,33 +22,32 @@
 
 A adaptação é recomendada, mas deve ser **híbrida e incremental**:
 
-- os modelos nativos do Odoo passam a ser a fonte canônica para classificação UTM,
-  links controlados pelo Odoo e documentos de negócio;
+- os modelos nativos do Odoo passam a ser a fonte canônica para classificação UTM, links
+  controlados pelo Odoo e documentos de negócio;
 - o Marketing Center permanece responsável por dados que o Odoo 16 não representa:
-  identidade externa, métricas das plataformas, click IDs, sinais de webhook,
-  correlação M:N, evidência imutável e atribuição multi-touch;
-- Touchpoints, Business Events e Web Ingress deixam de ser a experiência principal
-  do usuário e passam a ser infraestrutura técnica/auditável;
-- nenhum histórico é apagado ou reescrito durante a adaptação; seu ciclo de vida
-  futuro continua sujeito a uma política explícita de retenção/expurgo antes do
-  cutover produtivo.
+  identidade externa, métricas das plataformas, click IDs, sinais de webhook, correlação
+  M:N, evidência imutável e atribuição multi-touch;
+- Touchpoints, Business Events e Web Ingress deixam de ser a experiência principal do
+  usuário e passam a ser infraestrutura técnica/auditável;
+- nenhum histórico é apagado ou reescrito durante a adaptação; seu ciclo de vida futuro
+  continua sujeito a uma política explícita de retenção/expurgo antes do cutover
+  produtivo.
 
-Não se propõe substituir todo o ledger por `utm.*` ou `link.tracker`. Isso perderia
-Lead Ads, Click-to-WhatsApp, IDs opacos, múltiplos contatos e evidências externas.
-Também não se propõe manter a arquitetura atual sem mudanças, porque ela duplica
-conceitos nativos e expõe detalhes técnicos como se fossem objetos operacionais.
+Não se propõe substituir todo o ledger por `utm.*` ou `link.tracker`. Isso perderia Lead
+Ads, Click-to-WhatsApp, IDs opacos, múltiplos contatos e evidências externas. Também não
+se propõe manter a arquitetura atual sem mudanças, porque ela duplica conceitos nativos
+e expõe detalhes técnicos como se fossem objetos operacionais.
 
 ## 2. Evidências que motivam a adaptação
 
-1. `marketing_center_base` já depende de `utm`, mas o touchpoint replica
-   `utm_source`, `utm_medium` e `utm_campaign` em campos texto.
-2. `marketing_center_website` captura landing/UTMs por um ingresso próprio e seu
-   teste de contrato proíbe deliberadamente dependência de `link_tracker`.
-3. A projeção de Meta Lead Ads cria `crm.lead`, mas não preenche os campos UTM
-   nativos.
-4. O bridge de vendas lê `campaign_id`, `medium_id` e `source_id` já presentes no
-   pedido para gravá-los no evento técnico; ele não materializa campanhas externas
-   nos modelos UTM.
+1. `marketing_center_base` já depende de `utm`, mas o touchpoint replica `utm_source`,
+   `utm_medium` e `utm_campaign` em campos texto.
+2. `marketing_center_website` captura landing/UTMs por um ingresso próprio e seu teste
+   de contrato proíbe deliberadamente dependência de `link_tracker`.
+3. A projeção de Meta Lead Ads cria `crm.lead`, mas não preenche os campos UTM nativos.
+4. O bridge de vendas lê `campaign_id`, `medium_id` e `source_id` já presentes no pedido
+   para gravá-los no evento técnico; ele não materializa campanhas externas nos modelos
+   UTM.
 5. Business Events está exposto em `Funnel` para analistas, embora seja um ledger
    técnico com chaves, hashes, reversões e snapshots.
 6. O controller customizado de formulário herda diretamente o controller base de
@@ -71,15 +69,15 @@ Referências locais:
 ## 2.1 Contradições confrontadas pela segunda opinião
 
 - o plano atual declara o ledger próprio como canônico para a jornada e trata
-  `link.tracker` como opcional; esta proposta torna UTM/Website/Link Tracker
-  canônicos na operação, sem retirar do ledger a evidência histórica;
+  `link.tracker` como opcional; esta proposta torna UTM/Website/Link Tracker canônicos
+  na operação, sem retirar do ledger a evidência histórica;
 - o contrato automatizado do Website hoje exige ausência de dependência de
   `link_tracker` e `utm`; ele precisará ser substituído por um contrato native-first,
   não apenas removido para o teste passar;
-- o touchpoint preserva UTMs textuais imutáveis. Elas continuam como snapshot do que
-  foi observado, mesmo depois de existirem relações com `utm.*`;
-- catálogo Meta/Google e `utm.campaign` têm granularidades e identidades diferentes;
-  um não pode substituir o outro;
+- o touchpoint preserva UTMs textuais imutáveis. Elas continuam como snapshot do que foi
+  observado, mesmo depois de existirem relações com `utm.*`;
+- catálogo Meta/Google e `utm.campaign` têm granularidades e identidades diferentes; um
+  não pode substituir o outro;
 - `link.tracker.click` não identifica sozinho visitante, lead, click ID externo ou
   jornada multi-touch e possui deduplicação própria;
 - a propagação CRM → Venda ocorre em fluxos nativos específicos. Associar uma
@@ -97,59 +95,57 @@ Esta decisão substitui especificamente as decisões do `plan.md` que dizem que:
 - `link.tracker`, `website.visitor` e `utm.*` são apenas integrações opcionais;
 - Business Events e Touchpoints são telas operacionais do funil.
 
-Permanecem válidas as decisões sobre independência dos domínios, DTOs, transporte
-Meta compartilhado, `queue_job`, catálogo/performance externos, segredos, fencing,
+Permanecem válidas as decisões sobre independência dos domínios, DTOs, transporte Meta
+compartilhado, `queue_job`, catálogo/performance externos, segredos, fencing,
 idempotência e conectores read-only. O histórico de releases não será reescrito; a
 aprovação será registrada como uma nova decisão arquitetural datada.
 
 ## 3. Princípios da arquitetura-alvo
 
-1. **Nativo primeiro:** não recriar no Marketing Center uma capacidade adequada do
-   Odoo.
-2. **Complemento, não concorrência:** o ledger próprio registra somente o que o
-   modelo nativo não consegue representar ou precisa preservar como evidência.
+1. **Nativo primeiro:** não recriar no Marketing Center uma capacidade adequada do Odoo.
+2. **Complemento, não concorrência:** o ledger próprio registra somente o que o modelo
+   nativo não consegue representar ou precisa preservar como evidência.
 3. **Documentos são a verdade operacional:** lead, pedido, fatura e pagamento são
    consultados em seus modelos de origem.
-4. **Imutabilidade seletiva:** evidências externas, ocorrências de conversão e
-   reversões podem ser imutáveis; cadastros e projeções operacionais não devem fingir
-   ser ledgers.
-5. **Fill-only:** uma integração não sobrescreve classificação UTM existente sem
-   uma operação humana explícita.
+4. **Imutabilidade seletiva:** evidências externas, ocorrências de conversão e reversões
+   podem ser imutáveis; cadastros e projeções operacionais não devem fingir ser ledgers.
+5. **Fill-only:** uma integração não sobrescreve classificação UTM existente sem uma
+   operação humana explícita.
 6. **ID estável vence nome:** campanha externa é identificada por conta/provedor/ID,
    nunca por seu nome mutável.
-7. **Uma ocorrência, um dono:** um clique ou evento físico não pode ser persistido
-   como dois fatos canônicos independentes.
-8. **Falha explícita:** mapeamento ambíguo produz diagnóstico; não produz associação
-   por aproximação.
-9. **Portabilidade:** bridges usam modelos e extensões públicas do Odoo; evitam
-   copiar controllers privados ou depender da ordem acidental de carregamento.
+7. **Uma ocorrência, um dono:** um clique ou evento físico não pode ser persistido como
+   dois fatos canônicos independentes.
+8. **Falha explícita:** mapeamento ambíguo produz diagnóstico; não produz associação por
+   aproximação.
+9. **Portabilidade:** bridges usam modelos e extensões públicas do Odoo; evitam copiar
+   controllers privados ou depender da ordem acidental de carregamento.
 10. **Duas verdades de naturezas diferentes:** UTM nativo é a projeção operacional
     canônica; touchpoint próprio é a evidência histórica canônica.
 
 ## 4. Matriz de autoridade canônica
 
-| Conceito | Fonte canônica | Papel do Marketing Center |
-| --- | --- | --- |
-| Campanha, origem e meio de um lead/pedido | `utm.campaign`, `utm.source`, `utm.medium` e campos nativos | Mapear entidades externas e projetar de forma controlada |
-| Link encurtado criado pelo Odoo | `link.tracker` | Associar o link à entidade externa quando necessário |
-| Clique em link controlado pelo Odoo | `link.tracker.click` | Consumir/relacionar; não criar um segundo clique canônico |
-| Visitante e páginas no site Odoo | `website.visitor`, `website.track` e sessão nativa | Acrescentar apenas identificadores/sinais ausentes |
-| Lead/oportunidade | `crm.lead` | Correlação com touchpoints e projeção UTM fill-only |
-| Cotação/pedido | `sale.order` | Usar propagação nativa e registrar apenas ocorrência de conversão quando necessária |
-| Fatura/pagamento/estorno | `account.move` e reconciliações | Registrar snapshots/reversões necessários à atribuição e ao envio offline |
-| Conta/campanha/adset/ad externos | `marketing.center.source` e `marketing.center.external.entity` | Dono integral do catálogo externo |
-| Custo, impressões e cliques reportados | `marketing.center.metric.daily` e observações do provider | Dono integral, sem gravar como UTM |
-| `gclid`, `gbraid`, `wbraid`, `dclid`, `fbclid`, `fbc`, `fbp`, `ctwa_clid` | Identificadores protegidos do Marketing Center | Dono integral e com acesso restrito |
-| Lead Ads, Click-to-WhatsApp e webhooks externos | Touchpoint/evidência técnica | Dono integral da evidência e da deduplicação |
-| Jornada multi-touch e revisões | Ledger de touchpoints | Dono integral; UTM nativo contém somente uma classificação efetiva |
-| Entrega de conversões para Meta/Google | Outbox/delivery própria futura | Dono da idempotência, retry, policy e diagnóstico |
-| SLA e tempo de primeira resposta | Contact Center | Marketing consome somente projeção/agregado se houver caso de uso |
+| Conceito                                                                  | Fonte canônica                                                 | Papel do Marketing Center                                                           |
+| ------------------------------------------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Campanha, origem e meio de um lead/pedido                                 | `utm.campaign`, `utm.source`, `utm.medium` e campos nativos    | Mapear entidades externas e projetar de forma controlada                            |
+| Link encurtado criado pelo Odoo                                           | `link.tracker`                                                 | Associar o link à entidade externa quando necessário                                |
+| Clique em link controlado pelo Odoo                                       | `link.tracker.click`                                           | Consumir/relacionar; não criar um segundo clique canônico                           |
+| Visitante e páginas no site Odoo                                          | `website.visitor`, `website.track` e sessão nativa             | Acrescentar apenas identificadores/sinais ausentes                                  |
+| Lead/oportunidade                                                         | `crm.lead`                                                     | Correlação com touchpoints e projeção UTM fill-only                                 |
+| Cotação/pedido                                                            | `sale.order`                                                   | Usar propagação nativa e registrar apenas ocorrência de conversão quando necessária |
+| Fatura/pagamento/estorno                                                  | `account.move` e reconciliações                                | Registrar snapshots/reversões necessários à atribuição e ao envio offline           |
+| Conta/campanha/adset/ad externos                                          | `marketing.center.source` e `marketing.center.external.entity` | Dono integral do catálogo externo                                                   |
+| Custo, impressões e cliques reportados                                    | `marketing.center.metric.daily` e observações do provider      | Dono integral, sem gravar como UTM                                                  |
+| `gclid`, `gbraid`, `wbraid`, `dclid`, `fbclid`, `fbc`, `fbp`, `ctwa_clid` | Identificadores protegidos do Marketing Center                 | Dono integral e com acesso restrito                                                 |
+| Lead Ads, Click-to-WhatsApp e webhooks externos                           | Touchpoint/evidência técnica                                   | Dono integral da evidência e da deduplicação                                        |
+| Jornada multi-touch e revisões                                            | Ledger de touchpoints                                          | Dono integral; UTM nativo contém somente uma classificação efetiva                  |
+| Entrega de conversões para Meta/Google                                    | Outbox/delivery própria futura                                 | Dono da idempotência, retry, policy e diagnóstico                                   |
+| SLA e tempo de primeira resposta                                          | Contact Center                                                 | Marketing consome somente projeção/agregado se houver caso de uso                   |
 
 ### Esclarecimento de nomenclatura
 
-`marketing.center.source` representa uma **conta/fonte técnica do provider**, como
-uma conta Meta Ads ou Google Ads. Ela não é equivalente a `utm.source`, que é uma
-dimensão de aquisição legível pelo negócio, como Google, Facebook ou Instagram.
+`marketing.center.source` representa uma **conta/fonte técnica do provider**, como uma
+conta Meta Ads ou Google Ads. Ela não é equivalente a `utm.source`, que é uma dimensão
+de aquisição legível pelo negócio, como Google, Facebook ou Instagram.
 
 ## 5. Fluxos-alvo
 
@@ -165,8 +161,8 @@ link.tracker
   -> cotação/pedido/fatura por fluxo nativo
 ```
 
-O Marketing Center participa somente quando existir um identificador externo, uma
-ação material especial ou necessidade de correlação não atendida pelo Odoo:
+O Marketing Center participa somente quando existir um identificador externo, uma ação
+material especial ou necessidade de correlação não atendida pelo Odoo:
 
 ```text
 click ID / formulário material / handoff WhatsApp
@@ -175,12 +171,12 @@ click ID / formulário material / handoff WhatsApp
   -> vínculo imutável com o lead/conversa
 ```
 
-Não deve existir touchpoint próprio para cada pageview nem um segundo registro de
-clique quando `link.tracker.click` já for o fato canônico.
+Não deve existir touchpoint próprio para cada pageview nem um segundo registro de clique
+quando `link.tracker.click` já for o fato canônico.
 
 A integração deverá possuir uma chave única de correlação para o clique nativo e um
-vínculo tipado com a eventual evidência complementar. Não será usada a deduplicação
-por IP do Link Tracker como identidade de pessoa ou sessão.
+vínculo tipado com a eventual evidência complementar. Não será usada a deduplicação por
+IP do Link Tracker como identidade de pessoa ou sessão.
 
 ### 5.2 Meta Lead Ads
 
@@ -214,8 +210,8 @@ anúncio/redirect controlado
   -> UTM nativo somente se o mapeamento for inequívoco e os campos estiverem livres
 ```
 
-Uma conversa não precisa virar lead. Uma conversa pode ser vinculada a mais de um
-lead, e o mesmo lead pode acumular vários touchpoints. Os campos UTM nativos continuam
+Uma conversa não precisa virar lead. Uma conversa pode ser vinculada a mais de um lead,
+e o mesmo lead pode acumular vários touchpoints. Os campos UTM nativos continuam
 representando a classificação operacional escolhida, não toda a jornada.
 
 ## 6. Mapeamento de entidades externas para UTM nativo
@@ -243,8 +239,8 @@ Regras:
 - renomear campanha externa atualiza apresentação, não cria outra identidade;
 - `utm.*` não possui o mesmo isolamento multiempresa do Marketing Center, portanto o
   mapeamento sempre preserva empresa e controla visibilidade;
-- criação automática de `utm.campaign` deve ser configurável. O padrão inicial é
-  mapear explicitamente ou provisionar apenas campanhas selecionadas/ativas;
+- criação automática de `utm.campaign` deve ser configurável. O padrão inicial é mapear
+  explicitamente ou provisionar apenas campanhas selecionadas/ativas;
 - ausência ou ambiguidade deixa o registro como não atribuído; não há fuzzy match.
 
 ### 6.2 Política de projeção em documentos
@@ -256,46 +252,46 @@ Ordem de autoridade:
 3. mapeamento externo verificado;
 4. inferência de touchpoint somente quando inequívoca.
 
-Política aprovada: `first_trusted_assignment`. `campaign_id`, `source_id` e
-`medium_id` formam uma única tupla: a primeira proposta completa, inequívoca e de
-autoridade elegível que for aceita congela a projeção operacional. Contatos
-posteriores permanecem na jornada técnica e nos modelos de atribuição, mas não
-reescrevem silenciosamente os campos UTM.
+Política aprovada: `first_trusted_assignment`. `campaign_id`, `source_id` e `medium_id`
+formam uma única tupla: a primeira proposta completa, inequívoca e de autoridade
+elegível que for aceita congela a projeção operacional. Contatos posteriores permanecem
+na jornada técnica e nos modelos de atribuição, mas não reescrevem silenciosamente os
+campos UTM.
 
 Política de escrita:
 
 - nunca sobrescrever campo UTM não vazio automaticamente;
 - se um valor existente conflitar com o mapeamento proposto, não completar os demais
   campos com uma combinação híbrida; registrar conflito e manter o documento intacto;
-- preencher campos vazios somente quando todos os valores existentes forem
-  compatíveis com a proposta;
+- preencher campos vazios somente quando todos os valores existentes forem compatíveis
+  com a proposta;
 - aplicar a tupla em um único write protegido por lock/CAS; nunca preencher os três
   campos por operações independentes;
 - repetição/replay deve ser idempotente;
-- alteração ou limpeza manual posterior permanece soberana e cria um
-  override/tombstone que impede reaplicação automática.
+- alteração ou limpeza manual posterior permanece soberana e cria um override/tombstone
+  que impede reaplicação automática.
 
 O mapeamento possui revisão imutável, vigência, precedência, constraint/índice de
-unicidade no escopo ativo e fencing para jobs antigos. Uma projeção técnica registra,
-ao menos, alvo, policy e revisão do mapeamento, preimage, after-image, valores
-propostos, resultado (`shadow`, `applied`, `skipped`, `conflict`), chave idempotente e
-fencing revision. Assignment e receipt são atômicos. Esse registro não substitui os
-campos nativos; explica e, quando seguro, permite compensar exatamente o que a
-integração aplicou.
+unicidade no escopo ativo e fencing para jobs antigos. Uma projeção técnica registra, ao
+menos, alvo, policy e revisão do mapeamento, preimage, after-image, valores propostos,
+resultado (`shadow`, `applied`, `skipped`, `conflict`), chave idempotente e fencing
+revision. Assignment e receipt são atômicos. Esse registro não substitui os campos
+nativos; explica e, quando seguro, permite compensar exatamente o que a integração
+aplicou.
 
 ### 6.3 Merge, duplicação e reabertura de leads
 
 - merge: o lead sobrevivente mantém seus campos UTM nativos; as evidências/assertions
-  dos leads incorporados são relacionadas ao sobrevivente e conflitos ficam
-  explícitos, sem escolher uma nova UTM automaticamente;
+  dos leads incorporados são relacionadas ao sobrevivente e conflitos ficam explícitos,
+  sem escolher uma nova UTM automaticamente;
 - duplicação: não clona evidência histórica nem click IDs por padrão; uma nova
   associação exige uma ocorrência/autoridade explícita;
 - reabertura ou mudança de estágio: não recalcula aquisição inicial;
-- conversão de conversa em lead: usa o mesmo contrato de projeção de Website e Meta
-  Lead Ads, sem regra especial que possa sobrescrever dados.
+- conversão de conversa em lead: usa o mesmo contrato de projeção de Website e Meta Lead
+  Ads, sem regra especial que possa sobrescrever dados.
 
-Esses comportamentos precisam ser provados contra os wizards/fluxos efetivos do Odoo
-16 antes do cutover.
+Esses comportamentos precisam ser provados contra os wizards/fluxos efetivos do Odoo 16
+antes do cutover.
 
 ## 7. Tratamento dos modelos próprios atuais
 
@@ -311,8 +307,8 @@ Permanecem para:
 - atribuição first/last/multi-touch.
 
 Deixam de ser criados quando só repetirem um clique, pageview ou UTM já plenamente
-representado pelo Odoo. A tela fica técnica/admin; no lead pode existir um smart
-button opcional “Jornada”.
+representado pelo Odoo. A tela fica técnica/admin; no lead pode existir um smart button
+opcional “Jornada”.
 
 Os valores textuais originalmente observados (`utm_*`, landing e referrer) continuam
 imutáveis no touchpoint. A relação com `utm.*` é uma resolução/projeção versionada,
@@ -328,9 +324,9 @@ conversões offline, principalmente onde há valor, snapshot, estorno ou replay:
 - fatura, recebimento e reversões;
 - ocorrências escolhidas pela policy de Meta/Google.
 
-Eventos que apenas duplicam estado operacional devem ser reavaliados depois do
-dashboard native-first. `interaction_started` e `first_human_response` pertencem ao
-domínio do Contact Center; o Marketing Center não deve ser sua fonte operacional.
+Eventos que apenas duplicam estado operacional devem ser reavaliados depois do dashboard
+native-first. `interaction_started` e `first_human_response` pertencem ao domínio do
+Contact Center; o Marketing Center não deve ser sua fonte operacional.
 
 Até existir uma outbox de conversões, o ledger continua preservado, mas não deve ser
 ampliado por reflexo nem apresentado como tela de negócio.
@@ -345,8 +341,8 @@ Permanece para:
 - correlação material de formulário/lead;
 - ações explicitamente configuradas.
 
-No Website Odoo, deixa gradualmente de duplicar landing, UTM, visitor e cliques que
-o stack nativo já representa.
+No Website Odoo, deixa gradualmente de duplicar landing, UTM, visitor e cliques que o
+stack nativo já representa.
 
 ## 8. Interface final proposta
 
@@ -369,15 +365,15 @@ Menu técnico, apenas para administrador/debug:
 - runs, cursors, jobs, payloads e conflitos;
 - resultados internos de atribuição.
 
-Ocultar menus não substitui ACL ou record rules. Modelos técnicos continuam cercados
-por grupo, empresa e source autorizada, inclusive quando acessados por URL/RPC.
+Ocultar menus não substitui ACL ou record rules. Modelos técnicos continuam cercados por
+grupo, empresa e source autorizada, inclusive quando acessados por URL/RPC.
 
 ## 9. Plano de execução por fases
 
-Os números abaixo preservam os pacotes originalmente revisados, mas não definem a
-ordem de liberação. A sequência vigente é: Fase 0 → correção MRO/contrato de clique da
-Fase 2 → mapping/assignment da Fase 1 somente em shadow → Fases 3/4 → dry-run e
-go/no-go → Fase 5. Nenhuma etapa intermediária autoriza escrita UTM.
+Os números abaixo preservam os pacotes originalmente revisados, mas não definem a ordem
+de liberação. A sequência vigente é: Fase 0 → correção MRO/contrato de clique da Fase 2
+→ mapping/assignment da Fase 1 somente em shadow → Fases 3/4 → dry-run e go/no-go →
+Fase 5. Nenhuma etapa intermediária autoriza escrita UTM.
 
 ### Fase 0 — ADR, baseline e contenção de escopo
 
@@ -431,8 +427,8 @@ Entregas:
 
 Aceite:
 
-- para cada clique nativo elegível, o Marketing Center não cria um segundo fato
-  canônico de clique;
+- para cada clique nativo elegível, o Marketing Center não cria um segundo fato canônico
+  de clique;
 - formulário cria o mesmo lead e associação nativa esperados;
 - UTMs chegam ao lead;
 - click IDs permanecem preservados e protegidos;
@@ -471,9 +467,9 @@ Aceite:
 - receita não é multiplicada por quantidade de touchpoints;
 - nenhum resultado estimado é apresentado como fato Odoo.
 
-Antes desta fase, `marketing_center_dashboard` deve declarar dependências reais ou
-usar adapters opcionais explícitos. Views SQL não herdam record rules dos modelos de
-origem: ACL, empresa e domínio de cada leitura precisam de teste próprio.
+Antes desta fase, `marketing_center_dashboard` deve declarar dependências reais ou usar
+adapters opcionais explícitos. Views SQL não herdam record rules dos modelos de origem:
+ACL, empresa e domínio de cada leitura precisam de teste próprio.
 
 ### Fase 5 — Cutover e racionalização dos ledgers
 
@@ -488,8 +484,8 @@ Entregas:
 Aceite:
 
 - histórico e hashes anteriores ao cutover permanecem verificáveis; qualquer expurgo
-  futuro autorizado deve deixar tombstone/receipt verificável, não fingir que o
-  registro nunca existiu;
+  futuro autorizado deve deixar tombstone/receipt verificável, não fingir que o registro
+  nunca existiu;
 - zero clique/touchpoint duplicado no caminho migrado;
 - kill switch por flag testado e compensação por receipt validada; a flag interrompe
   novas escritas, mas não é rollback;
@@ -499,8 +495,8 @@ Aceite:
 
 - somente mudanças aditivas no primeiro ciclo;
 - nenhum `unlink`, truncate ou reescrita de evidência;
-- backfill começa em dry-run e produz relatório de `matched`, `unmatched`,
-  `ambiguous`, `conflict` e `would_apply`;
+- backfill começa em dry-run e produz relatório de `matched`, `unmatched`, `ambiguous`,
+  `conflict` e `would_apply`;
 - match automático usa ID externo/mapeamento explícito, nunca proximidade de nome ou
   horário;
 - registros históricos sem vínculo confiável permanecem não atribuídos;
@@ -537,8 +533,7 @@ Aceite:
 ### Reconciliação
 
 - leads, pedidos, faturamento e receita por filtros equivalentes;
-- nenhum segundo fato canônico criado pelo Marketing Center para clique nativo
-  elegível;
+- nenhum segundo fato canônico criado pelo Marketing Center para clique nativo elegível;
 - ledgers e hashes históricos inalterados;
 - segunda execução da migração sem efeito;
 - dashboard sem multiplicação por joins M:N.
@@ -554,8 +549,8 @@ Um caminho pode abandonar a captura duplicada somente quando:
 4. totais nativos de CRM/Sale/Account reconciliam;
 5. click IDs necessários continuam disponíveis;
 6. histórico técnico permanece íntegro;
-7. kill switch por feature flag funciona e a compensação baseada em receipt só
-   reverte valores ainda idênticos ao after-image aplicado;
+7. kill switch por feature flag funciona e a compensação baseada em receipt só reverte
+   valores ainda idênticos ao after-image aplicado;
 8. conflitos e não atribuídos são visíveis, não mascarados.
 
 Enquanto um critério falhar, o caminho continua em shadow/dual-read.
@@ -572,18 +567,17 @@ Não se propõe criar outro addon no primeiro ciclo:
 - `marketing_center_website`: integração nativa de Website/Link Tracker e redução da
   captura duplicada;
 - `marketing_center_website_crm`: correlação e extensão correta de `website_crm`;
-- `marketing_center_contact_center_crm`: convergência caso CRM ↔ atribuição sob o
-  mesmo contrato de projeção;
-- `marketing_center_sale`, `marketing_center_sale_account` e
-  `marketing_center_account`: validação do fluxo nativo, vínculos causais
-  pedido↔fatura e eventos materiais;
+- `marketing_center_contact_center_crm`: convergência caso CRM ↔ atribuição sob o mesmo
+  contrato de projeção;
+- `marketing_center_sale`, `marketing_center_sale_account` e `marketing_center_account`:
+  validação do fluxo nativo, vínculos causais pedido↔fatura e eventos materiais;
 - `marketing_center_dashboard`: leitura native-first;
 - `marketing_center_web_ingress`: complemento para externos/click IDs/handoffs;
 - `marketing_center_suite`: refletir dependências/feature flags da adaptação.
 
-`link_tracker` permanece opcional. O caminho puramente nativo pode usar
-`website_links`; correlação customizada, click IDs e vínculos adicionais justificam
-um bridge separado, sem tornar `link_tracker` dependência do core.
+`link_tracker` permanece opcional. O caminho puramente nativo pode usar `website_links`;
+correlação customizada, click IDs e vínculos adicionais justificam um bridge separado,
+sem tornar `link_tracker` dependência do core.
 
 ## 14. Fora do escopo desta adaptação
 
@@ -604,19 +598,19 @@ A segunda opinião foi aceita com estas decisões:
 - manter Business Events apenas quando houver ocorrência, valor, reversão, replay,
   atribuição ou futuro consumidor de conversão explícito;
 - aceitar formalmente que `utm.campaign/source/medium` usam uma taxonomia global
-  compartilhada, sem nomes confidenciais; o mapping company-scoped controla aplicação
-  e visibilidade, não torna `utm.*` multiempresa;
+  compartilhada, sem nomes confidenciais; o mapping company-scoped controla aplicação e
+  visibilidade, não torna `utm.*` multiempresa;
 - corrigir a cadeia de controllers para incluir `website_crm` no MRO cooperativo e
   provar visitor → formulário → lead por `HttpCase`;
 - validar causalidade pedido–linha–fatura–reconciliação. A tupla UTM isolada de uma
   fatura agrupada ou de um pagamento não prova atribuição financeira;
-- tratar feature flag como kill switch; rollback exige compensação segura e, no
-  cutover produtivo, backup restaurável com restore testado;
-- definir ciclo de vida de `protected_value`, Lead Ads e URLs com identificadores
-  antes do cutover/outbox. Por decisão de produto, isso não bloqueia iterações locais
-  nem as melhorias independentes do Contact Center;
-- tornar baseline e release reproduzíveis, com os três repositórios
-  `contact-center`, `marketing-center` e `integration-core` recuperáveis;
+- tratar feature flag como kill switch; rollback exige compensação segura e, no cutover
+  produtivo, backup restaurável com restore testado;
+- definir ciclo de vida de `protected_value`, Lead Ads e URLs com identificadores antes
+  do cutover/outbox. Por decisão de produto, isso não bloqueia iterações locais nem as
+  melhorias independentes do Contact Center;
+- tornar baseline e release reproduzíveis, com os três repositórios `contact-center`,
+  `marketing-center` e `integration-core` recuperáveis;
 - corrigir dependências e ACL do dashboard antes de apresentá-lo como native-first.
 
 Pode avançar agora: ADR, inventário/baseline, menus técnicos, correções isoladas e

@@ -7,18 +7,18 @@
         <field name="arch" type="xml">
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button
-          name="action_view_marketing_sale_orders"
-          type="object"
-          class="oe_stat_button"
-          icon="fa-shopping-cart"
-          groups="sales_team.group_sale_salesman"
-          attrs="{'invisible': [('marketing_sale_order_count', '=', 0)]}"
-        >
+                    name="action_view_marketing_sale_orders"
+                    type="object"
+                    class="oe_stat_button"
+                    icon="fa-shopping-cart"
+                    groups="sales_team.group_sale_salesman"
+                    attrs="{'invisible': [('marketing_sale_order_count', '=', 0)]}"
+                >
                     <field
-            name="marketing_sale_order_count"
-            widget="statinfo"
-            string="Sales Orders"
-          />
+                        name="marketing_sale_order_count"
+                        widget="statinfo"
+                        string="Sales Orders"
+                    />
                 </button>
             </xpath>
         </field>
@@ -28,24 +28,24 @@
         <field name="name">marketing.business.event.form.sale</field>
         <field name="model">marketing.business.event</field>
         <field
-      name="inherit_id"
-      ref="marketing_center_crm.view_marketing_business_event_form_crm"
-    />
+            name="inherit_id"
+            ref="marketing_center_crm.view_marketing_business_event_form_crm"
+        />
         <field name="arch" type="xml">
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button
-          name="action_view_sale_orders"
-          type="object"
-          class="oe_stat_button"
-          icon="fa-shopping-cart"
-          groups="sales_team.group_sale_salesman"
-          attrs="{'invisible': [('sale_order_count', '=', 0)]}"
-        >
+                    name="action_view_sale_orders"
+                    type="object"
+                    class="oe_stat_button"
+                    icon="fa-shopping-cart"
+                    groups="sales_team.group_sale_salesman"
+                    attrs="{'invisible': [('sale_order_count', '=', 0)]}"
+                >
                     <field
-            name="sale_order_count"
-            widget="statinfo"
-            string="Sales Orders"
-          />
+                        name="sale_order_count"
+                        widget="statinfo"
+                        string="Sales Orders"
+                    />
                 </button>
             </xpath>
         </field>

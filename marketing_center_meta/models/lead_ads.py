@@ -71,6 +71,8 @@ def _job_attempt(record, job_uuid, persisted=0):
     return max(int(persisted or 0) + 1, (job.retry + 1) if job else 1)
 
 
+# Source lifecycle policy belongs with the Lead Ads route aggregate.
+# pylint: disable=consider-merging-classes-inherited
 class MarketingCenterSourceLeadAds(models.Model):
     _inherit = "marketing.center.source"
 

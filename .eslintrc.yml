@@ -62,7 +62,7 @@ rules:
   no-fallthrough: warn
   no-func-assign: error
   no-global-assign: error
-  no-implicit-coercion: [warn, { allow: ["~"] }]
+  no-implicit-coercion: [warn, {allow: ["~"]}]
   no-implicit-globals: warn
   no-implied-eval: warn
   no-inner-declarations: warn

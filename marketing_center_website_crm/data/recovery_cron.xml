@@ -10,13 +10,8 @@
         <field name="numbercall">-1</field>
         <field name="active">True</field>
     </record>
-    <record
-    id="ir_cron_marketing_website_crm_session_reconciliation"
-    model="ir.cron"
-  >
-        <field
-      name="name"
-    >Marketing Center: reconcile Website CRM sessions</field>
+    <record id="ir_cron_marketing_website_crm_session_reconciliation" model="ir.cron">
+        <field name="name">Marketing Center: reconcile Website CRM sessions</field>
         <field name="model_id" ref="model_marketing_website_crm_intent" />
         <field name="state">code</field>
         <field name="code">model._cron_reconcile_sessions()</field>

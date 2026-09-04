@@ -1,7 +1,7 @@
 # Runtime Google service account — validação no SERVIDOR05
 
-Data: 2026-09-01  
-Escopo: laboratório descartável `odoo16-teste.soloz.com.br`; produção intocada.
+Data: 2026-09-01 Escopo: laboratório descartável `odoo16-teste.soloz.com.br`; produção
+intocada.
 
 ## Resultado
 
@@ -17,10 +17,10 @@ Escopo: laboratório descartável `odoo16-teste.soloz.com.br`; produção intoca
 
 ## Incidente e correção estrutural
 
-O primeiro ensaio usou o Dockerfile integral e esgotou o disco com cache de build.
-O banco e os volumes não foram afetados. Foram removidos somente cache de build e
-imagem intermediária reconstruíveis; os quatro arquivos de configuração foram
-restaurados por hash a partir do rollback.
+O primeiro ensaio usou o Dockerfile integral e esgotou o disco com cache de build. O
+banco e os volumes não foram afetados. Foram removidos somente cache de build e imagem
+intermediária reconstruíveis; os quatro arquivos de configuração foram restaurados por
+hash a partir do rollback.
 
 O deploy agora:
 

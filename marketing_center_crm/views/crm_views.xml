@@ -7,41 +7,41 @@
         <field name="arch" type="xml">
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button
-          name="action_view_marketing_touchpoints"
-          type="object"
-          class="oe_stat_button"
-          icon="fa-link"
-          groups="marketing_center_base.group_marketing_center_admin"
-          attrs="{'invisible': [('marketing_touchpoint_count', '=', 0)]}"
-        >
+                    name="action_view_marketing_touchpoints"
+                    type="object"
+                    class="oe_stat_button"
+                    icon="fa-link"
+                    groups="marketing_center_base.group_marketing_center_admin"
+                    attrs="{'invisible': [('marketing_touchpoint_count', '=', 0)]}"
+                >
                     <field
-            name="marketing_touchpoint_count"
-            widget="statinfo"
-            string="Touchpoints"
-          />
+                        name="marketing_touchpoint_count"
+                        widget="statinfo"
+                        string="Touchpoints"
+                    />
                 </button>
                 <button
-          name="action_view_marketing_business_events"
-          type="object"
-          class="oe_stat_button"
-          icon="fa-history"
-          groups="marketing_center_base.group_marketing_center_analyst"
-          attrs="{'invisible': [('marketing_business_event_count', '=', 0)]}"
-        >
+                    name="action_view_marketing_business_events"
+                    type="object"
+                    class="oe_stat_button"
+                    icon="fa-history"
+                    groups="marketing_center_base.group_marketing_center_analyst"
+                    attrs="{'invisible': [('marketing_business_event_count', '=', 0)]}"
+                >
                     <field
-            name="marketing_business_event_count"
-            widget="statinfo"
-            string="Marketing Events"
-          />
+                        name="marketing_business_event_count"
+                        widget="statinfo"
+                        string="Marketing Events"
+                    />
                 </button>
                 <button
-          name="action_backfill_marketing_events"
-          type="object"
-          class="oe_stat_button"
-          icon="fa-refresh"
-          string="Reconcile Marketing"
-          groups="marketing_center_base.group_marketing_center_manager"
-        />
+                    name="action_backfill_marketing_events"
+                    type="object"
+                    class="oe_stat_button"
+                    icon="fa-refresh"
+                    string="Reconcile Marketing"
+                    groups="marketing_center_base.group_marketing_center_manager"
+                />
             </xpath>
         </field>
     </record>
@@ -53,9 +53,9 @@
         <field name="arch" type="xml">
             <xpath expr="//field[@name='is_won']" position="after">
                 <field
-          name="marketing_semantic"
-          groups="marketing_center_base.group_marketing_center_manager"
-        />
+                    name="marketing_semantic"
+                    groups="marketing_center_base.group_marketing_center_manager"
+                />
             </xpath>
         </field>
     </record>

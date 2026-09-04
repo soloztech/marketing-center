@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <odoo>
     <record id="view_marketing_contact_center_link_tree" model="ir.ui.view">
-        <field
-      name="name"
-    >marketing.attribution.contact.center.link.tree</field>
+        <field name="name">marketing.attribution.contact.center.link.tree</field>
         <field name="model">marketing.attribution.contact.center.link</field>
         <field name="arch" type="xml">
             <tree create="false" edit="false" delete="false">
@@ -17,9 +15,7 @@
     </record>
 
     <record id="view_marketing_contact_center_link_form" model="ir.ui.view">
-        <field
-      name="name"
-    >marketing.attribution.contact.center.link.form</field>
+        <field name="name">marketing.attribution.contact.center.link.form</field>
         <field name="model">marketing.attribution.contact.center.link</field>
         <field name="arch" type="xml">
             <form create="false" edit="false" delete="false">
@@ -38,23 +34,18 @@
         </field>
     </record>
 
-    <record
-    id="action_marketing_contact_center_links"
-    model="ir.actions.act_window"
-  >
+    <record id="action_marketing_contact_center_links" model="ir.actions.act_window">
         <field name="name">Contact Center Links</field>
-        <field
-      name="res_model"
-    >marketing.attribution.contact.center.link</field>
+        <field name="res_model">marketing.attribution.contact.center.link</field>
         <field name="view_mode">tree,form</field>
     </record>
 
     <menuitem
-    id="menu_marketing_contact_center_links"
-    name="Contact Center Links"
-    parent="marketing_center_base.menu_marketing_center_attribution"
-    action="action_marketing_contact_center_links"
-    sequence="30"
-    groups="marketing_center_contact_center.group_marketing_contact_center_admin"
-  />
+        id="menu_marketing_contact_center_links"
+        name="Contact Center Links"
+        parent="marketing_center_base.menu_marketing_center_attribution"
+        action="action_marketing_contact_center_links"
+        sequence="30"
+        groups="marketing_center_contact_center.group_marketing_contact_center_admin"
+    />
 </odoo>

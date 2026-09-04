@@ -22,32 +22,29 @@
                 <field name="company_id" invisible="1" />
                 <header>
                     <button
-            name="action_enqueue_subscription_reconcile"
-            type="object"
-            string="Reconcile Meta subscriptions"
-            class="oe_highlight"
-            attrs="{'invisible': [('active', '=', False)]}"
-          />
+                        name="action_enqueue_subscription_reconcile"
+                        type="object"
+                        string="Reconcile Meta subscriptions"
+                        class="oe_highlight"
+                        attrs="{'invisible': [('active', '=', False)]}"
+                    />
                     <field name="subscription_state" widget="statusbar" />
                 </header>
                 <sheet>
                     <widget
-            name="web_ribbon"
-            text="Archived"
-            bg_color="bg-danger"
-            attrs="{'invisible': [('active', '=', True)]}"
-          />
+                        name="web_ribbon"
+                        text="Archived"
+                        bg_color="bg-danger"
+                        attrs="{'invisible': [('active', '=', True)]}"
+                    />
                     <group>
                         <group>
                             <field name="name" />
+                            <field name="app_id" options="{'no_create': True}" />
                             <field
-                name="app_id"
-                options="{'no_create': True}"
-              />
-                            <field
-                name="company_id"
-                groups="base.group_multi_company"
-              />
+                                name="company_id"
+                                groups="base.group_multi_company"
+                            />
                             <field name="active" />
                         </group>
                         <group>
@@ -62,9 +59,9 @@
                     <notebook>
                         <page string="Pages">
                             <field
-                name="page_ids"
-                context="{'default_endpoint_id': active_id}"
-              >
+                                name="page_ids"
+                                context="{'default_endpoint_id': active_id}"
+                            >
                                 <tree decoration-muted="not active">
                                     <field name="name" />
                                     <field name="external_page_id" />
@@ -76,10 +73,10 @@
                         </page>
                         <page string="Observed App subscriptions">
                             <field
-                name="observed_subscriptions_json"
-                readonly="1"
-                nolabel="1"
-              />
+                                name="observed_subscriptions_json"
+                                readonly="1"
+                                nolabel="1"
+                            />
                         </page>
                     </notebook>
                 </sheet>
@@ -110,22 +107,19 @@
                 <field name="company_id" invisible="1" />
                 <header>
                     <button
-            name="action_enqueue_subscription_reconcile"
-            type="object"
-            string="Reconcile subscribed_apps"
-            class="oe_highlight"
-            attrs="{'invisible': [('active', '=', False)]}"
-          />
+                        name="action_enqueue_subscription_reconcile"
+                        type="object"
+                        string="Reconcile subscribed_apps"
+                        class="oe_highlight"
+                        attrs="{'invisible': [('active', '=', False)]}"
+                    />
                     <field name="subscription_state" widget="statusbar" />
                 </header>
                 <sheet>
                     <group>
                         <group>
                             <field name="name" />
-                            <field
-                name="endpoint_id"
-                options="{'no_create': True}"
-              />
+                            <field name="endpoint_id" options="{'no_create': True}" />
                             <field name="external_page_id" />
                             <field name="active" />
                         </group>
@@ -137,19 +131,16 @@
                         </group>
                     </group>
                     <group
-            string="Last reconciliation"
-            attrs="{'invisible': [('last_error_class', '=', False)]}"
-          >
+                        string="Last reconciliation"
+                        attrs="{'invisible': [('last_error_class', '=', False)]}"
+                    >
                         <field name="last_error_class" readonly="1" />
                         <field name="last_error_message" readonly="1" />
                     </group>
                     <notebook>
                         <page string="Routing assets">
                             <field name="asset_ids">
-                                <tree
-                  editable="bottom"
-                  decoration-muted="not active"
-                >
+                                <tree editable="bottom" decoration-muted="not active">
                                     <field name="platform" />
                                     <field name="object_type" />
                                     <field name="transport" />
@@ -160,10 +151,7 @@
                         </page>
                         <page string="Consumer subscriptions">
                             <field name="subscription_ids">
-                                <tree
-                  editable="bottom"
-                  decoration-muted="not active"
-                >
+                                <tree editable="bottom" decoration-muted="not active">
                                     <field name="consumer_key" />
                                     <field name="object_type" />
                                     <field name="field_name" />
@@ -173,10 +161,10 @@
                         </page>
                         <page string="Observed fields">
                             <field
-                name="observed_fields_json"
-                readonly="1"
-                nolabel="1"
-              />
+                                name="observed_fields_json"
+                                readonly="1"
+                                nolabel="1"
+                            />
                         </page>
                     </notebook>
                 </sheet>
@@ -208,11 +196,11 @@
                 <field name="company_id" invisible="1" />
                 <header>
                     <button
-            name="action_requeue"
-            type="object"
-            string="Requeue"
-            attrs="{'invisible': [('state', 'not in', ['unrouted', 'stale', 'dead'])]}"
-          />
+                        name="action_requeue"
+                        type="object"
+                        string="Requeue"
+                        attrs="{'invisible': [('state', 'not in', ['unrouted', 'stale', 'dead'])]}"
+                    />
                     <field name="state" widget="statusbar" />
                 </header>
                 <sheet>
@@ -230,9 +218,7 @@
                             <field name="queue_job_uuid" />
                         </group>
                     </group>
-                    <group
-            attrs="{'invisible': [('last_error_class', '=', False)]}"
-          >
+                    <group attrs="{'invisible': [('last_error_class', '=', False)]}">
                         <field name="last_error_class" />
                         <field name="last_error_message" />
                     </group>

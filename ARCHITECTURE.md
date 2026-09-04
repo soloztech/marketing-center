@@ -2,14 +2,14 @@
 
 ## Um produto, não vários sistemas
 
-O Marketing Center é um único produto executado no mesmo Odoo, no mesmo banco
-PostgreSQL e no mesmo `queue_job`. Seus addons são limites internos de dependência:
-eles permitem instalar apenas os provedores e os aplicativos Odoo necessários sem
-acoplar Google, Meta, Website, CRM, Vendas, Contabilidade e Contact Center ao núcleo.
+O Marketing Center é um único produto executado no mesmo Odoo, no mesmo banco PostgreSQL
+e no mesmo `queue_job`. Seus addons são limites internos de dependência: eles permitem
+instalar apenas os provedores e os aplicativos Odoo necessários sem acoplar Google,
+Meta, Website, CRM, Vendas, Contabilidade e Contact Center ao núcleo.
 
 Um addon não representa um microserviço, uma base separada ou outra interface para o
-usuário. Os registros se relacionam no mesmo ORM e os trabalhos assíncronos usam o
-mesmo JobRunner. A divisão existe para preservar responsabilidades e permitir que cada
+usuário. Os registros se relacionam no mesmo ORM e os trabalhos assíncronos usam o mesmo
+JobRunner. A divisão existe para preservar responsabilidades e permitir que cada
 integração seja portada ou substituída sem reescrever o domínio central.
 
 ## Componentes funcionais
@@ -34,10 +34,11 @@ um perfil de instalação; ele não acrescenta um 15º domínio.
 | Cola         | `marketing_center_contact_center_crm` | Converge casos/leads do Contact Center com a atribuição de marketing quando os dois domínios estão instalados.                                                                                                      |
 | Cola         | `marketing_center_sale_account`       | Preserva a ligação causal tipada entre pedido e fatura/recebimento sem fazer Vendas depender da Contabilidade, ou o inverso.                                                                                        |
 
-Os addons compartilhados `google_api_base`, `meta_api_base` e
-`meta_webhook_base` pertencem ao Integration Core. Eles não são componentes do
-Marketing Center: oferecem credenciais, transporte e ingresso autenticado reutilizáveis
-por outros produtos, inclusive o Contact Center.
+Os addons compartilhados `google_api_base`, `meta_api_base` e `meta_webhook_base` são
+fundações técnicas, não componentes funcionais do Marketing Center. Eles ficam
+fisicamente neste repositório para simplificar versionamento e release, mas continuam
+oferecendo credenciais, transporte e ingresso autenticado reutilizáveis por outros
+produtos, inclusive o Contact Center. Nenhum deles depende de `marketing_center_base`.
 
 ## Fluxo ponta a ponta
 
@@ -111,21 +112,20 @@ O grupo do Odoo e o roster têm responsabilidades independentes. O grupo global
 (`Viewer`, `Analyst`, `Operator`, `Manager`) define o teto funcional do usuário; o
 `role` da associação ao time define o teto dentro daquele time; e o `access_mode` do
 vínculo time-fonte define o teto naquela fonte. A capacidade efetiva é sempre a menor
-das três. Administradores do Marketing Center dispensam roster, mas continuam
-limitados às empresas ativas.
+das três. Administradores do Marketing Center dispensam roster, mas continuam limitados
+às empresas ativas.
 
 Na entrega read-only atual, `read` já é materializado em
 `marketing.center.source.access_user_ids` e consumido pelas record rules. Fonte, time,
-membership, vínculo ou usuário inativo revogam essa projeção. Capacidades superiores
-não autorizam mutação por si sós: qualquer ação futura de escrita deverá chamar o
-mesmo verificador central e também satisfazer ACL, policy, aprovação e capability do
-provider.
+membership, vínculo ou usuário inativo revogam essa projeção. Capacidades superiores não
+autorizam mutação por si sós: qualquer ação futura de escrita deverá chamar o mesmo
+verificador central e também satisfazer ACL, policy, aprovação e capability do provider.
 
-Uma rota operacional de Meta Lead Ads pertence obrigatoriamente a uma fonte
-`meta.ads`. Rotas e submissões usam o roster dessa fonte; somente o administrador tem
-visão completa da empresa. Uma rota histórica sem fonte é pausada na migração e não
-recebe uma identidade publicitária inventada: deve ser vinculada explicitamente antes
-de voltar a operar.
+Uma rota operacional de Meta Lead Ads pertence obrigatoriamente a uma fonte `meta.ads`.
+Rotas e submissões usam o roster dessa fonte; somente o administrador tem visão completa
+da empresa. Uma rota histórica sem fonte é pausada na migração e não recebe uma
+identidade publicitária inventada: deve ser vinculada explicitamente antes de voltar a
+operar.
 
 ## Quando criar um novo addon
 
@@ -135,7 +135,8 @@ Um novo addon é justificável quando pelo menos um destes critérios for atendi
 2. implementa um adapter substituível para um contrato já definido pelo núcleo;
 3. conecta dois domínios opcionais que não podem depender um do outro;
 4. precisa ter ciclo próprio de instalação, segurança, filas, migração ou testes;
-5. será reutilizado por outro produto e, portanto, pertence ao Integration Core.
+5. será reutilizado por outro produto e, portanto, deve permanecer numa fundação técnica
+   independente, mesmo quando co-localizada neste repositório.
 
 Não criar novo addon somente para:
 
@@ -149,27 +150,28 @@ Convenções:
 - provider: `marketing_center_<provider>`;
 - integração com aplicativo Odoo: `marketing_center_<aplicativo>`;
 - cola entre capacidades opcionais: `marketing_center_<a>_<b>`;
-- transporte compartilhado: `<provider>_api_base` no Integration Core;
+- transporte compartilhado: `<provider>_api_base` na camada de fundações técnicas;
 - UI gerencial comum: evoluir `marketing_center_dashboard` antes de criar outra UI.
 
 ## O que manter e o que consolidar
 
-| Decisão         | Escopo                                                   | Motivo                                                                                |
-| --------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Manter separado | `marketing_center_base` dos providers                    | O núcleo não deve conhecer APIs externas.                                             |
-| Manter separado | Google e Meta                                            | Credenciais, limites, objetos e ritmos de evolução são diferentes.                    |
-| Manter separado | `web_ingress` e `website`                                | O ingresso neutro poderá servir sites que não usam Odoo.                              |
-| Manter separado | CRM, Vendas e Contabilidade                              | São aplicativos opcionais e fontes canônicas distintas.                               |
-| Manter separado | addons de cola                                           | Evitam dependências reversas e ciclos entre domínios opcionais.                       |
-| Manter separado | API/webhook base no Integration Core                     | Meta webhook também atende o Contact Center; não pertence exclusivamente a Marketing. |
-| Consolidar      | Instalação no `marketing_center_suite`                   | Um ponto de instalação sem perder modularidade interna.                               |
-| Consolidar      | Navegação sob o menu Marketing Center                    | O usuário não deve precisar conhecer a divisão em addons.                             |
-| Consolidar      | Padrões de DTO, ledger, fila e observabilidade no núcleo | Providers devem compartilhar contratos, não copiar implementações.                    |
+| Decisão         | Escopo                                                   | Motivo                                                                               |
+| --------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Manter separado | `marketing_center_base` dos providers                    | O núcleo não deve conhecer APIs externas.                                            |
+| Manter separado | Google e Meta                                            | Credenciais, limites, objetos e ritmos de evolução são diferentes.                   |
+| Manter separado | `web_ingress` e `website`                                | O ingresso neutro poderá servir sites que não usam Odoo.                             |
+| Manter separado | CRM, Vendas e Contabilidade                              | São aplicativos opcionais e fontes canônicas distintas.                              |
+| Manter separado | addons de cola                                           | Evitam dependências reversas e ciclos entre domínios opcionais.                      |
+| Manter separado | API/webhook base como addons técnicos independentes      | Meta webhook também atende o Contact Center; co-localização não transfere o domínio. |
+| Consolidar      | Instalação no `marketing_center_suite`                   | Um ponto de instalação sem perder modularidade interna.                              |
+| Consolidar      | Navegação sob o menu Marketing Center                    | O usuário não deve precisar conhecer a divisão em addons.                            |
+| Consolidar      | Padrões de DTO, ledger, fila e observabilidade no núcleo | Providers devem compartilhar contratos, não copiar implementações.                   |
 
-Não há benefício atual em fundir fisicamente os 14 componentes. Se o Dashboard se
-tornar obrigatório em todas as instalações, `base` e `dashboard` poderão ser
-reavaliados; até lá, mantê-los separados permite uso headless e testes do domínio sem
-carregar a UI.
+Não há benefício atual em fundir os addons entre si. A consolidação é apenas do
+repositório físico: os 14 componentes funcionais e as três fundações técnicas mantêm
+manifests e ciclos de instalação próprios. Se o Dashboard se tornar obrigatório em todas
+as instalações, `base` e `dashboard` poderão ser reavaliados; até lá, mantê-los
+separados permite uso headless e testes do domínio sem carregar a UI.
 
 ## Menus funcionais e técnicos
 
@@ -177,14 +179,15 @@ A navegação deve comunicar um único produto:
 
 - **Visão gerencial, Funil e Performance:** uso cotidiano de gestores e analistas;
 - **Catálogo:** entidades externas e estado de sincronização relevante ao analista;
-- **Configuração:** fontes, conexões, equipes, perfis e rotas, apenas para administradores;
+- **Configuração:** fontes, conexões, equipes, perfis e rotas, apenas para
+  administradores;
 - **Técnico:** entregas de webhook, cursores, runs, intents, projeções, erros e ações de
   recuperação, restrito ao administrador do sistema.
 
-`Meta Webhooks` não deve parecer uma aplicação de negócio independente. O ledger
-técnico continua único em `meta_webhook_base`, mas seus atalhos devem aparecer em uma
-área técnica do produto consumidor. Marketing Center e Contact Center podem apontar
-para os mesmos registros sem duplicá-los.
+`Meta Webhooks` não deve parecer uma aplicação de negócio independente. O ledger técnico
+continua único em `meta_webhook_base`, mas seus atalhos devem aparecer em uma área
+técnica do produto consumidor. Marketing Center e Contact Center podem apontar para os
+mesmos registros sem duplicá-los.
 
 Menus de addons não devem criar novas raízes salvo quando representarem outro produto.
 Também devem usar sequências únicas dentro de cada grupo para que sua ordem não varie

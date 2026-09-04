@@ -644,9 +644,7 @@ class MetaWebhookSubscriptionService(models.AbstractModel):
                 if not isinstance(raw_fields, list):
                     raise MetaApiError("Meta Page subscription response is invalid")
                 fields_union = tuple(
-                    sorted(
-                        set(str(value or "").strip().lower() for value in raw_fields)
-                    )
+                    sorted({str(value or "").strip().lower() for value in raw_fields})
                 )
                 if len(fields_union) > _MAX_FIELDS or any(
                     not _FIELD_RE.fullmatch(value) for value in fields_union

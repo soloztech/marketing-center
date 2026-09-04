@@ -1,120 +1,88 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <odoo>
-    <record
-    id="rule_marketing_center_meta_profile_admin_company"
-    model="ir.rule"
-  >
+    <record id="rule_marketing_center_meta_profile_admin_company" model="ir.rule">
         <field name="name">Meta reader profiles by administrator company</field>
         <field name="model_id" ref="model_marketing_center_meta_profile" />
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>
         <field
-      name="groups"
-      eval="[(4, ref('marketing_center_base.group_marketing_center_admin'))]"
-    />
+            name="groups"
+            eval="[(4, ref('marketing_center_base.group_marketing_center_admin'))]"
+        />
     </record>
     <record id="rule_meta_api_app_marketing_admin_company" model="ir.rule">
-        <field
-      name="name"
-    >Shared Meta Apps by marketing administrator company</field>
+        <field name="name">Shared Meta Apps by marketing administrator company</field>
         <field name="model_id" ref="meta_api_base.model_meta_api_app" />
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>
         <field
-      name="groups"
-      eval="[(4, ref('marketing_center_base.group_marketing_center_admin'))]"
-    />
+            name="groups"
+            eval="[(4, ref('marketing_center_base.group_marketing_center_admin'))]"
+        />
     </record>
-    <record
-    id="rule_meta_webhook_endpoint_marketing_admin_company"
-    model="ir.rule"
-  >
+    <record id="rule_meta_webhook_endpoint_marketing_admin_company" model="ir.rule">
         <field
-      name="name"
-    >Shared Meta endpoints by marketing administrator company</field>
-        <field
-      name="model_id"
-      ref="meta_webhook_base.model_meta_webhook_endpoint"
-    />
+            name="name"
+        >Shared Meta endpoints by marketing administrator company</field>
+        <field name="model_id" ref="meta_webhook_base.model_meta_webhook_endpoint" />
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>
         <field
-      name="groups"
-      eval="[(4, ref('marketing_center_base.group_marketing_center_admin'))]"
-    />
+            name="groups"
+            eval="[(4, ref('marketing_center_base.group_marketing_center_admin'))]"
+        />
     </record>
     <record id="rule_meta_webhook_page_marketing_admin_company" model="ir.rule">
-        <field
-      name="name"
-    >Shared Meta Pages by marketing administrator company</field>
-        <field
-      name="model_id"
-      ref="meta_webhook_base.model_meta_webhook_page"
-    />
+        <field name="name">Shared Meta Pages by marketing administrator company</field>
+        <field name="model_id" ref="meta_webhook_base.model_meta_webhook_page" />
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>
         <field
-      name="groups"
-      eval="[(4, ref('marketing_center_base.group_marketing_center_admin'))]"
-    />
+            name="groups"
+            eval="[(4, ref('marketing_center_base.group_marketing_center_admin'))]"
+        />
     </record>
     <record id="rule_marketing_center_meta_lead_route_company" model="ir.rule">
         <field name="name">Meta Lead Ads routes by active source roster</field>
         <field name="model_id" ref="model_marketing_center_meta_lead_route" />
         <field
-      name="domain_force"
-    >[('company_id', 'in', company_ids), ('source_id.active', '=', True), ('source_id.access_user_ids', 'in', user.id)]</field>
+            name="domain_force"
+        >[('company_id', 'in', company_ids), ('source_id.active', '=', True), ('source_id.access_user_ids', 'in', user.id)]</field>
         <field
-      name="groups"
-      eval="[(4, ref('marketing_center_base.group_marketing_center_viewer'))]"
-    />
+            name="groups"
+            eval="[(4, ref('marketing_center_base.group_marketing_center_viewer'))]"
+        />
     </record>
-    <record
-    id="rule_marketing_center_meta_lead_route_admin_company"
-    model="ir.rule"
-  >
+    <record id="rule_marketing_center_meta_lead_route_admin_company" model="ir.rule">
         <field name="name">Meta Lead Ads routes by administrator company</field>
         <field name="model_id" ref="model_marketing_center_meta_lead_route" />
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>
         <field
-      name="groups"
-      eval="[(4, ref('marketing_center_base.group_marketing_center_admin'))]"
-    />
+            name="groups"
+            eval="[(4, ref('marketing_center_base.group_marketing_center_admin'))]"
+        />
     </record>
-    <record
-    id="rule_marketing_center_meta_lead_submission_company"
-    model="ir.rule"
-  >
+    <record id="rule_marketing_center_meta_lead_submission_company" model="ir.rule">
         <field name="name">Meta lead submissions by active source roster</field>
+        <field name="model_id" ref="model_marketing_center_meta_lead_submission" />
         <field
-      name="model_id"
-      ref="model_marketing_center_meta_lead_submission"
-    />
+            name="domain_force"
+        >[('company_id', 'in', company_ids), ('route_id.source_id.active', '=', True), ('route_id.source_id.access_user_ids', 'in', user.id)]</field>
         <field
-      name="domain_force"
-    >[('company_id', 'in', company_ids), ('route_id.source_id.active', '=', True), ('route_id.source_id.access_user_ids', 'in', user.id)]</field>
-        <field
-      name="groups"
-      eval="[(4, ref('marketing_center_base.group_marketing_center_viewer'))]"
-    />
+            name="groups"
+            eval="[(4, ref('marketing_center_base.group_marketing_center_viewer'))]"
+        />
     </record>
     <record
-    id="rule_marketing_center_meta_lead_submission_admin_company"
-    model="ir.rule"
-  >
-        <field
-      name="name"
-    >Meta lead submissions by administrator company</field>
-        <field
-      name="model_id"
-      ref="model_marketing_center_meta_lead_submission"
-    />
+        id="rule_marketing_center_meta_lead_submission_admin_company"
+        model="ir.rule"
+    >
+        <field name="name">Meta lead submissions by administrator company</field>
+        <field name="model_id" ref="model_marketing_center_meta_lead_submission" />
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>
         <field
-      name="groups"
-      eval="[(4, ref('marketing_center_base.group_marketing_center_admin'))]"
-    />
+            name="groups"
+            eval="[(4, ref('marketing_center_base.group_marketing_center_admin'))]"
+        />
     </record>
     <record id="rule_marketing_center_meta_lead_field_company" model="ir.rule">
-        <field
-      name="name"
-    >Private Meta lead fields by system user company</field>
+        <field name="name">Private Meta lead fields by system user company</field>
         <field name="model_id" ref="model_marketing_center_meta_lead_field" />
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>
         <field name="groups" eval="[(4, ref('base.group_system'))]" />

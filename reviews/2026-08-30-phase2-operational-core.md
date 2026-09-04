@@ -1,29 +1,28 @@
 # Marketing Center — núcleo operacional da Fase 2
 
-Data local: 2026-08-30  
-Ambiente: `odoo16-teste.soloz.com.br` / servidor05  
-Versões: `marketing_center_base 16.0.1.2.0`, bridge `16.0.1.0.0`
+Data local: 2026-08-30 Ambiente: `odoo16-teste.soloz.com.br` / servidor05 Versões:
+`marketing_center_base 16.0.1.2.0`, bridge `16.0.1.0.0`
 
 ## Resultado
 
-O segundo corte da Fase 2 foi implantado e validado. O base agora possui configuração
-de fontes e conexões, roster próprio, catálogo provider-neutral, revisões imutáveis e
+O segundo corte da Fase 2 foi implantado e validado. O base agora possui configuração de
+fontes e conexões, roster próprio, catálogo provider-neutral, revisões imutáveis e
 coordenação transacional de sincronização. Nenhuma API externa ou mutação de campanha
 foi habilitada neste corte.
 
 ## Correções incorporadas na revisão adversarial
 
-- record rules deixaram de combinar folhas One2many independentes; o acesso é
-  projetado por usuário ativo correlacionado ao mesmo time e vínculo;
+- record rules deixaram de combinar folhas One2many independentes; o acesso é projetado
+  por usuário ativo correlacionado ao mesmo time e vínculo;
 - touchpoints sem associação resolvida a source ficaram admin-only;
 - `company_id` de team/source, `source_id` de connection e identidades dos vínculos
   passaram a ser imutáveis após criação;
 - revisões de source/connection são incrementadas atomicamente sob row lock;
 - `state` e mudanças de capabilities participam do fencing;
-- sync captura `source_revision`, `binding_revision`, `profile_revision` e
-  `window_key`, exige connection `reader/ready` e source ativa/read-enabled;
-- existe somente um run ativo por source/kind/scope, com advisory lock e índice
-  parcial como última defesa;
+- sync captura `source_revision`, `binding_revision`, `profile_revision` e `window_key`,
+  exige connection `reader/ready` e source ativa/read-enabled;
+- existe somente um run ativo por source/kind/scope, com advisory lock e índice parcial
+  como última defesa;
 - a mesma idempotency key com fingerprint diferente gera conflito explícito;
 - `expected_cursor_sequence` é obrigatório; polling assíncrono também incrementa a
   sequência de ownership;
@@ -70,6 +69,6 @@ cursor_required_columns=1
 
 ## Próximo corte
 
-Extrair o runtime técnico `meta_api_base` em compatibilidade com
-`contact_center_meta`, e então criar `marketing_center_meta` read-only. Os dois cores
-continuam independentes; somente os consumidores dependem da base técnica Meta.
+Extrair o runtime técnico `meta_api_base` em compatibilidade com `contact_center_meta`,
+e então criar `marketing_center_meta` read-only. Os dois cores continuam independentes;
+somente os consumidores dependem da base técnica Meta.

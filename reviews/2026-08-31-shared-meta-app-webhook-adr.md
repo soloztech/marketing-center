@@ -15,22 +15,22 @@ independentes. Eles compartilham somente infraestrutura Meta no repositório
   transporte Graph versionado, `appsecret_proof`, HMAC e taxonomia de erros;
 - `meta_webhook_base`: único ingresso técnico de webhooks desse App, envelope/dedupe
   técnico, roteamento e estado de entrega;
-- `contact_center_meta`: consumer de eventos de mensagens e proprietário dos DTOs,
-  filas e projeções de atendimento;
+- `contact_center_meta`: consumer de eventos de mensagens e proprietário dos DTOs, filas
+  e projeções de atendimento;
 - `marketing_center_meta`: consumer de `leadgen`, proprietário da recuperação do lead,
   do DTO e do ledger de marketing.
 
 O mesmo Meta App será usado pelos dois consumers. As credenciais serão distintas por
 finalidade, ainda que pertençam ao mesmo App:
 
-| Perfil | Uso | Regra |
-|---|---|---|
-| Page | instalar/consultar subscriptions e operações autorizadas de Page/messaging | não é reutilizado como reader de Ads ou Lead por conveniência |
-| Ads reader | catálogo e Insights | somente capacidades de leitura aprovadas |
-| Lead reader | recuperar dados de Lead Ads | `leads_retrieval` e demais permissões/tarefas comprovadas |
+| Perfil      | Uso                                                                        | Regra                                                         |
+| ----------- | -------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Page        | instalar/consultar subscriptions e operações autorizadas de Page/messaging | não é reutilizado como reader de Ads ou Lead por conveniência |
+| Ads reader  | catálogo e Insights                                                        | somente capacidades de leitura aprovadas                      |
+| Lead reader | recuperar dados de Lead Ads                                                | `leads_retrieval` e demais permissões/tarefas comprovadas     |
 
-Tokens e App Secret ficam fora do PostgreSQL. O Odoo persiste somente referência
-opaca allowlisted, purpose/capabilities, fingerprint mascarado e revisão de fencing.
+Tokens e App Secret ficam fora do PostgreSQL. O Odoo persiste somente referência opaca
+allowlisted, purpose/capabilities, fingerprint mascarado e revisão de fencing.
 
 ## Topologia
 
@@ -53,17 +53,17 @@ Meta App único
                                                     +-- desconhecido -> unrouted
 ```
 
-`meta_webhook_base` não depende de nenhum domínio. Os addons consumidores dependem
-dele e registram handlers por chave de rota. A ausência de um consumer deixa a
-entrega em `unrouted`; não quebra nem instala implicitamente o outro domínio.
+`meta_webhook_base` não depende de nenhum domínio. Os addons consumidores dependem dele
+e registram handlers por chave de rota. A ausência de um consumer deixa a entrega em
+`unrouted`; não quebra nem instala implicitamente o outro domínio.
 
 ## Contrato do ingresso
 
 ### Handshake
 
-O endpoint valida `hub.mode=subscribe` e o `hub.verify_token` da identidade técnica,
-e somente então devolve `hub.challenge`. O verify token serve ao handshake; não
-autentica deliveries POST.
+O endpoint valida `hub.mode=subscribe` e o `hub.verify_token` da identidade técnica, e
+somente então devolve `hub.challenge`. O verify token serve ao handshake; não autentica
+deliveries POST.
 
 ### Delivery POST
 
@@ -77,32 +77,31 @@ Antes de qualquer parse ou roteamento funcional, o ingresso:
 6. responde `2xx` sem chamar Graph API nem executar regra de domínio.
 
 O envelope técnico mínimo registra App/revisão, `object`, identificadores e tempo da
-entry, índice/`field` da change, digest do corpo, horários e estado. O corpo bruto não
-é logado e não é fonte canônica de mensagens, leads ou atribuição.
+entry, índice/`field` da change, digest do corpo, horários e estado. O corpo bruto não é
+logado e não é fonte canônica de mensagens, leads ou atribuição.
 
-Como a Meta não fornece uma chave de delivery universal para esse fluxo, existem
-duas camadas de idempotência:
+Como a Meta não fornece uma chave de delivery universal para esse fluxo, existem duas
+camadas de idempotência:
 
 - técnica: identidade do App + digest do envelope/change;
 - semântica no consumer: ID externo da mensagem ou `leadgen_id`.
 
 ### Roteamento
 
-| Objeto/campo Meta | Consumer | Resultado |
-|---|---|---|
-| eventos de mensagem suportados | `contact_center_meta` | normalização e ledger do Contact Center |
-| `page/leadgen` | `marketing_center_meta` | job de recuperação do Lead Ads |
-| não suportado ou consumer ausente | nenhum | `unrouted`, visível e reprocessável |
+| Objeto/campo Meta                 | Consumer                | Resultado                               |
+| --------------------------------- | ----------------------- | --------------------------------------- |
+| eventos de mensagem suportados    | `contact_center_meta`   | normalização e ledger do Contact Center |
+| `page/leadgen`                    | `marketing_center_meta` | job de recuperação do Lead Ads          |
+| não suportado ou consumer ausente | nenhum                  | `unrouted`, visível e reprocessável     |
 
-O router não cria `EventDTO`, `AttributionDTO`, `MarketingTouchpointDTO`, conversa,
-lead CRM ou campanha. Isso pertence exclusivamente ao consumer correspondente.
+O router não cria `EventDTO`, `AttributionDTO`, `MarketingTouchpointDTO`, conversa, lead
+CRM ou campanha. Isso pertence exclusivamente ao consumer correspondente.
 
 ## Contrato Lead Ads
 
 O webhook `leadgen` é um **hint**, não o lead completo. Ele entrega, conforme
-disponibilidade, `leadgen_id`, `page_id`, `form_id`, `ad_id`, o legado
-`adgroup_id` e `created_time`. O `marketing_center_meta`, depois do acknowledge,
-executa:
+disponibilidade, `leadgen_id`, `page_id`, `form_id`, `ad_id`, o legado `adgroup_id` e
+`created_time`. O `marketing_center_meta`, depois do acknowledge, executa:
 
 ```text
 GET /v26.0/{leadgen_id}
@@ -121,22 +120,22 @@ Regras:
 
 ## Ownership
 
-| Artefato | Owner |
-|---|---|
-| Meta App ID, versão Graph, App Secret ref e transporte | `meta_api_base` |
-| callback, verify-token ref, Page subscription/token ref, assinatura, delivery técnica, dedupe e rota | `meta_webhook_base` |
-| Ads reader e Lead reader credential refs/capabilities | respectivos consumers do Marketing Center, separados por purpose |
-| mensagem, identidade externa, conversa e mídia | Contact Center |
-| formulário, lead de marketing, touchpoint e atribuição | Marketing Center |
-| vínculo entre conversa e jornada de marketing | `marketing_center_contact_center` |
+| Artefato                                                                                             | Owner                                                            |
+| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Meta App ID, versão Graph, App Secret ref e transporte                                               | `meta_api_base`                                                  |
+| callback, verify-token ref, Page subscription/token ref, assinatura, delivery técnica, dedupe e rota | `meta_webhook_base`                                              |
+| Ads reader e Lead reader credential refs/capabilities                                                | respectivos consumers do Marketing Center, separados por purpose |
+| mensagem, identidade externa, conversa e mídia                                                       | Contact Center                                                   |
+| formulário, lead de marketing, touchpoint e atribuição                                               | Marketing Center                                                 |
+| vínculo entre conversa e jornada de marketing                                                        | `marketing_center_contact_center`                                |
 
 Nenhum ledger de domínio migra para `integration-core`. O ingresso técnico também não
 substitui o bridge opcional entre Contact Center e Marketing Center.
 
 ## Sequência de implementação e cutover
 
-1. evoluir `meta_api_base` de transporte stateless para identidade técnica
-   revisionada, preservando sua API de transporte;
+1. evoluir `meta_api_base` de transporte stateless para identidade técnica revisionada,
+   preservando sua API de transporte;
 2. criar `meta_webhook_base`, controller único, delivery/route ledger, ACL, fila e
    registry sem dependência de domínio;
 3. registrar o handler de mensagens em `contact_center_meta`;
@@ -161,12 +160,12 @@ novas deliveries passam pelo ingresso compartilhado.
 - `leadgen` só vira DTO após GET autenticado do lead e validação do payload;
 - evento desconhecido/consumer ausente fica `unrouted` e pode ser reprocessado;
 - Page, Ads reader e Lead reader são perfis/referências separados no mesmo App;
-- token, App Secret, PII e payload bruto não aparecem em banco funcional, job args,
-  URL, log, chatter, bus ou diagnóstico;
+- token, App Secret, PII e payload bruto não aparecem em banco funcional, job args, URL,
+  log, chatter, bus ou diagnóstico;
 - `contact_center_base` e `marketing_center_base` continuam instaláveis isoladamente;
 - instalar apenas um consumer não exige nem importa modelos do outro;
-- o cutover direto é exercitado em laboratório e os endpoints antigos deixam de
-  receber novas deliveries.
+- o cutover direto é exercitado em laboratório e os endpoints antigos deixam de receber
+  novas deliveries.
 
 ## Consequências
 
@@ -181,16 +180,16 @@ Custos:
 
 - `integration-core` passa a possuir pequena persistência técnica;
 - consumers precisam de registry e replay explícitos;
-- indisponibilidade do ingresso afeta os dois fluxos, exigindo health, fila e alerta
-  por rota.
+- indisponibilidade do ingresso afeta os dois fluxos, exigindo health, fila e alerta por
+  rota.
 
 ## Alternativas rejeitadas
 
 - **Controller por consumer:** duplica exposição pública, HMAC, App identity, dedupe e
   configuração de callback para o mesmo App.
 - **Um token para tudo:** amplia blast radius e mistura Page, Ads e PII de Lead.
-- **Transformar `meta_api_base` em domínio Meta completo:** acopla conversas,
-  campanhas e leads no shared core.
+- **Transformar `meta_api_base` em domínio Meta completo:** acopla conversas, campanhas
+  e leads no shared core.
 - **Dual-write durante o cutover de desenvolvimento:** adiciona reconciliação sem
   benefício proporcional; os ledgers de domínio já preservam o histórico relevante.
 

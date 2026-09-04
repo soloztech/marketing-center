@@ -1,125 +1,125 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <odoo>
     <menuitem
-    id="menu_marketing_center_root"
-    name="Marketing Center"
-    sequence="55"
-    groups="marketing_center_base.group_marketing_center_viewer"
-  />
+        id="menu_marketing_center_root"
+        name="Marketing Center"
+        sequence="55"
+        groups="marketing_center_base.group_marketing_center_viewer"
+    />
     <menuitem
-    id="menu_marketing_center_funnel"
-    name="Funnel"
-    parent="menu_marketing_center_root"
-    sequence="15"
-    groups="marketing_center_base.group_marketing_center_analyst"
-  />
+        id="menu_marketing_center_funnel"
+        name="Funnel"
+        parent="menu_marketing_center_root"
+        sequence="15"
+        groups="marketing_center_base.group_marketing_center_analyst"
+    />
     <menuitem
-    id="menu_marketing_center_business_events"
-    name="Business Events"
-    parent="menu_marketing_center_funnel"
-    action="action_marketing_business_events"
-    sequence="10"
-    groups="marketing_center_base.group_marketing_center_analyst"
-  />
+        id="menu_marketing_center_business_events"
+        name="Business Events"
+        parent="menu_marketing_center_funnel"
+        action="action_marketing_business_events"
+        sequence="10"
+        groups="marketing_center_base.group_marketing_center_analyst"
+    />
     <menuitem
-    id="menu_marketing_center_attribution"
-    name="Attribution"
-    parent="menu_marketing_center_root"
-    sequence="20"
-    groups="marketing_center_base.group_marketing_center_admin"
-  />
+        id="menu_marketing_center_attribution"
+        name="Attribution"
+        parent="menu_marketing_center_root"
+        sequence="20"
+        groups="marketing_center_base.group_marketing_center_admin"
+    />
     <menuitem
-    id="menu_marketing_center_touchpoints"
-    name="Touchpoints"
-    parent="menu_marketing_center_attribution"
-    action="action_marketing_attribution_effective_touchpoints"
-    sequence="10"
-    groups="marketing_center_base.group_marketing_center_admin"
-  />
+        id="menu_marketing_center_touchpoints"
+        name="Touchpoints"
+        parent="menu_marketing_center_attribution"
+        action="action_marketing_attribution_effective_touchpoints"
+        sequence="10"
+        groups="marketing_center_base.group_marketing_center_admin"
+    />
     <menuitem
-    id="menu_marketing_center_attribution_results"
-    name="Results"
-    parent="menu_marketing_center_attribution"
-    action="action_marketing_attribution_results"
-    sequence="20"
-    groups="marketing_center_base.group_marketing_center_admin"
-  />
+        id="menu_marketing_center_attribution_results"
+        name="Results"
+        parent="menu_marketing_center_attribution"
+        action="action_marketing_attribution_results"
+        sequence="20"
+        groups="marketing_center_base.group_marketing_center_admin"
+    />
     <menuitem
-    id="menu_marketing_center_attribution_models"
-    name="Models"
-    parent="menu_marketing_center_attribution"
-    action="action_marketing_attribution_models"
-    sequence="30"
-    groups="marketing_center_base.group_marketing_center_admin"
-  />
+        id="menu_marketing_center_attribution_models"
+        name="Models"
+        parent="menu_marketing_center_attribution"
+        action="action_marketing_attribution_models"
+        sequence="30"
+        groups="marketing_center_base.group_marketing_center_admin"
+    />
     <menuitem
-    id="menu_marketing_center_performance"
-    name="Performance"
-    parent="menu_marketing_center_root"
-    action="action_marketing_metric_daily"
-    sequence="25"
-    groups="marketing_center_base.group_marketing_center_viewer"
-  />
+        id="menu_marketing_center_performance"
+        name="Performance"
+        parent="menu_marketing_center_root"
+        action="action_marketing_metric_daily"
+        sequence="25"
+        groups="marketing_center_base.group_marketing_center_viewer"
+    />
     <menuitem
-    id="menu_marketing_center_catalog"
-    name="Catalog"
-    parent="menu_marketing_center_root"
-    sequence="30"
-    groups="marketing_center_base.group_marketing_center_viewer"
-  />
+        id="menu_marketing_center_catalog"
+        name="Catalog"
+        parent="menu_marketing_center_root"
+        sequence="30"
+        groups="marketing_center_base.group_marketing_center_viewer"
+    />
     <menuitem
-    id="menu_marketing_center_external_entities"
-    name="External Entities"
-    parent="menu_marketing_center_catalog"
-    action="action_marketing_external_entities"
-    sequence="10"
-    groups="marketing_center_base.group_marketing_center_viewer"
-  />
+        id="menu_marketing_center_external_entities"
+        name="External Entities"
+        parent="menu_marketing_center_catalog"
+        action="action_marketing_external_entities"
+        sequence="10"
+        groups="marketing_center_base.group_marketing_center_viewer"
+    />
     <menuitem
-    id="menu_marketing_center_sync_runs"
-    name="Synchronization Runs"
-    parent="menu_marketing_center_catalog"
-    action="action_marketing_sync_runs"
-    sequence="20"
-    groups="marketing_center_base.group_marketing_center_viewer"
-  />
+        id="menu_marketing_center_sync_runs"
+        name="Synchronization Runs"
+        parent="menu_marketing_center_catalog"
+        action="action_marketing_sync_runs"
+        sequence="20"
+        groups="marketing_center_base.group_marketing_center_viewer"
+    />
     <menuitem
-    id="menu_marketing_center_configuration"
-    name="Configuration"
-    parent="menu_marketing_center_root"
-    sequence="90"
-    groups="marketing_center_base.group_marketing_center_admin"
-  />
+        id="menu_marketing_center_configuration"
+        name="Configuration"
+        parent="menu_marketing_center_root"
+        sequence="90"
+        groups="marketing_center_base.group_marketing_center_admin"
+    />
     <menuitem
-    id="menu_marketing_center_sources"
-    name="Sources"
-    parent="menu_marketing_center_configuration"
-    action="action_marketing_center_sources"
-    sequence="10"
-    groups="marketing_center_base.group_marketing_center_admin"
-  />
+        id="menu_marketing_center_sources"
+        name="Sources"
+        parent="menu_marketing_center_configuration"
+        action="action_marketing_center_sources"
+        sequence="10"
+        groups="marketing_center_base.group_marketing_center_admin"
+    />
     <menuitem
-    id="menu_marketing_center_connections"
-    name="Connections"
-    parent="menu_marketing_center_configuration"
-    action="action_marketing_center_connections"
-    sequence="20"
-    groups="marketing_center_base.group_marketing_center_admin"
-  />
+        id="menu_marketing_center_connections"
+        name="Connections"
+        parent="menu_marketing_center_configuration"
+        action="action_marketing_center_connections"
+        sequence="20"
+        groups="marketing_center_base.group_marketing_center_admin"
+    />
     <menuitem
-    id="menu_marketing_center_teams"
-    name="Teams"
-    parent="menu_marketing_center_configuration"
-    action="action_marketing_center_teams"
-    sequence="30"
-    groups="marketing_center_base.group_marketing_center_admin"
-  />
+        id="menu_marketing_center_teams"
+        name="Teams"
+        parent="menu_marketing_center_configuration"
+        action="action_marketing_center_teams"
+        sequence="30"
+        groups="marketing_center_base.group_marketing_center_admin"
+    />
     <menuitem
-    id="menu_marketing_center_sync_cursors"
-    name="Synchronization Cursors"
-    parent="menu_marketing_center_configuration"
-    action="action_marketing_sync_cursors"
-    sequence="40"
-    groups="marketing_center_base.group_marketing_center_admin"
-  />
+        id="menu_marketing_center_sync_cursors"
+        name="Synchronization Cursors"
+        parent="menu_marketing_center_configuration"
+        action="action_marketing_sync_cursors"
+        sequence="40"
+        groups="marketing_center_base.group_marketing_center_admin"
+    />
 </odoo>

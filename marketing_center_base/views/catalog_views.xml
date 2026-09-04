@@ -49,11 +49,7 @@
                         <page string="Revisions">
                             <field name="current_revision_id" invisible="1" />
                             <field name="revision_ids" nolabel="1">
-                                <tree
-                  create="false"
-                  edit="false"
-                  delete="false"
-                >
+                                <tree create="false" edit="false" delete="false">
                                     <field name="revision_sequence" />
                                     <field name="observed_at" />
                                     <field name="name" />
@@ -64,9 +60,9 @@
                             </field>
                         </page>
                         <page
-              string="Technical"
-              groups="marketing_center_base.group_marketing_center_admin"
-            >
+                            string="Technical"
+                            groups="marketing_center_base.group_marketing_center_admin"
+                        >
                             <group>
                                 <field name="public_ref" />
                                 <field name="parent_entity_type" />
@@ -92,34 +88,28 @@
                 <field name="source_id" />
                 <field name="entity_type" />
                 <filter
-          name="remote_missing"
-          string="Remote missing"
-          domain="[('remote_missing_at', '!=', False)]"
-        />
+                    name="remote_missing"
+                    string="Remote missing"
+                    domain="[('remote_missing_at', '!=', False)]"
+                />
                 <filter
-          name="group_source"
-          string="Source"
-          context="{'group_by': 'source_id'}"
-        />
+                    name="group_source"
+                    string="Source"
+                    context="{'group_by': 'source_id'}"
+                />
                 <filter
-          name="group_type"
-          string="Type"
-          context="{'group_by': 'entity_type'}"
-        />
+                    name="group_type"
+                    string="Type"
+                    context="{'group_by': 'entity_type'}"
+                />
             </search>
         </field>
     </record>
 
-    <record
-    id="action_marketing_external_entities"
-    model="ir.actions.act_window"
-  >
+    <record id="action_marketing_external_entities" model="ir.actions.act_window">
         <field name="name">External Entities</field>
         <field name="res_model">marketing.center.external.entity</field>
         <field name="view_mode">tree,form</field>
-        <field
-      name="search_view_id"
-      ref="view_marketing_external_entity_search"
-    />
+        <field name="search_view_id" ref="view_marketing_external_entity_search" />
     </record>
 </odoo>

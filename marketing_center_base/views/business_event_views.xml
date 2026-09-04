@@ -28,9 +28,9 @@
                         <group>
                             <field name="public_ref" />
                             <field
-                name="company_id"
-                groups="base.group_multi_company"
-              />
+                                name="company_id"
+                                groups="base.group_multi_company"
+                            />
                             <field name="event_class" />
                             <field name="event_type" />
                             <field name="occurred_at" />
@@ -47,47 +47,43 @@
                         </group>
                     </group>
                     <group
-            string="Value"
-            attrs="{'invisible': [('has_amount', '=', False)]}"
-          >
+                        string="Value"
+                        attrs="{'invisible': [('has_amount', '=', False)]}"
+                    >
                         <field name="has_amount" invisible="1" />
                         <field
-              name="amount_signed"
-              widget="monetary"
-              options="{'currency_field': 'currency_id'}"
-            />
+                            name="amount_signed"
+                            widget="monetary"
+                            options="{'currency_field': 'currency_id'}"
+                        />
                         <field name="currency_id" />
                     </group>
                     <group
-            string="Correction"
-            attrs="{'invisible': [('reverses_event_id', '=', False)]}"
-          >
+                        string="Correction"
+                        attrs="{'invisible': [('reverses_event_id', '=', False)]}"
+                    >
                         <field name="reverses_event_id" />
                         <field name="root_event_id" />
                     </group>
                     <notebook>
                         <page string="Observations">
                             <field name="observation_ids" nolabel="1">
-                                <tree
-                  create="false"
-                  edit="false"
-                  delete="false"
-                >
+                                <tree create="false" edit="false" delete="false">
                                     <field name="observed_at" />
                                     <field name="source_evidence_ref" />
                                     <field name="disposition" />
                                     <field name="observed_content_hash" />
                                     <field
-                    name="snapshot_json"
-                    groups="marketing_center_base.group_marketing_center_admin"
-                  />
+                                        name="snapshot_json"
+                                        groups="marketing_center_base.group_marketing_center_admin"
+                                    />
                                 </tree>
                             </field>
                         </page>
                         <page
-              string="Technical"
-              groups="marketing_center_base.group_marketing_center_admin"
-            >
+                            string="Technical"
+                            groups="marketing_center_base.group_marketing_center_admin"
+                        >
                             <group>
                                 <field name="schema_version" />
                                 <field name="canonical_key" />
@@ -111,15 +107,15 @@
                 <field name="source_system" />
                 <field name="occurred_at" />
                 <filter
-          name="group_event_type"
-          string="Event type"
-          context="{'group_by': 'event_type'}"
-        />
+                    name="group_event_type"
+                    string="Event type"
+                    context="{'group_by': 'event_type'}"
+                />
                 <filter
-          name="group_source_system"
-          string="Source system"
-          context="{'group_by': 'source_system'}"
-        />
+                    name="group_source_system"
+                    string="Source system"
+                    context="{'group_by': 'source_system'}"
+                />
             </search>
         </field>
     </record>
@@ -128,9 +124,6 @@
         <field name="name">Business Events</field>
         <field name="res_model">marketing.business.event</field>
         <field name="view_mode">tree,form</field>
-        <field
-      name="search_view_id"
-      ref="view_marketing_business_event_search"
-    />
+        <field name="search_view_id" ref="view_marketing_business_event_search" />
     </record>
 </odoo>

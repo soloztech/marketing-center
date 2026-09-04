@@ -2,10 +2,7 @@
 <odoo noupdate="1">
     <record id="ir_cron_marketing_center_meta_catalog" model="ir.cron">
         <field name="name">Marketing Center: synchronize Meta catalog</field>
-        <field
-      name="model_id"
-      ref="model_marketing_center_meta_catalog_service"
-    />
+        <field name="model_id" ref="model_marketing_center_meta_catalog_service" />
         <field name="state">code</field>
         <field name="code">model._cron_enqueue_meta_catalog()</field>
         <field name="interval_number">1</field>
@@ -15,13 +12,8 @@
     </record>
 
     <record id="ir_cron_marketing_center_meta_insights" model="ir.cron">
-        <field
-      name="name"
-    >Marketing Center: synchronize closed Meta Insights</field>
-        <field
-      name="model_id"
-      ref="model_marketing_center_meta_catalog_service"
-    />
+        <field name="name">Marketing Center: synchronize closed Meta Insights</field>
+        <field name="model_id" ref="model_marketing_center_meta_catalog_service" />
         <field name="state">code</field>
         <field name="code">model._cron_enqueue_closed_insights()</field>
         <field name="interval_number">1</field>
@@ -30,10 +22,7 @@
         <field name="active">True</field>
     </record>
 
-    <record
-    id="ir_cron_marketing_center_meta_lead_reconciliation"
-    model="ir.cron"
-  >
+    <record id="ir_cron_marketing_center_meta_lead_reconciliation" model="ir.cron">
         <field name="name">Marketing Center: reconcile Meta Lead Ads</field>
         <field name="model_id" ref="model_marketing_center_meta_lead_route" />
         <field name="state">code</field>

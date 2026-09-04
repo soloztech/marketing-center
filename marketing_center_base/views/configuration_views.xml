@@ -46,11 +46,7 @@
                     <notebook>
                         <page string="Connections">
                             <field name="connection_ids" nolabel="1">
-                                <tree
-                  create="false"
-                  edit="false"
-                  delete="false"
-                >
+                                <tree create="false" edit="false" delete="false">
                                     <field name="name" />
                                     <field name="adapter_key" />
                                     <field name="purpose" />
@@ -97,20 +93,20 @@
                 <field name="service" />
                 <field name="external_account_ref" />
                 <filter
-          name="active_sources"
-          string="Active"
-          domain="[('state', '=', 'active')]"
-        />
+                    name="active_sources"
+                    string="Active"
+                    domain="[('state', '=', 'active')]"
+                />
                 <filter
-          name="group_service"
-          string="Service"
-          context="{'group_by': 'service'}"
-        />
+                    name="group_service"
+                    string="Service"
+                    context="{'group_by': 'service'}"
+                />
                 <filter
-          name="group_company"
-          string="Company"
-          context="{'group_by': 'company_id'}"
-        />
+                    name="group_company"
+                    string="Company"
+                    context="{'group_by': 'company_id'}"
+                />
             </search>
         </field>
     </record>
@@ -119,10 +115,7 @@
         <field name="name">Sources</field>
         <field name="res_model">marketing.center.source</field>
         <field name="view_mode">tree,form</field>
-        <field
-      name="search_view_id"
-      ref="view_marketing_center_source_search"
-    />
+        <field name="search_view_id" ref="view_marketing_center_source_search" />
     </record>
 
     <record id="view_marketing_center_connection_tree" model="ir.ui.view">
@@ -182,10 +175,7 @@
         </field>
     </record>
 
-    <record
-    id="action_marketing_center_connections"
-    model="ir.actions.act_window"
-  >
+    <record id="action_marketing_center_connections" model="ir.actions.act_window">
         <field name="name">Connections</field>
         <field name="res_model">marketing.center.connection</field>
         <field name="view_mode">tree,form</field>

@@ -1,7 +1,6 @@
 # Release — Lead Ads, financeiro e visão gerencial
 
-Data: 2026-09-01  
-Ambiente: `odoo16-teste.soloz.com.br` / servidor05 / base neutralizada
+Data: 2026-09-01 Ambiente: `odoo16-teste.soloz.com.br` / servidor05 / base neutralizada
 
 ## Resultado
 
@@ -11,8 +10,8 @@ O corte foi aplicado e validado com sucesso. Produção não foi tocada.
 - `marketing_center_contact_center` `16.0.2.1.0`;
 - `marketing_center_crm` e `marketing_center_contact_center_crm` `16.0.1.0.0`;
 - `marketing_center_meta` `16.0.2.0.0`;
-- `marketing_center_sale`, `marketing_center_account`,
-  `marketing_center_sale_account` e `marketing_center_dashboard` `16.0.1.0.0`.
+- `marketing_center_sale`, `marketing_center_account`, `marketing_center_sale_account` e
+  `marketing_center_dashboard` `16.0.1.0.0`.
 
 ## Gates
 
@@ -26,8 +25,8 @@ O corte foi aplicado e validado com sucesso. Produção não foi tocada.
 - console do navegador no dashboard e nas rotas Lead Ads: sem erro.
 
 Dois primeiros candidatos foram revertidos automaticamente pelo gate: o primeiro
-detectou alias SQL reservado no dashboard; o segundo detectou o tratamento incorreto
-dos defaults neutros da herança delegada `account.payment` → `account.move` e um
+detectou alias SQL reservado no dashboard; o segundo detectou o tratamento incorreto dos
+defaults neutros da herança delegada `account.payment` → `account.move` e um
 `assertRaises` incompatível com o runner do Odoo. Ambos foram corrigidos antes do
 release aceito.
 

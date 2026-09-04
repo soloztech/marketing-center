@@ -1,100 +1,73 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <odoo>
-    <record
-    id="rule_marketing_center_google_profile_admin_company"
-    model="ir.rule"
-  >
-        <field
-      name="name"
-    >Google Ads reader profiles by administrator company</field>
+    <record id="rule_marketing_center_google_profile_admin_company" model="ir.rule">
+        <field name="name">Google Ads reader profiles by administrator company</field>
         <field name="model_id" ref="model_marketing_center_google_profile" />
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>
         <field
-      name="groups"
-      eval="[(4, ref('marketing_center_base.group_marketing_center_admin'))]"
-    />
+            name="groups"
+            eval="[(4, ref('marketing_center_base.group_marketing_center_admin'))]"
+        />
     </record>
-    <record
-    id="rule_google_api_identity_marketing_admin_company"
-    model="ir.rule"
-  >
+    <record id="rule_google_api_identity_marketing_admin_company" model="ir.rule">
         <field
-      name="name"
-    >Google API identities by marketing administrator company</field>
-        <field
-      name="model_id"
-      ref="google_api_base.model_google_api_identity"
-    />
+            name="name"
+        >Google API identities by marketing administrator company</field>
+        <field name="model_id" ref="google_api_base.model_google_api_identity" />
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>
         <field
-      name="groups"
-      eval="[(4, ref('marketing_center_base.group_marketing_center_admin'))]"
-    />
+            name="groups"
+            eval="[(4, ref('marketing_center_base.group_marketing_center_admin'))]"
+        />
     </record>
 
     <record id="rule_google_change_observation_manager_roster" model="ir.rule">
         <field name="name">Google Ads changes by manager source roster</field>
+        <field name="model_id" ref="model_marketing_center_google_change_observation" />
         <field
-      name="model_id"
-      ref="model_marketing_center_google_change_observation"
-    />
+            name="domain_force"
+        >[('company_id', 'in', company_ids), ('source_id.access_user_ids', 'in', user.id)]</field>
         <field
-      name="domain_force"
-    >[('company_id', 'in', company_ids), ('source_id.access_user_ids', 'in', user.id)]</field>
-        <field
-      name="groups"
-      eval="[(4, ref('marketing_center_base.group_marketing_center_manager'))]"
-    />
+            name="groups"
+            eval="[(4, ref('marketing_center_base.group_marketing_center_manager'))]"
+        />
     </record>
 
     <record id="rule_google_change_observation_admin_company" model="ir.rule">
         <field name="name">Google Ads changes by administrator company</field>
-        <field
-      name="model_id"
-      ref="model_marketing_center_google_change_observation"
-    />
+        <field name="model_id" ref="model_marketing_center_google_change_observation" />
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>
         <field
-      name="groups"
-      eval="[(4, ref('marketing_center_base.group_marketing_center_admin'))]"
-    />
+            name="groups"
+            eval="[(4, ref('marketing_center_base.group_marketing_center_admin'))]"
+        />
     </record>
 
-    <record
-    id="rule_google_diagnostic_observation_manager_roster"
-    model="ir.rule"
-  >
+    <record id="rule_google_diagnostic_observation_manager_roster" model="ir.rule">
+        <field name="name">Google Ads diagnostics by manager source roster</field>
         <field
-      name="name"
-    >Google Ads diagnostics by manager source roster</field>
+            name="model_id"
+            ref="model_marketing_center_google_diagnostic_observation"
+        />
         <field
-      name="model_id"
-      ref="model_marketing_center_google_diagnostic_observation"
-    />
+            name="domain_force"
+        >[('company_id', 'in', company_ids), ('source_id.access_user_ids', 'in', user.id)]</field>
         <field
-      name="domain_force"
-    >[('company_id', 'in', company_ids), ('source_id.access_user_ids', 'in', user.id)]</field>
-        <field
-      name="groups"
-      eval="[(4, ref('marketing_center_base.group_marketing_center_manager'))]"
-    />
+            name="groups"
+            eval="[(4, ref('marketing_center_base.group_marketing_center_manager'))]"
+        />
     </record>
 
-    <record
-    id="rule_google_diagnostic_observation_admin_company"
-    model="ir.rule"
-  >
+    <record id="rule_google_diagnostic_observation_admin_company" model="ir.rule">
+        <field name="name">Google Ads diagnostics by administrator company</field>
         <field
-      name="name"
-    >Google Ads diagnostics by administrator company</field>
-        <field
-      name="model_id"
-      ref="model_marketing_center_google_diagnostic_observation"
-    />
+            name="model_id"
+            ref="model_marketing_center_google_diagnostic_observation"
+        />
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>
         <field
-      name="groups"
-      eval="[(4, ref('marketing_center_base.group_marketing_center_admin'))]"
-    />
+            name="groups"
+            eval="[(4, ref('marketing_center_base.group_marketing_center_admin'))]"
+        />
     </record>
 </odoo>

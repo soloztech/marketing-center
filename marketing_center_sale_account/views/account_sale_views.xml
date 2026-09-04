@@ -1,59 +1,51 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <odoo>
-    <record
-    id="view_move_form_marketing_center_sale_account"
-    model="ir.ui.view"
-  >
-        <field
-      name="name"
-    >account.move.form.marketing.center.sale.account</field>
+    <record id="view_move_form_marketing_center_sale_account" model="ir.ui.view">
+        <field name="name">account.move.form.marketing.center.sale.account</field>
         <field name="model">account.move</field>
         <field name="inherit_id" ref="account.view_move_form" />
         <field name="arch" type="xml">
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button
-          name="action_view_marketing_sale_orders"
-          type="object"
-          class="oe_stat_button"
-          icon="fa-shopping-cart"
-          groups="account.group_account_invoice"
-          attrs="{'invisible': [('marketing_sale_order_count', '=', 0)]}"
-        >
+                    name="action_view_marketing_sale_orders"
+                    type="object"
+                    class="oe_stat_button"
+                    icon="fa-shopping-cart"
+                    groups="account.group_account_invoice"
+                    attrs="{'invisible': [('marketing_sale_order_count', '=', 0)]}"
+                >
                     <field
-            name="marketing_sale_order_count"
-            widget="statinfo"
-            string="Sales Orders"
-          />
+                        name="marketing_sale_order_count"
+                        widget="statinfo"
+                        string="Sales Orders"
+                    />
                 </button>
             </xpath>
         </field>
     </record>
 
-    <record
-    id="view_sale_order_form_marketing_center_sale_account"
-    model="ir.ui.view"
-  >
+    <record id="view_sale_order_form_marketing_center_sale_account" model="ir.ui.view">
         <field name="name">sale.order.form.marketing.center.sale.account</field>
         <field name="model">sale.order</field>
         <field
-      name="inherit_id"
-      ref="marketing_center_sale.view_sale_order_form_marketing_center"
-    />
+            name="inherit_id"
+            ref="marketing_center_sale.view_sale_order_form_marketing_center"
+        />
         <field name="arch" type="xml">
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button
-          name="action_view_marketing_account_moves"
-          type="object"
-          class="oe_stat_button"
-          icon="fa-file-text-o"
-          groups="account.group_account_invoice"
-          attrs="{'invisible': [('marketing_account_move_count', '=', 0)]}"
-        >
+                    name="action_view_marketing_account_moves"
+                    type="object"
+                    class="oe_stat_button"
+                    icon="fa-file-text-o"
+                    groups="account.group_account_invoice"
+                    attrs="{'invisible': [('marketing_account_move_count', '=', 0)]}"
+                >
                     <field
-            name="marketing_account_move_count"
-            widget="statinfo"
-            string="Invoices"
-          />
+                        name="marketing_account_move_count"
+                        widget="statinfo"
+                        string="Invoices"
+                    />
                 </button>
             </xpath>
         </field>

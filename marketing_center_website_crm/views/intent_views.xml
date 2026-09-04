@@ -26,20 +26,20 @@
       <form create="false" edit="false" delete="false">
         <header>
           <button
-            name="action_retry"
-            string="Retry"
-            type="object"
-            class="oe_highlight"
-            attrs="{'invisible': [('state', '!=', 'failed')]}"
-            groups="marketing_center_base.group_marketing_center_admin"
-          />
+                        name="action_retry"
+                        string="Retry"
+                        type="object"
+                        class="oe_highlight"
+                        attrs="{'invisible': [('state', '!=', 'failed')]}"
+                        groups="marketing_center_base.group_marketing_center_admin"
+                    />
           <button
-            name="action_retry_session"
-            string="Retry session"
-            type="object"
-            attrs="{'invisible': [('session_reconcile_state', '!=', 'failed')]}"
-            groups="marketing_center_base.group_marketing_center_admin"
-          />
+                        name="action_retry_session"
+                        string="Retry session"
+                        type="object"
+                        attrs="{'invisible': [('session_reconcile_state', '!=', 'failed')]}"
+                        groups="marketing_center_base.group_marketing_center_admin"
+                    />
           <field name="state" widget="statusbar" />
         </header>
         <sheet>
@@ -80,21 +80,18 @@
     </field>
   </record>
 
-  <record
-    id="action_marketing_website_crm_intents"
-    model="ir.actions.act_window"
-  >
+  <record id="action_marketing_website_crm_intents" model="ir.actions.act_window">
     <field name="name">Website CRM Intents</field>
     <field name="res_model">marketing.website.crm.intent</field>
     <field name="view_mode">tree,form</field>
   </record>
 
   <menuitem
-    id="menu_marketing_website_crm_intents"
-    name="Website CRM Intents"
-    parent="marketing_center_base.menu_marketing_center_configuration"
-    action="action_marketing_website_crm_intents"
-    sequence="58"
-    groups="marketing_center_base.group_marketing_center_admin"
-  />
+        id="menu_marketing_website_crm_intents"
+        name="Website CRM Intents"
+        parent="marketing_center_base.menu_marketing_center_configuration"
+        action="action_marketing_website_crm_intents"
+        sequence="58"
+        groups="marketing_center_base.group_marketing_center_admin"
+    />
 </odoo>

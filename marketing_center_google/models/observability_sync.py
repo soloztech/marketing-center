@@ -34,6 +34,8 @@ _MAX_DIAGNOSTIC_PAGES = 1024
 _logger = logging.getLogger(__name__)
 
 
+# Keep this job entry point with the observability transaction it delegates to.
+# pylint: disable=consider-merging-classes-inherited
 class MarketingCenterSyncRun(models.Model):
     _inherit = "marketing.center.sync.run"
 

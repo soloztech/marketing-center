@@ -4,25 +4,25 @@
         <field name="name">marketing.center.connection.form.meta</field>
         <field name="model">marketing.center.connection</field>
         <field
-      name="inherit_id"
-      ref="marketing_center_base.view_marketing_center_connection_form"
-    />
+            name="inherit_id"
+            ref="marketing_center_base.view_marketing_center_connection_form"
+        />
         <field name="arch" type="xml">
             <field name="adapter_key" position="after">
                 <field
-          name="meta_profile_id"
-          attrs="{'required': [('adapter_key', '=', 'meta.graph')], 'invisible': [('adapter_key', '!=', 'meta.graph')]}"
-        />
+                    name="meta_profile_id"
+                    attrs="{'required': [('adapter_key', '=', 'meta.graph')], 'invisible': [('adapter_key', '!=', 'meta.graph')]}"
+                />
             </field>
             <field name="profile_public_ref" position="attributes">
                 <attribute
-          name="attrs"
-        >{'readonly': [('adapter_key', '=', 'meta.graph')]}</attribute>
+                    name="attrs"
+                >{'readonly': [('adapter_key', '=', 'meta.graph')]}</attribute>
             </field>
             <field name="profile_revision" position="attributes">
                 <attribute
-          name="attrs"
-        >{'readonly': [('adapter_key', '=', 'meta.graph')]}</attribute>
+                    name="attrs"
+                >{'readonly': [('adapter_key', '=', 'meta.graph')]}</attribute>
             </field>
         </field>
     </record>

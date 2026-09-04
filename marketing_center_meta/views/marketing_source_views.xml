@@ -4,26 +4,26 @@
         <field name="name">marketing.center.source.form.meta</field>
         <field name="model">marketing.center.source</field>
         <field
-      name="inherit_id"
-      ref="marketing_center_base.view_marketing_center_source_form"
-    />
+            name="inherit_id"
+            ref="marketing_center_base.view_marketing_center_source_form"
+        />
         <field name="arch" type="xml">
             <xpath expr="//form/header" position="inside">
                 <button
-          name="action_enqueue_meta_catalog_sync"
-          string="Sync Meta catalog"
-          type="object"
-          class="oe_highlight"
-          groups="marketing_center_base.group_marketing_center_admin"
-          attrs="{'invisible': ['|', '|', ('service', '!=', 'meta.ads'), ('state', '!=', 'active'), ('read_enabled', '=', False)]}"
-        />
+                    name="action_enqueue_meta_catalog_sync"
+                    string="Sync Meta catalog"
+                    type="object"
+                    class="oe_highlight"
+                    groups="marketing_center_base.group_marketing_center_admin"
+                    attrs="{'invisible': ['|', '|', ('service', '!=', 'meta.ads'), ('state', '!=', 'active'), ('read_enabled', '=', False)]}"
+                />
                 <button
-          name="action_enqueue_meta_insights_sync"
-          string="Sync Meta Insights (7 days)"
-          type="object"
-          groups="marketing_center_base.group_marketing_center_admin"
-          attrs="{'invisible': ['|', '|', ('service', '!=', 'meta.ads'), ('state', '!=', 'active'), ('read_enabled', '=', False)]}"
-        />
+                    name="action_enqueue_meta_insights_sync"
+                    string="Sync Meta Insights (7 days)"
+                    type="object"
+                    groups="marketing_center_base.group_marketing_center_admin"
+                    attrs="{'invisible': ['|', '|', ('service', '!=', 'meta.ads'), ('state', '!=', 'active'), ('read_enabled', '=', False)]}"
+                />
             </xpath>
         </field>
     </record>

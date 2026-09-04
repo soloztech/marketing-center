@@ -4,7 +4,7 @@
     "version": "16.0.3.3.0",
     "category": "Marketing",
     "author": "Soloz Technologies",
-    "website": "https://github.com/lcsztl/marketing-center",
+    "website": "https://github.com/soloztech/marketing-center",
     "license": "AGPL-3",
     "depends": ["contact_center_base", "marketing_center_base", "queue_job"],
     "data": [

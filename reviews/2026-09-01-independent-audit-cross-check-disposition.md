@@ -7,25 +7,25 @@
 ## Veredito
 
 O cross-check é majoritariamente correto e encontrou lacunas reais na disposição
-anterior. O contra-check direto do código aceitou C28, META-06 e a convivência
-v1/v2 como problemas relevantes. Também corrigiu duas afirmações excessivas do
-próprio cross-check: ainda não existe teste de dois workers aplicando a mesma
-página e o teste concorrente do cursor não isola especificamente a invalidação do
-cache posterior ao lock.
+anterior. O contra-check direto do código aceitou C28, META-06 e a convivência v1/v2
+como problemas relevantes. Também corrigiu duas afirmações excessivas do próprio
+cross-check: ainda não existe teste de dois workers aplicando a mesma página e o teste
+concorrente do cursor não isola especificamente a invalidação do cache posterior ao
+lock.
 
-As correções pequenas e seguras foram aplicadas e implantadas. Não houve
-reescrita nem exclusão automática do ledger histórico.
+As correções pequenas e seguras foram aplicadas e implantadas. Não houve reescrita nem
+exclusão automática do ledger histórico.
 
 ## Correções aplicadas
 
-| Item | Disposição e implementação |
-| --- | --- |
-| C28 | **Procede; corrigido.** O bridge aceita explicitamente apenas o schema v1 do Contact Center. Uma mudança incompatível agora falha fechado, com mensagem clara e teste. |
+| Item              | Disposição e implementação                                                                                                                                                                                                                                                         |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C28               | **Procede; corrigido.** O bridge aceita explicitamente apenas o schema v1 do Contact Center. Uma mudança incompatível agora falha fechado, com mensagem clara e teste.                                                                                                             |
 | META-06 / TOPO-06 | **Procede; refutação anterior retirada.** Catálogo, Insights e Lead Ads compartilham `META_MARKETING_GRAPH_VERSION = "v26.0"` e rejeitam versão divergente de forma explícita. O baseline genérico de `meta_api_base` continua separado do contrato funcional do Marketing Center. |
-| XC-nova / DATA-01 | **Procede; contido prospectivamente.** Replay v1 inequívoco permanece na cadeia canônica histórica. Cadeia v1 colidida ou histórico já dividido entre v1/v2 falha fechado e exige migração explícita, em vez de criar nova dupla contagem silenciosa. |
-| C05 / DST | Foi incluído teste para meia-noite ambígua em `America/Havana`, escolhendo deterministicamente o primeiro instante UTC. |
-| OPS-09 | A ação system-only passou a ter teste com um `queue.job` real de catálogo Meta e verifica o `res_id` exato aberto pela UI. |
-| PLAN-03 | O plano foi alinhado ao contrato efetivo: Viewer lê superfícies roster-scoped, mas ledger/projeção efetiva continuam admin-only; disparar sync permanece operação de administrador. |
+| XC-nova / DATA-01 | **Procede; contido prospectivamente.** Replay v1 inequívoco permanece na cadeia canônica histórica. Cadeia v1 colidida ou histórico já dividido entre v1/v2 falha fechado e exige migração explícita, em vez de criar nova dupla contagem silenciosa.                              |
+| C05 / DST         | Foi incluído teste para meia-noite ambígua em `America/Havana`, escolhendo deterministicamente o primeiro instante UTC.                                                                                                                                                            |
+| OPS-09            | A ação system-only passou a ter teste com um `queue.job` real de catálogo Meta e verifica o `res_id` exato aberto pela UI.                                                                                                                                                         |
+| PLAN-03           | O plano foi alinhado ao contrato efetivo: Viewer lê superfícies roster-scoped, mas ledger/projeção efetiva continuam admin-only; disparar sync permanece operação de administrador.                                                                                                |
 
 Diagnóstico read-only do laboratório antes da contenção v1/v2:
 
@@ -34,39 +34,39 @@ Diagnóstico read-only do laboratório antes da contenção v1/v2:
 - nenhuma cadeia v1 compartilhada por fontes diferentes;
 - uma fonte já possui simultaneamente v1 e v2 em cadeias canônicas distintas.
 
-Essa única cadeia já dividida não foi alterada automaticamente. Ela fica bloqueada
-para replay/backfill até uma migração diagnóstica própria decidir qual ocorrência
-supersede a outra.
+Essa única cadeia já dividida não foi alterada automaticamente. Ela fica bloqueada para
+replay/backfill até uma migração diagnóstica própria decidir qual ocorrência supersede a
+outra.
 
 ## Qualificações ao cross-check
 
 - C07/TST-02 está **parcialmente** coberto. Existem testes concorrentes reais para
-  criação de runs e lock do cursor, mas ainda não dois workers executando a mesma
-  página e disputando o CAS de `_apply_*_page`.
+  criação de runs e lock do cursor, mas ainda não dois workers executando a mesma página
+  e disputando o CAS de `_apply_*_page`.
 - DATA-05 está corrigido no código: os sete campos mutáveis são invalidados após o
-  `FOR UPDATE`. Porém o teste atual recebe `SerializationFailure` no próprio lock,
-  antes da invalidação, e portanto não prova isoladamente essa regressão.
+  `FOR UPDATE`. Porém o teste atual recebe `SerializationFailure` no próprio lock, antes
+  da invalidação, e portanto não prova isoladamente essa regressão.
 - C22 é dívida de contrato de baixo risco, não corrupção comprovada. Flags de
-  enrichment/conflito ainda participam do hash e podem gerar revisões extras; falta
-  um cenário E2E Contact Center → Marketing Center.
+  enrichment/conflito ainda participam do hash e podem gerar revisões extras; falta um
+  cenário E2E Contact Center → Marketing Center.
 - PERF-04 permanece parcial: lote e retry existem, mas falta isolamento por item,
   continuação automática do backfill e teste específico do coordenador.
 - O relatório cita dois crons Google; a árvore atual possui quatro crons ativos.
 
 ## Refutações que permanecem válidas
 
-- PERF-01 não admite remoção simples de `last_sync_run_id`, porque o campo participa
-  de freshness/ownership. O custo deve ser medido novamente quando o volume atingir
-  um limiar definido.
+- PERF-01 não admite remoção simples de `last_sync_run_id`, porque o campo participa de
+  freshness/ownership. O custo deve ser medido novamente quando o volume atingir um
+  limiar definido.
 - Incluir `window_key` no índice ativo de PERF-03 permitiria janelas sobrepostas. A
   solução continua sendo um planner sequencial, limitado e retomável.
 - Remover `graph_version` da identidade de observação (C26) apagaria contexto
-  reproduzível. Consumidores fora do dashboard ainda precisam aplicar a mesma regra
-  de seleção de contexto.
-- META-12 possui retry finito, transação e sanitização; cabe melhorar diagnóstico,
-  não classificá-lo como loop infinito ou vazamento comprovado.
-- Os sete fences de MNT-19 protegem autoridades diferentes. A dívida real é a
-  duplicação de orquestração Meta/Google, a ser extraída antes do terceiro provedor.
+  reproduzível. Consumidores fora do dashboard ainda precisam aplicar a mesma regra de
+  seleção de contexto.
+- META-12 possui retry finito, transação e sanitização; cabe melhorar diagnóstico, não
+  classificá-lo como loop infinito ou vazamento comprovado.
+- Os sete fences de MNT-19 protegem autoridades diferentes. A dívida real é a duplicação
+  de orquestração Meta/Google, a ser extraída antes do terceiro provedor.
 
 ## Backlog confirmado
 
@@ -101,7 +101,7 @@ Release aceito:
 - rota Traefik restaurada com o mesmo hash;
 - produção não foi tocada.
 
-Três tentativas anteriores terminaram `failed_recovered` enquanto o novo teste
-OPS-09 era ajustado. Em todas elas as fontes anteriores e a rota foram restauradas
-antes de qualquer mudança de banco. Elas são evidência da recuperação segura, não
-releases aceitos.
+Três tentativas anteriores terminaram `failed_recovered` enquanto o novo teste OPS-09
+era ajustado. Em todas elas as fontes anteriores e a rota foram restauradas antes de
+qualquer mudança de banco. Elas são evidência da recuperação segura, não releases
+aceitos.

@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <odoo>
     <record id="view_google_change_observation_tree" model="ir.ui.view">
-        <field
-      name="name"
-    >marketing.center.google.change.observation.tree</field>
+        <field name="name">marketing.center.google.change.observation.tree</field>
         <field name="model">marketing.center.google.change.observation</field>
         <field name="arch" type="xml">
             <tree create="false" edit="false" delete="false">
@@ -19,9 +17,7 @@
     </record>
 
     <record id="view_google_change_observation_form" model="ir.ui.view">
-        <field
-      name="name"
-    >marketing.center.google.change.observation.form</field>
+        <field name="name">marketing.center.google.change.observation.form</field>
         <field name="model">marketing.center.google.change.observation</field>
         <field name="arch" type="xml">
             <form create="false" edit="false" delete="false">
@@ -44,9 +40,9 @@
                         </group>
                     </group>
                     <group
-            string="Technical fence"
-            groups="marketing_center_base.group_marketing_center_admin"
-          >
+                        string="Technical fence"
+                        groups="marketing_center_base.group_marketing_center_admin"
+                    >
                         <field name="event_ref" />
                         <field name="connection_id" />
                         <field name="profile_id" />
@@ -62,9 +58,7 @@
     </record>
 
     <record id="view_google_change_observation_search" model="ir.ui.view">
-        <field
-      name="name"
-    >marketing.center.google.change.observation.search</field>
+        <field name="name">marketing.center.google.change.observation.search</field>
         <field name="model">marketing.center.google.change.observation</field>
         <field name="arch" type="xml">
             <search>
@@ -74,46 +68,34 @@
                 <field name="operation" />
                 <field name="occurred_at" />
                 <filter
-          name="group_source"
-          string="Source"
-          context="{'group_by': 'source_id'}"
-        />
+                    name="group_source"
+                    string="Source"
+                    context="{'group_by': 'source_id'}"
+                />
                 <filter
-          name="group_resource_type"
-          string="Resource type"
-          context="{'group_by': 'resource_type'}"
-        />
+                    name="group_resource_type"
+                    string="Resource type"
+                    context="{'group_by': 'resource_type'}"
+                />
                 <filter
-          name="group_operation"
-          string="Operation"
-          context="{'group_by': 'operation'}"
-        />
+                    name="group_operation"
+                    string="Operation"
+                    context="{'group_by': 'operation'}"
+                />
             </search>
         </field>
     </record>
 
-    <record
-    id="action_google_change_observations"
-    model="ir.actions.act_window"
-  >
+    <record id="action_google_change_observations" model="ir.actions.act_window">
         <field name="name">Google Ads Change History</field>
-        <field
-      name="res_model"
-    >marketing.center.google.change.observation</field>
+        <field name="res_model">marketing.center.google.change.observation</field>
         <field name="view_mode">tree,form</field>
-        <field
-      name="search_view_id"
-      ref="view_google_change_observation_search"
-    />
+        <field name="search_view_id" ref="view_google_change_observation_search" />
     </record>
 
     <record id="view_google_diagnostic_observation_tree" model="ir.ui.view">
-        <field
-      name="name"
-    >marketing.center.google.diagnostic.observation.tree</field>
-        <field
-      name="model"
-    >marketing.center.google.diagnostic.observation</field>
+        <field name="name">marketing.center.google.diagnostic.observation.tree</field>
+        <field name="model">marketing.center.google.diagnostic.observation</field>
         <field name="arch" type="xml">
             <tree create="false" edit="false" delete="false">
                 <field name="observed_at" />
@@ -121,12 +103,12 @@
                 <field name="asset_type" />
                 <field name="asset_ref" />
                 <field
-          name="severity"
-          decoration-danger="severity == 'error'"
-          decoration-warning="severity == 'warning'"
-          decoration-info="severity == 'info'"
-          decoration-success="severity == 'ok'"
-        />
+                    name="severity"
+                    decoration-danger="severity == 'error'"
+                    decoration-warning="severity == 'warning'"
+                    decoration-info="severity == 'info'"
+                    decoration-success="severity == 'ok'"
+                />
                 <field name="primary_status" />
                 <field name="configured_status" />
                 <field name="company_id" groups="base.group_multi_company" />
@@ -135,12 +117,8 @@
     </record>
 
     <record id="view_google_diagnostic_observation_form" model="ir.ui.view">
-        <field
-      name="name"
-    >marketing.center.google.diagnostic.observation.form</field>
-        <field
-      name="model"
-    >marketing.center.google.diagnostic.observation</field>
+        <field name="name">marketing.center.google.diagnostic.observation.form</field>
+        <field name="model">marketing.center.google.diagnostic.observation</field>
         <field name="arch" type="xml">
             <form create="false" edit="false" delete="false">
                 <sheet>
@@ -164,9 +142,9 @@
                         </group>
                     </group>
                     <group
-            string="Technical fence"
-            groups="marketing_center_base.group_marketing_center_admin"
-          >
+                        string="Technical fence"
+                        groups="marketing_center_base.group_marketing_center_admin"
+                    >
                         <field name="observation_key" />
                         <field name="connection_id" />
                         <field name="profile_id" />
@@ -182,12 +160,8 @@
     </record>
 
     <record id="view_google_diagnostic_observation_search" model="ir.ui.view">
-        <field
-      name="name"
-    >marketing.center.google.diagnostic.observation.search</field>
-        <field
-      name="model"
-    >marketing.center.google.diagnostic.observation</field>
+        <field name="name">marketing.center.google.diagnostic.observation.search</field>
+        <field name="model">marketing.center.google.diagnostic.observation</field>
         <field name="arch" type="xml">
             <search>
                 <field name="source_id" />
@@ -196,65 +170,57 @@
                 <field name="severity" />
                 <field name="primary_status" />
                 <filter
-          name="attention"
-          string="Needs attention"
-          domain="[('severity', 'in', ['warning', 'error'])]"
-        />
+                    name="attention"
+                    string="Needs attention"
+                    domain="[('severity', 'in', ['warning', 'error'])]"
+                />
                 <filter
-          name="group_source"
-          string="Source"
-          context="{'group_by': 'source_id'}"
-        />
+                    name="group_source"
+                    string="Source"
+                    context="{'group_by': 'source_id'}"
+                />
                 <filter
-          name="group_asset_type"
-          string="Asset type"
-          context="{'group_by': 'asset_type'}"
-        />
+                    name="group_asset_type"
+                    string="Asset type"
+                    context="{'group_by': 'asset_type'}"
+                />
                 <filter
-          name="group_severity"
-          string="Severity"
-          context="{'group_by': 'severity'}"
-        />
+                    name="group_severity"
+                    string="Severity"
+                    context="{'group_by': 'severity'}"
+                />
             </search>
         </field>
     </record>
 
-    <record
-    id="action_google_diagnostic_observations"
-    model="ir.actions.act_window"
-  >
+    <record id="action_google_diagnostic_observations" model="ir.actions.act_window">
         <field name="name">Google Ads Delivery Diagnostics</field>
-        <field
-      name="res_model"
-    >marketing.center.google.diagnostic.observation</field>
+        <field name="res_model">marketing.center.google.diagnostic.observation</field>
         <field name="view_mode">tree,form</field>
-        <field
-      name="search_view_id"
-      ref="view_google_diagnostic_observation_search"
-    />
+        <field name="search_view_id" ref="view_google_diagnostic_observation_search" />
     </record>
 
     <menuitem
-    id="menu_google_observability"
-    name="Google Ads Observability"
-    parent="marketing_center_base.menu_marketing_center_root"
-    sequence="35"
-    groups="marketing_center_base.group_marketing_center_manager"
-  />
+        id="menu_google_observability"
+        name="Google Ads Observability"
+        parent="marketing_center_base.menu_marketing_center_root"
+        sequence="35"
+        groups="marketing_center_base.group_marketing_center_manager"
+    />
     <menuitem
-    id="menu_google_change_observations"
-    name="Change History"
-    parent="menu_google_observability"
-    action="action_google_change_observations"
-    sequence="10"
-    groups="marketing_center_base.group_marketing_center_manager"
-  />
+        id="menu_google_change_observations"
+        name="Change History"
+        parent="menu_google_observability"
+        action="action_google_change_observations"
+        sequence="10"
+        groups="marketing_center_base.group_marketing_center_manager"
+    />
     <menuitem
-    id="menu_google_diagnostic_observations"
-    name="Delivery Diagnostics"
-    parent="menu_google_observability"
-    action="action_google_diagnostic_observations"
-    sequence="20"
-    groups="marketing_center_base.group_marketing_center_manager"
-  />
+        id="menu_google_diagnostic_observations"
+        name="Delivery Diagnostics"
+        parent="menu_google_observability"
+        action="action_google_diagnostic_observations"
+        sequence="20"
+        groups="marketing_center_base.group_marketing_center_manager"
+    />
 </odoo>

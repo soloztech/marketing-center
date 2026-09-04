@@ -36,6 +36,8 @@ _MAX_INSIGHTS_PAGES = 512
 _logger = logging.getLogger(__name__)
 
 
+# Keep the job entry point next to the Insights transaction it delegates to.
+# pylint: disable=consider-merging-classes-inherited
 class MarketingCenterSyncRun(models.Model):
     _inherit = "marketing.center.sync.run"
 

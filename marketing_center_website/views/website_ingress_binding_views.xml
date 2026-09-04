@@ -59,21 +59,18 @@
     </field>
   </record>
 
-  <record
-    id="action_marketing_website_ingress_bindings"
-    model="ir.actions.act_window"
-  >
+  <record id="action_marketing_website_ingress_bindings" model="ir.actions.act_window">
     <field name="name">Website Ingress</field>
     <field name="res_model">marketing.website.ingress.binding</field>
     <field name="view_mode">tree,form</field>
   </record>
 
   <menuitem
-    id="menu_marketing_website_ingress_bindings"
-    name="Website Ingress"
-    parent="marketing_center_base.menu_marketing_center_configuration"
-    action="action_marketing_website_ingress_bindings"
-    sequence="55"
-    groups="marketing_center_base.group_marketing_center_admin"
-  />
+        id="menu_marketing_website_ingress_bindings"
+        name="Website Ingress"
+        parent="marketing_center_base.menu_marketing_center_configuration"
+        action="action_marketing_website_ingress_bindings"
+        sequence="55"
+        groups="marketing_center_base.group_marketing_center_admin"
+    />
 </odoo>

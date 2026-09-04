@@ -1,7 +1,7 @@
 # Marketing Center — primeiro corte implantado
 
-Data local: 2026-08-29  
-Ambiente: `odoo16-teste.soloz.com.br` / servidor05 / base neutralizada
+Data local: 2026-08-29 Ambiente: `odoo16-teste.soloz.com.br` / servidor05 / base
+neutralizada
 
 ## Resultado
 
@@ -29,8 +29,8 @@ Evidência canônica do release final:
 
 ## Validação com dados do laboratório
 
-O backfill explícito encontrou 126 touchpoints no ledger operacional do Contact
-Center. Após drenagem da fila:
+O backfill explícito encontrou 126 touchpoints no ledger operacional do Contact Center.
+Após drenagem da fila:
 
 - 126 touchpoints no ledger de Marketing;
 - 126 links imutáveis Contact Center → Marketing Center;

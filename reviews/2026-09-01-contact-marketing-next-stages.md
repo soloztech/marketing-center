@@ -20,21 +20,20 @@ As pontes são opcionais e tipadas:
 Contact Center evidence ── marketing_center_contact_center ──> touchpoint
 CRM / Sale / Account    ── addons próprios ──────────────────> business event
 Meta / Google Ads       ── adapters read-only ───────────────> catalog + metric
-                                                        
+
 touchpoint + business event + policy/model ─────────────> attribution result
 business event + destination policy ────────────────────> conversion delivery
 ```
 
-Correlação M:N entre conversa, lead, pessoa e touchpoint não é crédito causal. Os
-fatos da empresa contam uma vez; nunca são duplicados por source para completar um
-dashboard.
+Correlação M:N entre conversa, lead, pessoa e touchpoint não é crédito causal. Os fatos
+da empresa contam uma vez; nunca são duplicados por source para completar um dashboard.
 
 ## Estado real
 
-- Contact Center: core, WuzAPI, Meta Messaging, UI, grupos, mídia, realtime,
-  permissões por caixa, dono/equipe, autoatribuição, pipeline/casos e ponte CRM estão
-  homologados. Restam principalmente aceite operacional do piloto e credenciais/
-  permissões externas Meta.
+- Contact Center: core, WuzAPI, Meta Messaging, UI, grupos, mídia, realtime, permissões
+  por caixa, dono/equipe, autoatribuição, pipeline/casos e ponte CRM estão homologados.
+  Restam principalmente aceite operacional do piloto e credenciais/ permissões externas
+  Meta.
 - Marketing Center: core provider-neutral, touchpoint efetivo, resolução de source,
   bridge Contact Center, CRM, Sale, Accounting, Meta catálogo/Insights/Lead Ads e
   primeira visão gerencial estão implantados no servidor05.
@@ -50,8 +49,8 @@ dashboard.
 2. **Evidência externa real.** Perfis dedicados Meta Ads/Lead e Google reader; validar
    scopes, developer token, MCC/login customer, contas, timezone e moeda.
 3. **Captura first-party.** Implementar `marketing_center_web_ingress` e depois o
-   adapter Website Odoo; preservar UTM, click ID, sessão e clique para WhatsApp antes
-   de depender do relatório das plataformas.
+   adapter Website Odoo; preservar UTM, click ID, sessão e clique para WhatsApp antes de
+   depender do relatório das plataformas.
 4. **Cobertura e atribuição.** Criar modelo/resultados versionados somente quando os
    três lados — custo, touchpoint e fato Odoo — tiverem cobertura mensurável.
 5. **Conversões outbound.** Derivar conversion events por policy, enviar primeiro a

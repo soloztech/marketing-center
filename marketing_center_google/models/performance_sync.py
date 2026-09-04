@@ -29,6 +29,8 @@ _MAX_PERFORMANCE_PAGES = 4096
 _logger = logging.getLogger(__name__)
 
 
+# The sync-run model is intentionally extended beside its bounded service flow.
+# pylint: disable=consider-merging-classes-inherited
 class MarketingCenterSyncRun(models.Model):
     _inherit = "marketing.center.sync.run"
 

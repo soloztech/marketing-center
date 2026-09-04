@@ -566,6 +566,8 @@ class MarketingContactCenterResponse(models.Model):
                 )
 
 
+# These extensions are intentionally colocated with the response-episode aggregate.
+# pylint: disable=consider-merging-classes-inherited
 class ContactCenterMessageBinding(models.Model):
     _inherit = "contact.center.message.binding"
 

@@ -27,9 +27,9 @@
                         <group>
                             <field name="name" />
                             <field
-                name="company_id"
-                groups="base.group_multi_company"
-              />
+                                name="company_id"
+                                groups="base.group_multi_company"
+                            />
                             <field name="code" />
                             <field name="version" />
                             <field name="strategy" />
@@ -53,10 +53,7 @@
         </field>
     </record>
 
-    <record
-    id="action_marketing_attribution_models"
-    model="ir.actions.act_window"
-  >
+    <record id="action_marketing_attribution_models" model="ir.actions.act_window">
         <field name="name">Attribution Models</field>
         <field name="res_model">marketing.attribution.model</field>
         <field name="view_mode">tree,form</field>
@@ -95,9 +92,9 @@
                             <field name="subject_kind" />
                             <field name="subject_key" />
                             <field
-                name="company_id"
-                groups="base.group_multi_company"
-              />
+                                name="company_id"
+                                groups="base.group_multi_company"
+                            />
                         </group>
                         <group>
                             <field name="window_start" />
@@ -114,11 +111,7 @@
                     <notebook>
                         <page string="Candidates">
                             <field name="candidate_ids" nolabel="1">
-                                <tree
-                  create="false"
-                  edit="false"
-                  delete="false"
-                >
+                                <tree create="false" edit="false" delete="false">
                                     <field name="candidate_sequence" />
                                     <field name="touchpoint_id" />
                                     <field name="touchpoint_occurred_at" />
@@ -131,11 +124,7 @@
                         </page>
                         <page string="Contributions">
                             <field name="contribution_ids" nolabel="1">
-                                <tree
-                  create="false"
-                  edit="false"
-                  delete="false"
-                >
+                                <tree create="false" edit="false" delete="false">
                                     <field name="contribution_sequence" />
                                     <field name="touchpoint_id" />
                                     <field name="weight_micros" />
@@ -171,35 +160,29 @@
                 <field name="business_event_id" />
                 <field name="model_id" />
                 <filter
-          name="credited"
-          string="Credited"
-          domain="[('disposition', '=', 'credited')]"
-        />
+                    name="credited"
+                    string="Credited"
+                    domain="[('disposition', '=', 'credited')]"
+                />
                 <filter
-          name="unattributed"
-          string="Unattributed"
-          domain="[('disposition', '=', 'unattributed')]"
-        />
+                    name="unattributed"
+                    string="Unattributed"
+                    domain="[('disposition', '=', 'unattributed')]"
+                />
                 <filter
-          name="group_model"
-          string="Model"
-          context="{'group_by': 'model_id'}"
-        />
+                    name="group_model"
+                    string="Model"
+                    context="{'group_by': 'model_id'}"
+                />
             </search>
         </field>
     </record>
 
-    <record
-    id="action_marketing_attribution_results"
-    model="ir.actions.act_window"
-  >
+    <record id="action_marketing_attribution_results" model="ir.actions.act_window">
         <field name="name">Attribution Results</field>
         <field name="res_model">marketing.attribution.result</field>
         <field name="view_mode">tree,form</field>
-        <field
-      name="search_view_id"
-      ref="view_marketing_attribution_result_search"
-    />
+        <field name="search_view_id" ref="view_marketing_attribution_result_search" />
         <field name="context">{'create': False}</field>
     </record>
 </odoo>

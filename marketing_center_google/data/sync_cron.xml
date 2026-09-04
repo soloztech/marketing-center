@@ -1,13 +1,8 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <odoo noupdate="1">
     <record id="ir_cron_marketing_center_google_catalog" model="ir.cron">
-        <field
-      name="name"
-    >Marketing Center: synchronize Google Ads catalog</field>
-        <field
-      name="model_id"
-      ref="model_marketing_center_google_catalog_service"
-    />
+        <field name="name">Marketing Center: synchronize Google Ads catalog</field>
+        <field name="model_id" ref="model_marketing_center_google_catalog_service" />
         <field name="state">code</field>
         <field name="code">model._cron_enqueue_google_catalog()</field>
         <field name="interval_number">1</field>
@@ -18,12 +13,12 @@
 
     <record id="ir_cron_marketing_center_google_performance" model="ir.cron">
         <field
-      name="name"
-    >Marketing Center: synchronize closed Google Ads performance</field>
+            name="name"
+        >Marketing Center: synchronize closed Google Ads performance</field>
         <field
-      name="model_id"
-      ref="model_marketing_center_google_performance_service"
-    />
+            name="model_id"
+            ref="model_marketing_center_google_performance_service"
+        />
         <field name="state">code</field>
         <field name="code">model._cron_enqueue_google_performance()</field>
         <field name="interval_number">1</field>
@@ -34,12 +29,9 @@
 
     <record id="ir_cron_marketing_center_google_change_history" model="ir.cron">
         <field
-      name="name"
-    >Marketing Center: synchronize Google Ads change history</field>
-        <field
-      name="model_id"
-      ref="model_marketing_center_google_change_service"
-    />
+            name="name"
+        >Marketing Center: synchronize Google Ads change history</field>
+        <field name="model_id" ref="model_marketing_center_google_change_service" />
         <field name="state">code</field>
         <field name="code">model._cron_enqueue_google_changes()</field>
         <field name="interval_number">1</field>
@@ -49,13 +41,8 @@
     </record>
 
     <record id="ir_cron_marketing_center_google_diagnostics" model="ir.cron">
-        <field
-      name="name"
-    >Marketing Center: synchronize Google Ads diagnostics</field>
-        <field
-      name="model_id"
-      ref="model_marketing_center_google_diagnostic_service"
-    />
+        <field name="name">Marketing Center: synchronize Google Ads diagnostics</field>
+        <field name="model_id" ref="model_marketing_center_google_diagnostic_service" />
         <field name="state">code</field>
         <field name="code">model._cron_enqueue_google_diagnostics()</field>
         <field name="interval_number">1</field>

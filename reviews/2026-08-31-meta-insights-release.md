@@ -29,17 +29,16 @@ Evidência:
   página/cursor/job sucessor;
 - botão administrativo para os sete dias fechados anteriores.
 
-Não fazem parte deste contrato: reach, actions, action values, conversões,
-breakdowns, parâmetros de atribuição, jobs async Meta ou tombstone por varredura
-vazia.
+Não fazem parte deste contrato: reach, actions, action values, conversões, breakdowns,
+parâmetros de atribuição, jobs async Meta ou tombstone por varredura vazia.
 
 ## Correção encontrada pelo gate real
 
 O Odoo 16 serializa um objeto JSON vazio como SQL `NULL`. O primeiro teste isolado
-detectou que `dimensions_json` havia sido declarado `NOT NULL`. O campo passou a
-aceitar `NULL` exclusivamente como representação física de `{}`; `dimension_hash`
-continua sendo a identidade canônica. O rollback automático restaurou fonte, rota e
-serviço antes da correção e da repetição completa do release.
+detectou que `dimensions_json` havia sido declarado `NOT NULL`. O campo passou a aceitar
+`NULL` exclusivamente como representação física de `{}`; `dimension_hash` continua sendo
+a identidade canônica. O rollback automático restaurou fonte, rota e serviço antes da
+correção e da repetição completa do release.
 
 ## Bloqueio externo
 

@@ -29,9 +29,9 @@
                         <group>
                             <field name="public_ref" />
                             <field
-                name="company_id"
-                groups="base.group_multi_company"
-              />
+                                name="company_id"
+                                groups="base.group_multi_company"
+                            />
                             <field name="occurred_at" />
                             <field name="observed_at" />
                             <field name="platform" />
@@ -64,11 +64,7 @@
                         </page>
                         <page string="Evidence">
                             <field name="evidence_ids" nolabel="1">
-                                <tree
-                  create="false"
-                  edit="false"
-                  delete="false"
-                >
+                                <tree create="false" edit="false" delete="false">
                                     <field name="observed_at" />
                                     <field name="source_system" />
                                     <field name="source_evidence_ref" />
@@ -79,15 +75,11 @@
                             </field>
                         </page>
                         <page
-              string="Identifiers"
-              groups="marketing_center_base.group_marketing_center_admin"
-            >
+                            string="Identifiers"
+                            groups="marketing_center_base.group_marketing_center_admin"
+                        >
                             <field name="identifier_ids" nolabel="1">
-                                <tree
-                  create="false"
-                  edit="false"
-                  delete="false"
-                >
+                                <tree create="false" edit="false" delete="false">
                                     <field name="namespace" />
                                     <field name="role" />
                                     <field name="masked_value" />
@@ -107,9 +99,9 @@
                             </group>
                         </page>
                         <page
-              string="Technical"
-              groups="marketing_center_base.group_marketing_center_admin"
-            >
+                            string="Technical"
+                            groups="marketing_center_base.group_marketing_center_admin"
+                        >
                             <group>
                                 <field name="schema_version" />
                                 <field name="mapping_version" />
@@ -125,10 +117,7 @@
         </field>
     </record>
 
-    <record
-    id="view_marketing_attribution_touchpoint_search"
-    model="ir.ui.view"
-  >
+    <record id="view_marketing_attribution_touchpoint_search" model="ir.ui.view">
         <field name="name">marketing.attribution.touchpoint.search</field>
         <field name="model">marketing.attribution.touchpoint</field>
         <field name="arch" type="xml">
@@ -138,39 +127,34 @@
                 <field name="utm_campaign" />
                 <field name="source_system" />
                 <filter
-          name="group_platform"
-          string="Platform"
-          context="{'group_by': 'platform'}"
-        />
+                    name="group_platform"
+                    string="Platform"
+                    context="{'group_by': 'platform'}"
+                />
                 <filter
-          name="group_touchpoint_type"
-          string="Touchpoint type"
-          context="{'group_by': 'touchpoint_type'}"
-        />
+                    name="group_touchpoint_type"
+                    string="Touchpoint type"
+                    context="{'group_by': 'touchpoint_type'}"
+                />
             </search>
         </field>
     </record>
 
-    <record
-    id="action_marketing_attribution_touchpoints"
-    model="ir.actions.act_window"
-  >
+    <record id="action_marketing_attribution_touchpoints" model="ir.actions.act_window">
         <field name="name">Touchpoints</field>
         <field name="res_model">marketing.attribution.touchpoint</field>
         <field name="view_mode">tree,form</field>
         <field
-      name="search_view_id"
-      ref="view_marketing_attribution_touchpoint_search"
-    />
+            name="search_view_id"
+            ref="view_marketing_attribution_touchpoint_search"
+        />
     </record>
 
     <record
-    id="view_marketing_attribution_effective_touchpoint_tree"
-    model="ir.ui.view"
-  >
-        <field
-      name="name"
-    >marketing.attribution.effective.touchpoint.tree</field>
+        id="view_marketing_attribution_effective_touchpoint_tree"
+        model="ir.ui.view"
+    >
+        <field name="name">marketing.attribution.effective.touchpoint.tree</field>
         <field name="model">marketing.attribution.effective.touchpoint</field>
         <field name="arch" type="xml">
             <tree create="false" edit="false" delete="false">
@@ -189,12 +173,10 @@
     </record>
 
     <record
-    id="view_marketing_attribution_effective_touchpoint_form"
-    model="ir.ui.view"
-  >
-        <field
-      name="name"
-    >marketing.attribution.effective.touchpoint.form</field>
+        id="view_marketing_attribution_effective_touchpoint_form"
+        model="ir.ui.view"
+    >
+        <field name="name">marketing.attribution.effective.touchpoint.form</field>
         <field name="model">marketing.attribution.effective.touchpoint</field>
         <field name="arch" type="xml">
             <form create="false" edit="false" delete="false">
@@ -203,9 +185,9 @@
                         <group>
                             <field name="public_ref" />
                             <field
-                name="company_id"
-                groups="base.group_multi_company"
-              />
+                                name="company_id"
+                                groups="base.group_multi_company"
+                            />
                             <field name="occurred_at" />
                             <field name="observed_at" />
                             <field name="platform" />
@@ -265,12 +247,10 @@
     </record>
 
     <record
-    id="view_marketing_attribution_effective_touchpoint_search"
-    model="ir.ui.view"
-  >
-        <field
-      name="name"
-    >marketing.attribution.effective.touchpoint.search</field>
+        id="view_marketing_attribution_effective_touchpoint_search"
+        model="ir.ui.view"
+    >
+        <field name="name">marketing.attribution.effective.touchpoint.search</field>
         <field name="model">marketing.attribution.effective.touchpoint</field>
         <field name="arch" type="xml">
             <search>
@@ -279,32 +259,30 @@
                 <field name="utm_campaign" />
                 <field name="source_system" />
                 <filter
-          name="group_platform"
-          string="Platform"
-          context="{'group_by': 'platform'}"
-        />
+                    name="group_platform"
+                    string="Platform"
+                    context="{'group_by': 'platform'}"
+                />
                 <filter
-          name="group_touchpoint_type"
-          string="Touchpoint type"
-          context="{'group_by': 'touchpoint_type'}"
-        />
+                    name="group_touchpoint_type"
+                    string="Touchpoint type"
+                    context="{'group_by': 'touchpoint_type'}"
+                />
             </search>
         </field>
     </record>
 
     <record
-    id="action_marketing_attribution_effective_touchpoints"
-    model="ir.actions.act_window"
-  >
+        id="action_marketing_attribution_effective_touchpoints"
+        model="ir.actions.act_window"
+    >
         <field name="name">Effective Touchpoints</field>
-        <field
-      name="res_model"
-    >marketing.attribution.effective.touchpoint</field>
+        <field name="res_model">marketing.attribution.effective.touchpoint</field>
         <field name="view_mode">tree,form</field>
         <field
-      name="search_view_id"
-      ref="view_marketing_attribution_effective_touchpoint_search"
-    />
+            name="search_view_id"
+            ref="view_marketing_attribution_effective_touchpoint_search"
+        />
         <field name="context">{'create': False}</field>
     </record>
 </odoo>

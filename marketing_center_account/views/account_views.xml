@@ -7,63 +7,60 @@
         <field name="arch" type="xml">
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button
-          name="action_view_marketing_business_events"
-          type="object"
-          class="oe_stat_button"
-          icon="fa-history"
-          groups="marketing_center_base.group_marketing_center_analyst"
-          attrs="{'invisible': [('marketing_business_event_count', '=', 0)]}"
-        >
+                    name="action_view_marketing_business_events"
+                    type="object"
+                    class="oe_stat_button"
+                    icon="fa-history"
+                    groups="marketing_center_base.group_marketing_center_analyst"
+                    attrs="{'invisible': [('marketing_business_event_count', '=', 0)]}"
+                >
                     <field
-            name="marketing_business_event_count"
-            widget="statinfo"
-            string="Marketing Events"
-          />
+                        name="marketing_business_event_count"
+                        widget="statinfo"
+                        string="Marketing Events"
+                    />
                 </button>
                 <button
-          name="action_backfill_marketing_events"
-          type="object"
-          class="oe_stat_button"
-          icon="fa-refresh"
-          string="Reconcile Marketing"
-          groups="marketing_center_base.group_marketing_center_manager"
-          attrs="{'invisible': [('move_type', 'not in', ('out_invoice', 'out_refund'))]}"
-        />
+                    name="action_backfill_marketing_events"
+                    type="object"
+                    class="oe_stat_button"
+                    icon="fa-refresh"
+                    string="Reconcile Marketing"
+                    groups="marketing_center_base.group_marketing_center_manager"
+                    attrs="{'invisible': [('move_type', 'not in', ('out_invoice', 'out_refund'))]}"
+                />
             </xpath>
         </field>
     </record>
 
-    <record
-    id="view_account_payment_form_marketing_center_account"
-    model="ir.ui.view"
-  >
+    <record id="view_account_payment_form_marketing_center_account" model="ir.ui.view">
         <field name="name">account.payment.form.marketing.center.account</field>
         <field name="model">account.payment</field>
         <field name="inherit_id" ref="account.view_account_payment_form" />
         <field name="arch" type="xml">
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button
-          name="action_view_marketing_business_events"
-          type="object"
-          class="oe_stat_button"
-          icon="fa-history"
-          groups="marketing_center_base.group_marketing_center_analyst"
-          attrs="{'invisible': [('marketing_business_event_count', '=', 0)]}"
-        >
+                    name="action_view_marketing_business_events"
+                    type="object"
+                    class="oe_stat_button"
+                    icon="fa-history"
+                    groups="marketing_center_base.group_marketing_center_analyst"
+                    attrs="{'invisible': [('marketing_business_event_count', '=', 0)]}"
+                >
                     <field
-            name="marketing_business_event_count"
-            widget="statinfo"
-            string="Marketing Events"
-          />
+                        name="marketing_business_event_count"
+                        widget="statinfo"
+                        string="Marketing Events"
+                    />
                 </button>
                 <button
-          name="action_backfill_marketing_events"
-          type="object"
-          class="oe_stat_button"
-          icon="fa-refresh"
-          string="Reconcile Marketing"
-          groups="marketing_center_base.group_marketing_center_manager"
-        />
+                    name="action_backfill_marketing_events"
+                    type="object"
+                    class="oe_stat_button"
+                    icon="fa-refresh"
+                    string="Reconcile Marketing"
+                    groups="marketing_center_base.group_marketing_center_manager"
+                />
             </xpath>
         </field>
     </record>

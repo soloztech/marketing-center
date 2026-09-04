@@ -8,6 +8,7 @@ htmlcov/
 .playwright-cli/
 
 # Local secrets and generated operational data
+.env
 *.env
 *.pem
 *.key
@@ -17,3 +18,11 @@ htmlcov/
 *.sql
 credentials/
 output/
+backups/
+scans/raw/
+*.log
+
+# Editor and operating-system state
+.idea/
+.vscode/
+.DS_Store

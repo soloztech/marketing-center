@@ -4,7 +4,7 @@
     "version": "16.0.1.1.2",
     "category": "Technical",
     "author": "Soloz Technologies",
-    "website": "https://github.com/lcsztl/integration-core",
+    "website": "https://github.com/soloztech/marketing-center",
     "license": "AGPL-3",
     "depends": ["base"],
     "external_dependencies": {"python": ["requests", "google.auth"]},

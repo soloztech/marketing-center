@@ -1,121 +1,100 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <odoo noupdate="0">
-    <record
-    id="queue_job_channel_marketing_contact_center"
-    model="queue.job.channel"
-  >
+    <record id="queue_job_channel_marketing_contact_center" model="queue.job.channel">
         <field name="name">marketing_contact_center</field>
         <field name="parent_id" ref="queue_job.channel_root" />
     </record>
 
     <record
-    id="queue_job_function_marketing_contact_center_touchpoint_sync"
-    model="queue.job.function"
-  >
+        id="queue_job_function_marketing_contact_center_touchpoint_sync"
+        model="queue.job.function"
+    >
         <field
-      name="model_id"
-      ref="contact_center_base.model_contact_center_attribution_touchpoint"
-    />
+            name="model_id"
+            ref="contact_center_base.model_contact_center_attribution_touchpoint"
+        />
         <field name="method">_job_sync_marketing_touchpoint</field>
+        <field name="channel_id" ref="queue_job_channel_marketing_contact_center" />
         <field
-      name="channel_id"
-      ref="queue_job_channel_marketing_contact_center"
-    />
-        <field
-      name="retry_pattern"
-      eval="{1: 10, 2: 30, 3: 60, 4: 120, 5: 300, 6: 600, 7: 1200, 8: 1800, 9: 3600}"
-    />
+            name="retry_pattern"
+            eval="{1: 10, 2: 30, 3: 60, 4: 120, 5: 300, 6: 600, 7: 1200, 8: 1800, 9: 3600}"
+        />
     </record>
 
     <record
-    id="queue_job_function_marketing_contact_center_touchpoint_batch"
-    model="queue.job.function"
-  >
+        id="queue_job_function_marketing_contact_center_touchpoint_batch"
+        model="queue.job.function"
+    >
         <field
-      name="model_id"
-      ref="contact_center_base.model_contact_center_attribution_touchpoint"
-    />
+            name="model_id"
+            ref="contact_center_base.model_contact_center_attribution_touchpoint"
+        />
         <field name="method">_job_sync_marketing_touchpoint_batch</field>
+        <field name="channel_id" ref="queue_job_channel_marketing_contact_center" />
         <field
-      name="channel_id"
-      ref="queue_job_channel_marketing_contact_center"
-    />
-        <field
-      name="retry_pattern"
-      eval="{1: 10, 2: 30, 3: 60, 4: 120, 5: 300, 6: 600, 7: 1200, 8: 1800, 9: 3600}"
-    />
+            name="retry_pattern"
+            eval="{1: 10, 2: 30, 3: 60, 4: 120, 5: 300, 6: 600, 7: 1200, 8: 1800, 9: 3600}"
+        />
     </record>
 
     <record
-    id="queue_job_function_marketing_contact_center_lifecycle_sync"
-    model="queue.job.function"
-  >
+        id="queue_job_function_marketing_contact_center_lifecycle_sync"
+        model="queue.job.function"
+    >
         <field
-      name="model_id"
-      ref="contact_center_base.model_contact_center_channel_binding"
-    />
+            name="model_id"
+            ref="contact_center_base.model_contact_center_channel_binding"
+        />
         <field name="method">_job_sync_marketing_lifecycle</field>
+        <field name="channel_id" ref="queue_job_channel_marketing_contact_center" />
         <field
-      name="channel_id"
-      ref="queue_job_channel_marketing_contact_center"
-    />
-        <field
-      name="retry_pattern"
-      eval="{1: 10, 2: 30, 3: 60, 4: 120, 5: 300, 6: 600, 7: 1200, 8: 1800, 9: 3600}"
-    />
+            name="retry_pattern"
+            eval="{1: 10, 2: 30, 3: 60, 4: 120, 5: 300, 6: 600, 7: 1200, 8: 1800, 9: 3600}"
+        />
     </record>
 
     <record
-    id="queue_job_function_marketing_contact_center_response_episode_message"
-    model="queue.job.function"
-  >
+        id="queue_job_function_marketing_contact_center_response_episode_message"
+        model="queue.job.function"
+    >
         <field
-      name="model_id"
-      ref="contact_center_base.model_contact_center_message_binding"
-    />
+            name="model_id"
+            ref="contact_center_base.model_contact_center_message_binding"
+        />
         <field name="method">_job_sync_marketing_response_episode</field>
+        <field name="channel_id" ref="queue_job_channel_marketing_contact_center" />
         <field
-      name="channel_id"
-      ref="queue_job_channel_marketing_contact_center"
-    />
-        <field
-      name="retry_pattern"
-      eval="{1: 10, 2: 30, 3: 60, 4: 120, 5: 300, 6: 600, 7: 1200, 8: 1800, 9: 3600}"
-    />
+            name="retry_pattern"
+            eval="{1: 10, 2: 30, 3: 60, 4: 120, 5: 300, 6: 600, 7: 1200, 8: 1800, 9: 3600}"
+        />
     </record>
 
     <record
-    id="queue_job_function_marketing_contact_center_response_episode_channel"
-    model="queue.job.function"
-  >
+        id="queue_job_function_marketing_contact_center_response_episode_channel"
+        model="queue.job.function"
+    >
         <field
-      name="model_id"
-      ref="contact_center_base.model_contact_center_channel_binding"
-    />
+            name="model_id"
+            ref="contact_center_base.model_contact_center_channel_binding"
+        />
         <field name="method">_job_sync_marketing_response_episodes</field>
+        <field name="channel_id" ref="queue_job_channel_marketing_contact_center" />
         <field
-      name="channel_id"
-      ref="queue_job_channel_marketing_contact_center"
-    />
-        <field
-      name="retry_pattern"
-      eval="{1: 10, 2: 30, 3: 60, 4: 120, 5: 300, 6: 600, 7: 1200, 8: 1800, 9: 3600}"
-    />
+            name="retry_pattern"
+            eval="{1: 10, 2: 30, 3: 60, 4: 120, 5: 300, 6: 600, 7: 1200, 8: 1800, 9: 3600}"
+        />
     </record>
 
     <record
-    id="queue_job_function_marketing_contact_center_bootstrap"
-    model="queue.job.function"
-  >
+        id="queue_job_function_marketing_contact_center_bootstrap"
+        model="queue.job.function"
+    >
         <field name="model_id" ref="base.model_res_company" />
         <field name="method">_job_marketing_contact_center_backfill</field>
+        <field name="channel_id" ref="queue_job_channel_marketing_contact_center" />
         <field
-      name="channel_id"
-      ref="queue_job_channel_marketing_contact_center"
-    />
-        <field
-      name="retry_pattern"
-      eval="{1: 10, 2: 30, 3: 60, 4: 120, 5: 300, 6: 600, 7: 1200, 8: 1800, 9: 3600}"
-    />
+            name="retry_pattern"
+            eval="{1: 10, 2: 30, 3: 60, 4: 120, 5: 300, 6: 600, 7: 1200, 8: 1800, 9: 3600}"
+        />
     </record>
 </odoo>

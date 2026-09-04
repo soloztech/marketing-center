@@ -22,12 +22,12 @@
       <form>
         <header>
           <button
-            name="action_rotate_public_key"
-            type="object"
-            string="Rotate public key"
-            class="btn-secondary"
-            confirm="The current browser key will stop working immediately. Continue?"
-          />
+                        name="action_rotate_public_key"
+                        type="object"
+                        string="Rotate public key"
+                        class="btn-secondary"
+                        confirm="The current browser key will stop working immediately. Continue?"
+                    />
         </header>
         <sheet>
           <group>
@@ -48,10 +48,7 @@
             </group>
           </group>
           <group string="Explicit allowlists" col="2">
-            <field
-              name="allowed_origins"
-              placeholder="https://www.example.com"
-            />
+            <field name="allowed_origins" placeholder="https://www.example.com" />
             <field name="allowed_hosts" placeholder="www.example.com" />
           </group>
           <notebook>
@@ -73,10 +70,7 @@
     </field>
   </record>
 
-  <record
-    id="action_marketing_web_ingress_endpoints"
-    model="ir.actions.act_window"
-  >
+  <record id="action_marketing_web_ingress_endpoints" model="ir.actions.act_window">
     <field name="name">Web Ingress Endpoints</field>
     <field name="res_model">marketing.web.ingress.endpoint</field>
     <field name="view_mode">tree,form</field>
@@ -140,10 +134,7 @@
     </field>
   </record>
 
-  <record
-    id="action_marketing_web_ingress_events"
-    model="ir.actions.act_window"
-  >
+  <record id="action_marketing_web_ingress_events" model="ir.actions.act_window">
     <field name="name">Web Ingress Events</field>
     <field name="res_model">marketing.web.ingress.event</field>
     <field name="view_mode">tree,form</field>
@@ -151,19 +142,19 @@
   </record>
 
   <menuitem
-    id="menu_marketing_web_ingress_endpoints"
-    name="Web Ingress Endpoints"
-    parent="marketing_center_base.menu_marketing_center_configuration"
-    action="action_marketing_web_ingress_endpoints"
-    sequence="50"
-    groups="marketing_center_base.group_marketing_center_admin"
-  />
+        id="menu_marketing_web_ingress_endpoints"
+        name="Web Ingress Endpoints"
+        parent="marketing_center_base.menu_marketing_center_configuration"
+        action="action_marketing_web_ingress_endpoints"
+        sequence="50"
+        groups="marketing_center_base.group_marketing_center_admin"
+    />
   <menuitem
-    id="menu_marketing_web_ingress_events"
-    name="Web Ingress Events"
-    parent="marketing_center_base.menu_marketing_center_attribution"
-    action="action_marketing_web_ingress_events"
-    sequence="30"
-    groups="marketing_center_base.group_marketing_center_admin"
-  />
+        id="menu_marketing_web_ingress_events"
+        name="Web Ingress Events"
+        parent="marketing_center_base.menu_marketing_center_attribution"
+        action="action_marketing_web_ingress_events"
+        sequence="30"
+        groups="marketing_center_base.group_marketing_center_admin"
+    />
 </odoo>
