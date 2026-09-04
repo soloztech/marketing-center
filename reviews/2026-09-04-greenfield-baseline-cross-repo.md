@@ -42,6 +42,20 @@ After consolidation, `meta_api_base` and `meta_webhook_base` each resolve exactl
 inside the Odoo container, under `/mnt/outros/marketing-center`. The former remote
 `integration-core` source root is absent.
 
+The final publication-only pass regenerated OCA addon descriptions from their
+authoritative fragments and pinned each private cross-repository checkout to the
+coordinated candidate tag. It changed no Python, XML data/view, access or JavaScript
+runtime source. Canonical dry-runs returned `dry_run_ready` for the publication trees:
+
+- Contact Center: 261 files,
+  `8dfdaabd5926687f09d755798032910946d4353ff406753ae1a007aee5382c77`;
+- Marketing Center: 425 files,
+  `478d26f9a63b640c3fedbc7f6afd01d7af4b491a6cd2c43b87e79358a80c0b36`.
+
+The exact tagged trees also passed their complete pinned pre-commit suites. GitHub
+Actions repeats the Odoo test suites against those tags before the coordinated release
+candidate is declared green.
+
 ## Greenfield disposition
 
 Pre-production migrations and migration-only helpers were removed before this first

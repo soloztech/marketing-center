@@ -78,3 +78,8 @@ verde pela movimentação da outra branch.
   `2fd9e569856478dfa336391bd226f3c8af05454db56033be6352ef80aad56403`, o endpoint público
   de teste respondeu HTTP 200 e `production_touched` permaneceu `false` nos dois
   releases.
+- O fechamento documental posterior não alterou fontes Python/XML/JS. Os dry-runs das
+  árvores exatas de publicação retornaram `dry_run_ready`: Marketing Center com 425
+  arquivos e SHA-256 `478d26f9a63b640c3fedbc7f6afd01d7af4b491a6cd2c43b87e79358a80c0b36`;
+  Contact Center com 261 arquivos e SHA-256
+  `8dfdaabd5926687f09d755798032910946d4353ff406753ae1a007aee5382c77`.
