@@ -41,6 +41,8 @@ jobs:
     runs-on: ubuntu-22.04
     container: ${{ matrix.container }}
     name: ${{ matrix.name }}
+    env:
+      PIP_CONSTRAINT: ${{ github.workspace }}/constraints.txt
     strategy:
       fail-fast: false
       matrix:
@@ -67,7 +69,7 @@ jobs:
           repository: soloztech/contact-center
           # Release CI is intentionally coupled to the matching, immutable
           # cross-repository candidate instead of the moving 16.0 branch.
-          ref: "16.0.20260904.1-rc1"
+          ref: "16.0.20260904.2-rc1"
           path: .ci-private-dependency/contact-center
           token: ${{ secrets.CROSS_REPO_READ_TOKEN }}
           persist-credentials: false
@@ -82,6 +84,8 @@ jobs:
           python -m pip install --editable "${sibling_root}/setup/contact_center_crm"
       - name: Install addons and dependencies
         run: oca_install_addons
+      - name: Verify the pinned Odoo TLS runtime
+        run: python -c "from OpenSSL import crypto; import cryptography, google.auth"
       - name: Check licenses
         run: manifestoo -d . check-licenses
       - name: Check development status

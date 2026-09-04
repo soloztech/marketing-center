@@ -1,0 +1,6 @@
+# Reproducible Odoo 16 TLS stack for the current Google Auth runtime.
+# google-auth >= 2.57 requires a modern cryptography release; pin pyOpenSSL
+# with it so an older Odoo container package cannot remain installed.
+google-auth==2.57.1
+cryptography==50.0.1
+pyOpenSSL==26.4.0

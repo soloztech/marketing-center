@@ -40,6 +40,16 @@ Accounting business rules.
 See [ARCHITECTURE.md](ARCHITECTURE.md) for boundaries and installation profiles and
 [plan.md](plan.md) for the delivery record and remaining production gates.
 
+Install the repository Python dependencies with its versioned compatibility contract:
+
+```bash
+python -m pip install --constraint constraints.txt --requirement requirements.txt
+```
+
+The constraint keeps current Google Auth, `cryptography` and `pyOpenSSL` mutually
+compatible with the Odoo 16 runtime. CI imports that TLS stack before initializing its
+database, so dependency drift fails before addon tests.
+
 ## Current greenfield baseline
 
 The pre-production development lineage was squashed before the first production
