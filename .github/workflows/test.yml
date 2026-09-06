@@ -48,7 +48,7 @@ jobs:
     name: ${{ matrix.name }}
     env:
       PIP_CONSTRAINT: ${{ github.workspace }}/constraints.txt
-      PEER_REF: ${{ inputs.peer_ref || '324fec1c642f187cd25ce8dd68d427aaa2871534' }}
+      PEER_REF: ${{ inputs.peer_ref || '751f38ef7ea8f342c58c1d7d7325f2c0249ac817' }}
     strategy:
       fail-fast: false
       matrix:
@@ -80,8 +80,8 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: soloztech/contact-center
-          # PRs use the published baseline; a manual release run can select the
-          # exact coordinated peer commit without rewriting the workflow.
+          # PRs use the validated compatible baseline; a manual release run
+          # selects the exact coordinated peer commit without rewriting the workflow.
           ref: ${{ env.PEER_REF }}
           path: .ci-private-dependency/contact-center
           token: ${{ secrets.CROSS_REPO_READ_TOKEN }}
