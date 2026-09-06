@@ -650,7 +650,10 @@ class TestMetaWebhookSubscriptions(MetaWebhookCase):
         pages = (
             {
                 "data": [{"id": "999"}],
-                "paging": {"cursors": {"after": "second-page"}},
+                "paging": {
+                    "cursors": {"after": "second-page"},
+                    "next": "https://graph.facebook.com/next-page",
+                },
             },
             {
                 "data": [
@@ -685,7 +688,10 @@ class TestMetaWebhookSubscriptions(MetaWebhookCase):
         service = self.env["meta.webhook.subscription.service"]
         payload = {
             "data": [],
-            "paging": {"cursors": {"after": "same-page"}},
+            "paging": {
+                "cursors": {"after": "same-page"},
+                "next": "https://graph.facebook.com/next-page",
+            },
         }
 
         with patch(
@@ -697,6 +703,27 @@ class TestMetaWebhookSubscriptions(MetaWebhookCase):
                 self.PAGE_TOKEN,
                 self.PAGE_ID,
             )
+
+    def test_subscription_reads_stop_at_terminal_cursors(self):
+        service = self.env["meta.webhook.subscription.service"]
+        payload = {
+            "data": [],
+            "paging": {"cursors": {"before": "first", "after": "last"}},
+        }
+        with patch(
+            "odoo.addons.meta_webhook_base.models.subscription_service.graph_request",
+            return_value=payload,
+        ) as graph:
+            self.assertEqual(
+                service._read_page_installation(
+                    self.app, self.PAGE_TOKEN, self.PAGE_ID
+                ),
+                (False, ()),
+            )
+            graph.assert_called_once()
+            graph.reset_mock()
+            self.assertEqual(service._read_app_subscriptions(self.app, "app-token"), ())
+            graph.assert_called_once()
 
     def test_app_subscription_rejects_ambiguous_active_state(self):
         payload = {

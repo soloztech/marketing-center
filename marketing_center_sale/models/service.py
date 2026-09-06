@@ -260,6 +260,7 @@ class MarketingSaleService(models.AbstractModel):
         evidence_level="first_party",
         reversed_event=None,
         evidence_ref="",
+        tracking_watermark=None,
     ):
         company = self._company_for_order(order)
         occurrence_ref = (occurrence_ref or "").strip()
@@ -297,6 +298,9 @@ class MarketingSaleService(models.AbstractModel):
             )
             currency = reversed_event.currency_id.name
             reverses_key = reversed_event.business_event_key
+        extensions = self._extensions(order, old_state, new_state, sequence=sequence)
+        if tracking_watermark is not None:
+            extensions["sale.tracking_watermark"] = tracking_watermark
         dto = MarketingBusinessEventDTO(
             event_class=event_class,
             event_type=event_type,
@@ -311,7 +315,7 @@ class MarketingSaleService(models.AbstractModel):
             amount_signed=amount,
             currency=currency,
             reverses_business_event_key=reverses_key,
-            extensions=self._extensions(order, old_state, new_state, sequence=sequence),
+            extensions=extensions,
         )
         result = (
             self.env["marketing.business.event.service"]
@@ -327,8 +331,13 @@ class MarketingSaleService(models.AbstractModel):
         return self._source_events(order, "proposal_sent")[:1]
 
     @api.model
-    def _open_confirmation(self, order):
+    def _open_confirmation(self, order, *, historical_only=False):
         confirmations = self._source_events(order, "order_confirmed")
+        if historical_only:
+            confirmations = confirmations.filtered(
+                lambda event: "sale.tracking_watermark"
+                not in event.snapshot_json.get("extensions", {})
+            )
         if not confirmations:
             return confirmations
         reversed_ids = set(
@@ -355,13 +364,36 @@ class MarketingSaleService(models.AbstractModel):
         return active
 
     @api.model
-    def _ensure_confirmation(self, order, evidence_level="imported"):
-        confirmation = self._open_confirmation(order)
+    def _ensure_confirmation(
+        self, order, evidence_level="imported", *, before_tracking_id=None
+    ):
+        confirmation = self._open_confirmation(
+            order, historical_only=before_tracking_id is not None
+        )
         if confirmation:
             return confirmation
         occurred_at = order.date_order or order.create_date or fields.Datetime.now()
         stable_stamp = fields.Datetime.to_string(occurred_at).replace(" ", "T")
         occurrence_ref = "record:date_order:%s" % stable_stamp
+        tracking_domain = [
+            ("mail_message_id.model", "=", "sale.order"),
+            ("mail_message_id.res_id", "=", order.id),
+            ("field.name", "=", "state"),
+        ]
+        if before_tracking_id is not None:
+            tracking_domain.append(("id", "<", before_tracking_id))
+        state_map = self._tracking_state_map()
+        for tracking in (
+            self.env["mail.tracking.value"]
+            .sudo()
+            .search(tracking_domain, order="id desc", limit=1000)
+        ):
+            old_state = self._tracking_state(tracking.old_value_char, state_map)
+            new_state = self._tracking_state(tracking.new_value_char, state_map)
+            if old_state not in CONFIRMED_STATES and new_state in CONFIRMED_STATES:
+                occurrence_ref = "tracking:%s" % tracking.id
+                occurred_at = tracking.mail_message_id.date or occurred_at
+                break
         return self._emit_order_event(
             order,
             "order_confirmed",
@@ -418,8 +450,17 @@ class MarketingSaleService(models.AbstractModel):
             ("mail_message_id.res_id", "=", order.id),
             ("field.name", "=", "state"),
         ]
+        watermarks = [
+            event.snapshot_json["extensions"]["sale.tracking_watermark"]
+            for event in self._source_events(order)
+            if "sale.tracking_watermark" in event.snapshot_json.get("extensions", {})
+        ]
+        # Live events use monotonic sequence identities; Odoo persists their
+        # chatter rows later at precommit. Import only the historical rows that
+        # existed before live capture started, otherwise revenue is counted twice.
+        historical_domain = [("id", "<=", min(watermarks))] if watermarks else []
         tracking_values = Tracking.search(
-            tracking_domain,
+            tracking_domain + historical_domain,
             order="id asc",
             limit=limit,
         )
@@ -466,9 +507,11 @@ class MarketingSaleService(models.AbstractModel):
                     )
             elif old_state in CONFIRMED_STATES and new_state == "cancel":
                 if not self._existing_event(order, "order_cancelled", occurrence_ref):
-                    confirmation = self._open_confirmation(order)
+                    confirmation = self._open_confirmation(order, historical_only=True)
                     if not confirmation:
-                        confirmation = self._ensure_confirmation(order)
+                        confirmation = self._ensure_confirmation(
+                            order, before_tracking_id=tracking.id
+                        )
                     self._emit_order_event(
                         order,
                         "order_cancelled",
@@ -488,7 +531,8 @@ class MarketingSaleService(models.AbstractModel):
                     ("mail_message_id.model", "=", "sale.order"),
                     ("mail_message_id.res_id", "=", order.id),
                     ("field.name", "=", "state"),
-                ],
+                ]
+                + historical_domain,
                 limit=1,
             )
         )

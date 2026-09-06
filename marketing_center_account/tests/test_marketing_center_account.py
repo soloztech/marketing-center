@@ -387,6 +387,26 @@ class TestMarketingCenterAccount(SavepointCase):
             reversal.amount_signed_micros, -allocation.amount_signed_micros
         )
 
+    def test_context_defaults_cannot_seed_accounting_event_identity(self):
+        invoice = self._invoice(10)
+        for name, value in (
+            ("marketing_account_event_sequence", 999),
+            ("marketing_account_company_id", self.env.company.id),
+        ):
+            with self.subTest(field=name), self.assertRaises(AccessError):
+                invoice.with_context(**{"default_%s" % name: value}).copy()
+        payment = self._payment(10)
+        with self.assertRaises(AccessError):
+            payment.with_context(
+                default_marketing_account_company_id=self.env.company.id
+            ).copy()
+        invoice.action_post()
+        lines = (invoice | payment.move_id).line_ids.filtered(
+            lambda line: line.account_id == self.receivable
+        )
+        with self.assertRaises(AccessError), self.env.cr.savepoint():
+            lines.with_context(default_marketing_account_event_claimed=True).reconcile()
+
     def test_links_and_marketing_scope_are_immutable(self):
         invoice = self._invoice(10)
         invoice.action_post()

@@ -1,6 +1,7 @@
 /** @odoo-module **/
 
 import {
+    boundedActionResponse,
     createFormPostBridge,
     technicalActionRef,
     trustedHumanActivation,
@@ -21,7 +22,6 @@ const FORM_EXCHANGE_PATH = "/marketing/website-action/form/exchange";
 const WHATSAPP_CLAIM_PATH = "/marketing/website-action/whatsapp/claim";
 const MAX_BODY_BYTES = 2048;
 const CLAIM_TTL_MS = 5 * 60 * 1000;
-const FETCH_TIMEOUT_MS = 5000;
 const RETRY_DELAYS_MS = Object.freeze([0, 250, 750]);
 let enabled = false;
 let formClaim = null;
@@ -48,19 +48,6 @@ function delay(milliseconds) {
     return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 }
 
-async function boundedFetch(path, options) {
-    if (typeof window.AbortController !== "function") {
-        return window.fetch(path, options);
-    }
-    const controller = new window.AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-    try {
-        return await window.fetch(path, {...options, signal: controller.signal});
-    } finally {
-        window.clearTimeout(timeoutId);
-    }
-}
-
 async function postTechnicalAction(path, payload) {
     const body = JSON.stringify(payload);
     if (
@@ -75,7 +62,7 @@ async function postTechnicalAction(path, payload) {
         }
         let response = null;
         try {
-            response = await boundedFetch(path, {
+            response = await boundedActionResponse(path, {
                 method: "POST",
                 credentials: "same-origin",
                 cache: "no-store",
@@ -90,11 +77,7 @@ async function postTechnicalAction(path, payload) {
             continue;
         }
         if (response.ok) {
-            try {
-                return await response.json();
-            } catch (_error) {
-                return null;
-            }
+            return response.payload;
         }
         // A 429 carries a one-minute server backoff and cannot succeed inside this
         // short user-activation flow.  Retrying it immediately only amplifies load.

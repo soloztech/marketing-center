@@ -56,7 +56,14 @@ class AccountMove(models.Model):
             or bool(values.get("marketing_account_company_id"))
             for values in vals_list
         )
-        if not internal and protected_values:
+        protected_defaults = any(
+            self.env.context.get("default_%s" % name)
+            for name in (
+                "marketing_account_event_sequence",
+                "marketing_account_company_id",
+            )
+        )
+        if not internal and (protected_values or protected_defaults):
             raise AccessError(
                 _("The accounting marketing scope is managed internally.")
             )
@@ -242,8 +249,9 @@ class AccountPayment(models.Model):
             self.env.context.get("marketing_account_internal_write_token")
             is MARKETING_ACCOUNT_INTERNAL_WRITE_TOKEN
         )
-        if not internal and any(
-            "marketing_account_company_id" in values for values in vals_list
+        if not internal and (
+            any("marketing_account_company_id" in values for values in vals_list)
+            or self.env.context.get("default_marketing_account_company_id")
         ):
             raise AccessError(_("The payment marketing scope is managed internally."))
         return super().create(vals_list)

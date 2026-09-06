@@ -11,6 +11,39 @@ const FORM_PATH_PATTERN = /^\/website\/form\/[a-z0-9_.]+$/i;
 const NATIVE_TRACKED_LINK_PATH_PATTERN = /^\/r\/[^/]+(?:\/.*)?$/;
 const RESERVED_FORM_QUERY = Object.freeze(["mc_action", "mc_event", "mc_session"]);
 
+export async function boundedActionResponse(path, options, scope = window) {
+    const controller =
+        typeof scope.AbortController === "function"
+            ? new scope.AbortController()
+            : null;
+    let timeoutId;
+    const timeout = new Promise((_resolve, reject) => {
+        timeoutId = scope.setTimeout(() => {
+            if (controller) {
+                controller.abort();
+            }
+            reject(new Error("Action request timed out"));
+        }, 5000);
+    });
+    try {
+        return await Promise.race([
+            (async () => {
+                const response = await scope.fetch(path, {
+                    ...options,
+                    ...(controller ? {signal: controller.signal} : {}),
+                });
+                // Receiving headers is not completion: a stalled body must also
+                // release the visitor's WhatsApp navigation within the deadline.
+                const payload = response.ok ? await response.json() : null;
+                return {ok: response.ok, status: response.status, payload};
+            })(),
+            timeout,
+        ]);
+    } finally {
+        scope.clearTimeout(timeoutId);
+    }
+}
+
 export function validOpaqueUuid(value) {
     return typeof value === "string" && UUID_PATTERN.test(value);
 }

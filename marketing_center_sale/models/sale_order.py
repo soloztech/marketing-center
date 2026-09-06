@@ -55,7 +55,10 @@ class SaleOrder(models.Model):
             is MARKETING_SALE_INTERNAL_WRITE_TOKEN
         )
         protected = {"marketing_sale_event_sequence", "marketing_sale_company_id"}
-        if not internal and any(protected & set(values) for values in vals_list):
+        if not internal and (
+            any(protected & set(values) for values in vals_list)
+            or any(self.env.context.get("default_%s" % name) for name in protected)
+        ):
             raise AccessError(_("The sales marketing scope is managed internally."))
         orders = super().create(vals_list)
         service = self.env["marketing.sale.service"]
@@ -130,6 +133,7 @@ class SaleOrder(models.Model):
                     old_state="draft",
                     new_state="sent",
                     sequence=sequence,
+                    tracking_watermark=watermark,
                     evidence_ref=(
                         "tracking:%s" % tracking.id if tracking else occurrence_ref
                     ),
@@ -169,6 +173,7 @@ class SaleOrder(models.Model):
                 old_state=previous_states[order.id],
                 new_state=order.state,
                 sequence=sequence,
+                tracking_watermark=watermark,
                 evidence_ref=(
                     "tracking:%s" % tracking.id if tracking else occurrence_ref
                 ),
@@ -209,6 +214,7 @@ class SaleOrder(models.Model):
                 old_state=previous_states[order.id],
                 new_state="cancel",
                 sequence=sequence,
+                tracking_watermark=watermark,
                 reversed_event=confirmation,
                 evidence_ref=(
                     "tracking:%s" % tracking.id if tracking else occurrence_ref

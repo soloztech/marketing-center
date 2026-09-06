@@ -2,9 +2,16 @@ import threading
 import uuid
 from datetime import datetime
 
+from psycopg2 import errorcodes
+
 from odoo import SUPERUSER_ID, api
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
+from odoo.tools import mute_logger
+
+from odoo.addons.marketing_center_base.services.serialization import (
+    MarketingSerializationFailure,
+)
 
 from ..services.lead_ads import MetaLead, MetaLeadField
 from ..services.tokens import MARKETING_META_LEAD_INTERNAL_TOKEN
@@ -101,15 +108,18 @@ class TestMarketingCenterMetaLeadAdsConcurrency(TransactionCase):
             }
 
     def _cleanup_committed_fixture(self, fixture):
+        submission_ids = [fixture["submission_id"]] + fixture.get(
+            "additional_submission_ids", []
+        )
         with self.registry.cursor() as cr:
             cr.execute(
                 "DELETE FROM marketing_center_meta_lead_field "
-                "WHERE submission_id = %s",
-                [fixture["submission_id"]],
+                "WHERE submission_id = ANY(%s)",
+                [submission_ids],
             )
             cr.execute(
-                "DELETE FROM marketing_center_meta_lead_submission WHERE id = %s",
-                [fixture["submission_id"]],
+                "DELETE FROM marketing_center_meta_lead_submission WHERE id = ANY(%s)",
+                [submission_ids],
             )
             cr.execute(
                 "DELETE FROM marketing_center_meta_lead_route WHERE id = %s",
@@ -142,6 +152,105 @@ class TestMarketingCenterMetaLeadAdsConcurrency(TransactionCase):
             )
             cr.execute("DELETE FROM meta_api_app WHERE id = %s", [fixture["app_id"]])
             cr.commit()  # pylint: disable=invalid-commit
+
+    def _find_submission_for_fixture(self, env, fixture, leadgen_id):
+        route = env["marketing.center.meta.lead.route"].browse(fixture["route_id"])
+        return env["marketing.center.meta.lead.service"]._find_or_create_submission(
+            route,
+            leadgen_id=leadgen_id,
+            origin="webhook",
+            page_id=fixture["page"],
+            form_id=fixture["form"],
+            ad_id=fixture["ad"],
+            legacy_adgroup_id="",
+            hint_created_at=datetime(2026, 9, 1, 10, 30),
+            hint_sha256="a" * 64,
+        )
+
+    def test_concurrent_submission_admission_retries_then_reuses_winner(self):
+        fixture = self._setup_committed_fixture()
+        leadgen_id = fixture["lead"] + "1"
+        try:
+            with self.registry.cursor() as writer_cr:
+                writer = api.Environment(writer_cr, SUPERUSER_ID, {})
+                submission = self._find_submission_for_fixture(
+                    writer, fixture, leadgen_id
+                )
+                fixture["additional_submission_ids"] = submission.ids
+                winner_id = submission.id
+                with self.registry.cursor() as contender_cr:
+                    contender_cr.execute("SET LOCAL lock_timeout = '1s'")
+                    contender_cr.execute("SET LOCAL statement_timeout = '5s'")
+                    contender = api.Environment(contender_cr, SUPERUSER_ID, {})
+                    with self.assertRaises(MarketingSerializationFailure) as caught:
+                        self._find_submission_for_fixture(
+                            contender, fixture, leadgen_id
+                        )
+                    self.assertEqual(
+                        caught.exception.pgcode, errorcodes.SERIALIZATION_FAILURE
+                    )
+                    contender_cr.rollback()
+                writer_cr.commit()  # pylint: disable=invalid-commit
+
+            with self.registry.cursor() as retry_cr:
+                retried = self._find_submission_for_fixture(
+                    api.Environment(retry_cr, SUPERUSER_ID, {}), fixture, leadgen_id
+                )
+                self.assertEqual(retried.id, winner_id)
+                self.assertEqual(
+                    retried.search_count(
+                        [
+                            ("meta_app_id", "=", fixture["app_id"]),
+                            ("leadgen_id", "=", leadgen_id),
+                        ]
+                    ),
+                    1,
+                )
+        finally:
+            self._cleanup_committed_fixture(fixture)
+
+    def test_committed_submission_outside_snapshot_requests_full_retry(self):
+        fixture = self._setup_committed_fixture()
+        leadgen_id = fixture["lead"] + "2"
+        try:
+            with self.registry.cursor() as stale_cr:
+                stale = api.Environment(stale_cr, SUPERUSER_ID, {})
+                domain = [
+                    ("meta_app_id", "=", fixture["app_id"]),
+                    ("leadgen_id", "=", leadgen_id),
+                ]
+                # Fix a REPEATABLE READ snapshot before the independent winner
+                # commits. The advisory key is free by the time we attempt the
+                # insert, but another search still cannot see that winner.
+                self.assertFalse(
+                    stale["marketing.center.meta.lead.submission"].search(domain)
+                )
+                with self.registry.cursor() as winner_cr:
+                    winner = self._find_submission_for_fixture(
+                        api.Environment(winner_cr, SUPERUSER_ID, {}),
+                        fixture,
+                        leadgen_id,
+                    )
+                    fixture["additional_submission_ids"] = winner.ids
+                    winner_id = winner.id
+                    winner_cr.commit()  # pylint: disable=invalid-commit
+                with mute_logger("odoo.sql_db"), self.assertRaises(
+                    MarketingSerializationFailure
+                ) as caught:
+                    self._find_submission_for_fixture(stale, fixture, leadgen_id)
+                self.assertEqual(
+                    caught.exception.pgcode, errorcodes.SERIALIZATION_FAILURE
+                )
+                stale_cr.rollback()
+
+            with self.registry.cursor() as retry_cr:
+                retried = self._find_submission_for_fixture(
+                    api.Environment(retry_cr, SUPERUSER_ID, {}), fixture, leadgen_id
+                )
+                self.assertEqual(retried.id, winner_id)
+                self.assertEqual(retried.search_count(domain), 1)
+        finally:
+            self._cleanup_committed_fixture(fixture)
 
     def _hold_webhook_claim(self, fixture, locked, release, errors):
         try:

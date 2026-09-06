@@ -3,6 +3,7 @@
 /* global QUnit */
 
 import {
+    boundedActionResponse,
     createFormPostBridge,
     formExchangePayload,
     nativeFormTarget,
@@ -44,6 +45,70 @@ function claim() {
 
 QUnit.module("marketing_center_website > technical actions", {
     beforeEach: removeNeutralizedDatabaseBanner,
+});
+
+QUnit.test(
+    "action timeout covers stalled bodies with or without abort support",
+    async (assert) => {
+        for (const abortSupported of [true, false]) {
+            let timeout;
+            let cleared = false;
+            let aborted = false;
+            const scope = {
+                setTimeout(callback, milliseconds) {
+                    assert.strictEqual(milliseconds, 5000);
+                    timeout = callback;
+                    return 1;
+                },
+                clearTimeout() {
+                    cleared = true;
+                },
+                fetch: async () => ({
+                    ok: true,
+                    status: 200,
+                    json: () =>
+                        new Promise(() => {
+                            // Headers arrived, but the response body never completes.
+                        }),
+                }),
+            };
+            if (abortSupported) {
+                scope.AbortController = class {
+                    abort() {
+                        aborted = true;
+                    }
+                };
+            }
+            const request = boundedActionResponse(
+                "/marketing/website-action/whatsapp/claim",
+                {},
+                scope
+            );
+            await Promise.resolve();
+            timeout();
+            await assert.rejects(request, /timed out/);
+            assert.ok(cleared, "deadline timer is released");
+            assert.strictEqual(aborted, abortSupported);
+        }
+    }
+);
+
+QUnit.test("completed action responses release their deadline", async (assert) => {
+    let cleared = false;
+    const payload = {redirect_path: "/local-result"};
+    const response = await boundedActionResponse(
+        "/local-action",
+        {},
+        {
+            fetch: async () => ({ok: true, status: 200, json: async () => payload}),
+            setTimeout: () => 1,
+            clearTimeout() {
+                cleared = true;
+            },
+        }
+    );
+    assert.deepEqual(response, {ok: true, status: 200, payload});
+    assert.ok(cleared);
 });
 
 QUnit.test("adds only opaque references to the exact native form route", (assert) => {

@@ -2,6 +2,8 @@ import json
 import pickle
 from unittest.mock import patch
 
+from psycopg2.errors import SerializationFailure
+
 from odoo.exceptions import AccessError, ValidationError
 
 from odoo.addons.meta_api_base.services.credentials import MetaCredentialResolutionError
@@ -407,6 +409,51 @@ class TestMetaWebhookModels(MetaWebhookCase):
 
         self.assertNotIn(secret, str(caught.exception))
         self.assertIsNone(caught.exception.__context__)
+
+    def test_fanout_preserves_transaction_retry_at_the_attempt_ceiling(self):
+        delivery = self.create_delivery(self.leadgen_envelope())
+        internal = delivery.sudo().with_context(
+            meta_webhook_internal=META_WEBHOOK_INTERNAL_TOKEN,
+            job_uuid=self.DELIVERY_JOB_UUID,
+        )
+        internal.write({"queue_job_uuid": self.DELIVERY_JOB_UUID, "attempts": 7})
+        error = SerializationFailure("synthetic concurrent update")
+        with patch.object(
+            type(delivery), "_fanout_once", side_effect=error
+        ), self.assertRaises(SerializationFailure) as caught:
+            internal._job_fanout()
+        self.assertIs(caught.exception, error)
+        self.assertNotEqual(delivery.state, "dead")
+
+    def test_dispatch_preserves_transaction_retry_at_the_attempt_ceiling(self):
+        self.env["meta.webhook.subscription"].create(
+            {
+                "page_id": self.page.id,
+                "consumer_key": "marketing.lead_ads",
+                "object_type": "page",
+                "field_name": "leadgen",
+            }
+        )
+        delivery = self.create_delivery(self.leadgen_envelope())
+        with trap_jobs():
+            delivery.sudo().with_context(
+                meta_webhook_internal=META_WEBHOOK_INTERNAL_TOKEN
+            )._fanout_once()
+        dispatch = delivery.dispatch_ids.ensure_one()
+        internal = dispatch.sudo().with_context(
+            meta_webhook_internal=META_WEBHOOK_INTERNAL_TOKEN,
+            job_uuid=self.DISPATCH_JOB_UUID,
+        )
+        internal.write({"queue_job_uuid": self.DISPATCH_JOB_UUID, "attempts": 7})
+        error = SerializationFailure("synthetic concurrent update")
+        with patch.object(
+            type(self.env["meta.webhook.dispatcher"]),
+            "_dispatch_consumer",
+            side_effect=error,
+        ), self.assertRaises(SerializationFailure) as caught:
+            internal._job_process()
+        self.assertIs(caught.exception, error)
+        self.assertNotEqual(dispatch.state, "dead")
 
     def test_consumer_retry_error_is_sanitized_and_bounded(self):
         self.env["meta.webhook.subscription"].create(

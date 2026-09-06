@@ -139,7 +139,11 @@ def _open_credential_file(root, reference):
         resolved = target.resolve(strict=True)
         if resolved.parent != root:
             raise GoogleCredentialResolutionError("Google credential file is unsafe")
-        descriptor = os.open(resolved, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        # A FIFO blocks on open before fstat can reject it. Nonblocking open is
+        # inert for regular files and keeps invalid secret mounts fail-fast.
+        descriptor = os.open(
+            resolved, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | os.O_NONBLOCK
+        )
     except GoogleCredentialResolutionError:
         raise
     except (OSError, RuntimeError, ValueError):
@@ -234,7 +238,7 @@ def resolve_credential(backend, reference):
 def _service_account_info(value):
     try:
         payload = json.loads(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, RecursionError):
         raise GoogleCredentialResolutionError(
             "Google service account credential is unavailable"
         ) from None

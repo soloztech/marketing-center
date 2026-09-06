@@ -105,7 +105,7 @@ def _open_secret_file(root, reference):
             raise MetaCredentialResolutionError("Meta credential file is unsafe")
         descriptor = os.open(
             resolved,
-            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
+            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | os.O_NONBLOCK,
         )
     except MetaCredentialResolutionError:
         raise

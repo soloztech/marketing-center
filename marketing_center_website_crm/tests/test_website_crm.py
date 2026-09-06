@@ -978,12 +978,15 @@ class TestMarketingWebsiteCrm(SavepointCase):
 
     def test_global_lead_anchored_to_other_company_is_rejected(self):
         other = self.env["res.company"].create({"name": "Other Website CRM company"})
-        lead = self.env["crm.lead"].create(
-            {
-                "name": "Anchored elsewhere",
-                "company_id": False,
-                "marketing_event_company_id": other.id,
-            }
+        lead = (
+            self.env["crm.lead"]
+            .with_company(other)
+            .create(
+                {
+                    "name": "Anchored elsewhere",
+                    "company_id": False,
+                }
+            )
         )
         claim = self._claim()
         with self.assertRaises(ValidationError):

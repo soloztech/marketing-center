@@ -90,6 +90,22 @@ class TestMetaCredentialResolver(SavepointCase):
                 "Meta credential backend is unavailable",
             )
 
+    def test_file_backend_rejects_fifo_without_waiting_for_a_writer(self):
+        real_open = os.open
+
+        def nonblocking_open(path, flags):
+            # Make a regression fail immediately instead of hanging this suite.
+            self.assertTrue(flags & os.O_NONBLOCK)
+            return real_open(path, flags)
+
+        with tempfile.TemporaryDirectory() as directory:
+            os.mkfifo(Path(directory) / "reader-token", mode=0o600)
+            with patch.dict(os.environ, {"ODOO_META_API_SECRET_DIR": directory}), patch(
+                "odoo.addons.meta_api_base.services.credentials.os.open",
+                side_effect=nonblocking_open,
+            ), self.assertRaisesRegex(MetaCredentialResolutionError, "file is unsafe"):
+                resolve_secret("file", "reader-token")
+
     def test_missing_file_backend_root_uses_safe_error_taxonomy(self):
         with tempfile.TemporaryDirectory() as directory:
             missing = str(Path(directory) / "missing")

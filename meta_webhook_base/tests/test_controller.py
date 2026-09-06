@@ -3,8 +3,15 @@ import hmac
 import json
 import os
 import urllib.parse
+from unittest.mock import patch
+
+from psycopg2 import errorcodes
+from psycopg2.errors import SerializationFailure
 
 from odoo.tests.common import HttpCase
+from odoo.tools import mute_logger
+
+from ..controllers import webhook as webhook_controller
 
 
 class TestMetaWebhookController(HttpCase):
@@ -133,6 +140,100 @@ class TestMetaWebhookController(HttpCase):
             json.dumps(deliveries.sanitized_envelope_json),
         )
         self.assertEqual(deliveries.item_ids.kind, "leadgen")
+
+    def test_serialization_retry_preserves_signed_body_and_deduplication(self):
+        class ConcurrentUpdate(SerializationFailure):
+            pgcode = errorcodes.SERIALIZATION_FAILURE
+
+        body = self._body()
+        headers = {
+            "Content-Type": "application/json",
+            "X-Hub-Signature-256": self._signature(body),
+        }
+        original_persist = webhook_controller._persist_delivery
+        attempts = []
+        endpoint_id = self.endpoint.id
+
+        def fail_once(endpoint, runtime, signed_body, *args):
+            attempts.append(signed_body)
+            if len(attempts) == 1:
+                raise ConcurrentUpdate("synthetic webhook persistence conflict")
+            return original_persist(endpoint, runtime, signed_body, *args)
+
+        with patch.object(webhook_controller, "_persist_delivery", new=fail_once):
+            response = self.opener.post(
+                self.base_url() + self.path, data=body, headers=headers
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(attempts, [body, body])
+        self.assertFalse(response.json()["duplicate"])
+        replay = self.opener.post(
+            self.base_url() + self.path, data=body, headers=headers
+        )
+        self.assertEqual(replay.status_code, 200, replay.text)
+        self.assertTrue(replay.json()["duplicate"])
+        self.assertEqual(response.json()["delivery_ref"], replay.json()["delivery_ref"])
+        with self.registry.cursor() as cr:
+            cr.execute(
+                """
+                SELECT content_sha256, body_size_bytes
+                  FROM meta_webhook_delivery
+                 WHERE endpoint_id = %s
+                """,
+                [endpoint_id],
+            )
+            self.assertEqual(
+                cr.fetchall(), [(hashlib.sha256(body).hexdigest(), len(body))]
+            )
+
+    def test_unique_collision_retries_http_and_acknowledges_existing_delivery(self):
+        body = self._body()
+        headers = {
+            "Content-Type": "application/json",
+            "X-Hub-Signature-256": self._signature(body),
+        }
+        first = self.opener.post(
+            self.base_url() + self.path, data=body, headers=headers
+        )
+        self.assertEqual(first.status_code, 200, first.text)
+        self.assertFalse(first.json()["duplicate"])
+        original_find = webhook_controller._find_delivery
+        lookups = []
+
+        def stale_lookup(endpoint, digest):
+            lookups.append(digest)
+            if body_reader.call_count == 1:
+                # Keep the winner invisible until Odoo starts a fresh attempt.
+                # The INSERT still uses the real PostgreSQL uniqueness check.
+                return endpoint.env["meta.webhook.delivery"]
+            return original_find(endpoint, digest)
+
+        with patch.object(
+            webhook_controller,
+            "_bounded_request_body",
+            wraps=webhook_controller._bounded_request_body,
+        ) as body_reader, patch.object(
+            webhook_controller, "_find_delivery", new=stale_lookup
+        ), mute_logger(
+            "odoo.sql_db"
+        ):
+            response = self.opener.post(
+                self.base_url() + self.path, data=body, headers=headers
+            )
+
+        self.assertEqual(lookups, [hashlib.sha256(body).hexdigest()] * 2)
+        self.assertEqual(body_reader.call_count, 2)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertTrue(response.json()["duplicate"])
+        self.assertEqual(response.json()["delivery_ref"], first.json()["delivery_ref"])
+        self.env.invalidate_all()
+        self.assertEqual(
+            self.env["meta.webhook.delivery"]
+            .sudo()
+            .search_count([("endpoint_id", "=", self.endpoint.id)]),
+            1,
+        )
 
     def test_signed_post_does_not_depend_on_challenge_verify_token(self):
         body = self._body()

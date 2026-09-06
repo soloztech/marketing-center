@@ -179,6 +179,64 @@ class TestMarketingWebsiteAction(SavepointCase):
             grant_model._gc_expired_grants()
         self.assertFalse(grant_model.search([("action_id", "=", action.id)]))
 
+    def test_whatsapp_claim_retries_preserve_first_timestamp_and_reject_changes(self):
+        action = self._whatsapp_action()
+        service = self.env["marketing.website.action.service"]
+        now = datetime.datetime(2026, 9, 1, 12, 0)
+        claim = {
+            "action_ref": action.public_ref,
+            "event_id": "abababab-abab-4bab-8bab-abababababab",
+            "session_ref": "22222222-2222-4222-8222-222222222222",
+        }
+        accepted, first_token = service._claim_whatsapp_handoff(
+            self.website, claim, "https://www.example.test", now=now
+        )
+        replay, second_token = service._claim_whatsapp_handoff(
+            self.website,
+            claim,
+            "https://www.example.test",
+            now=now + datetime.timedelta(seconds=5),
+        )
+        self.assertEqual(accepted.disposition, "accepted")
+        self.assertEqual(replay.disposition, "duplicate")
+        self.assertEqual(replay.touchpoint_id, accepted.touchpoint_id)
+        self.assertNotEqual(first_token, second_token)
+        touchpoint = self.env["marketing.attribution.touchpoint"].browse(
+            accepted.touchpoint_id
+        )
+        self.assertEqual(touchpoint.occurred_at, now)
+        conflict, token = service._claim_whatsapp_handoff(
+            self.website,
+            {**claim, "session_ref": "33333333-3333-4333-8333-333333333333"},
+            "https://www.example.test",
+            now=now + datetime.timedelta(seconds=10),
+        )
+        self.assertEqual(conflict.disposition, "conflict")
+        self.assertFalse(token)
+
+    def test_whatsapp_grant_failure_rolls_back_ingress_and_touchpoint(self):
+        action = self._whatsapp_action()
+        Event = self.env["marketing.web.ingress.event"]
+        Touchpoint = self.env["marketing.attribution.touchpoint"]
+        before_events = Event.search_count([])
+        before_touchpoints = Touchpoint.search_count([])
+        with patch.object(
+            type(self.env["marketing.website.redirect.grant"]),
+            "_issue",
+            side_effect=ValidationError("Injected grant failure"),
+        ), self.assertRaises(ValidationError):
+            self.env["marketing.website.action.service"]._claim_whatsapp_handoff(
+                self.website,
+                {
+                    "action_ref": action.public_ref,
+                    "event_id": "abababab-abab-4bab-8bab-abababababab",
+                    "session_ref": "22222222-2222-4222-8222-222222222222",
+                },
+                "https://www.example.test",
+            )
+        self.assertEqual(Event.search_count([]), before_events)
+        self.assertEqual(Touchpoint.search_count([]), before_touchpoints)
+
     def test_redirect_grant_lifecycle_rejects_arbitrary_internal_mutation(self):
         action = self._whatsapp_action()
         grant_model = self.env["marketing.website.redirect.grant"]
@@ -279,10 +337,11 @@ class TestMarketingWebsiteAction(SavepointCase):
             "https://www.example.test",
             now=now,
         )
+        tampered = receipt[:-1] + ("a" if receipt[-1] != "a" else "b")
         with self.assertRaises(AccessError):
             service._exchange_form_receipt(
                 self.website,
-                {**claim, "receipt": "%sb" % receipt[:-1]},
+                {**claim, "receipt": tampered},
                 "https://www.example.test",
                 now=now,
             )

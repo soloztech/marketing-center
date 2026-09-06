@@ -1,7 +1,7 @@
 {
     "name": "Marketing Center - CRM",
     "summary": "Link marketing evidence to CRM and record CRM lifecycle events",
-    "version": "16.0.1.3.1",
+    "version": "16.0.1.0.0",
     "category": "Marketing",
     "author": "Soloz Technologies",
     "website": "https://github.com/soloztech/marketing-center",

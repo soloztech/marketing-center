@@ -123,9 +123,9 @@ verificador central e também satisfazer ACL, policy, aprovação e capability d
 
 Uma rota operacional de Meta Lead Ads pertence obrigatoriamente a uma fonte `meta.ads`.
 Rotas e submissões usam o roster dessa fonte; somente o administrador tem visão completa
-da empresa. Uma rota histórica sem fonte é pausada na migração e não recebe uma
-identidade publicitária inventada: deve ser vinculada explicitamente antes de voltar a
-operar.
+da empresa. A fonte deve ser vinculada explicitamente antes de operar; a instalação
+greenfield não inventa uma identidade publicitária nem oferece migração implícita de
+rotas de desenvolvimento.
 
 ## Quando criar um novo addon
 

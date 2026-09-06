@@ -1,7 +1,7 @@
 {
     "name": "Marketing Center - Google Ads",
     "summary": "Read-only Google Ads catalog, performance and observability",
-    "version": "16.0.1.1.3",
+    "version": "16.0.1.0.0",
     "category": "Marketing",
     "author": "Soloz Technologies",
     "website": "https://github.com/soloztech/marketing-center",

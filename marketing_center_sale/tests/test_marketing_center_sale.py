@@ -339,6 +339,38 @@ class TestMarketingCenterSale(SavepointCase):
         self.assertFalse(copied.marketing_event_link_ids)
         self.assertFalse(self._events(copied))
 
+    def test_context_defaults_cannot_seed_internal_identity(self):
+        for name, value in (
+            ("marketing_sale_event_sequence", 999),
+            ("marketing_sale_company_id", self.env.company.id),
+        ):
+            with self.subTest(field=name), self.assertRaises(AccessError):
+                self.env["sale.order"].with_context(
+                    **{"default_%s" % name: value}
+                ).create({"partner_id": self.partner.id})
+
+    def test_backfill_after_deferred_tracking_keeps_live_revenue_once(self):
+        order = self._create_order("Live before historical reconciliation")
+        order._track_finalize()
+        order.action_confirm()
+        order._track_finalize()
+        order.with_context(disable_cancel_warning=True)._action_cancel()
+        order._track_finalize()
+        self.assertTrue(
+            self.env["mail.tracking.value"].search_count(
+                [
+                    ("mail_message_id.model", "=", "sale.order"),
+                    ("mail_message_id.res_id", "=", order.id),
+                    ("field.name", "=", "state"),
+                ]
+            )
+        )
+        before = self._events(order)
+        self.env["marketing.sale.service"]._backfill_order_events(order)
+        self.assertEqual(self._events(order), before)
+        self.assertEqual(len(self._events(order, "order_confirmed")), 1)
+        self.assertEqual(len(self._events(order, "order_cancelled")), 1)
+
     def test_explicit_backfill_uses_stable_evidence_and_is_idempotent(self):
         order = self._create_order("Backfill")
         guarded = order.with_context(
@@ -397,6 +429,53 @@ class TestMarketingCenterSale(SavepointCase):
                 break
             cursor = result["last_tracking_id"]
         self.assertEqual(self._events(order).ids, first_ids)
+
+    def test_first_live_cancellation_reuses_historical_confirmation_identity(self):
+        order = self._create_order("Historical confirmation before live cancellation")
+        order._track_finalize()
+        guarded = order.with_context(
+            marketing_sale_transition_guard=MARKETING_SALE_TRANSITION_GUARD
+        )
+        guarded.action_confirm()
+        guarded._track_finalize()
+        order.with_context(disable_cancel_warning=True)._action_cancel()
+        order._track_finalize()
+        before = self._events(order)
+        self.assertEqual(len(before), 2)
+        self.env["marketing.sale.service"]._backfill_order_events(order)
+        self.assertEqual(self._events(order), before)
+
+    def test_historical_cancellation_does_not_reverse_later_live_confirmation(self):
+        order = self._create_order("Historical cycle before live reconfirmation")
+        order._track_finalize()
+        guarded = order.with_context(
+            marketing_sale_transition_guard=MARKETING_SALE_TRANSITION_GUARD
+        )
+        guarded.action_confirm()
+        guarded._track_finalize()
+        guarded.with_context(disable_cancel_warning=True)._action_cancel()
+        guarded._track_finalize()
+        guarded.action_draft()
+        guarded._track_finalize()
+        order.action_confirm()
+        order._track_finalize()
+        live_confirmation = self._events(order, "order_confirmed")
+        service = self.env["marketing.sale.service"]
+        cursor = 0
+        for _page in range(10):
+            result = service._backfill_order_events(
+                order, after_tracking_id=cursor, limit=1
+            )
+            if not result["has_more"]:
+                break
+            cursor = result["last_tracking_id"]
+        else:
+            self.fail("Historical reconciliation did not terminate")
+        self.assertEqual(len(self._events(order, "order_confirmed")), 2)
+        cancellation = self._events(order, "order_cancelled")
+        self.assertEqual(len(cancellation), 1)
+        self.assertNotEqual(cancellation.reverses_event_id, live_confirmation)
+        self.assertEqual(service._open_confirmation(order), live_confirmation)
 
     def test_link_rules_follow_sale_ownership(self):
         sales_group = self.env.ref("sales_team.group_sale_salesman")

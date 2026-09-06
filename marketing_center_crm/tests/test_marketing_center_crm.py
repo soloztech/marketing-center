@@ -103,6 +103,22 @@ class TestMarketingCenterCrm(SavepointCase):
         self.assertEqual(self.lead.marketing_event_sequence, initial_sequence + 2)
         self.assertEqual(len(self._events(event_type="qualified")), 1)
 
+    def test_create_cannot_seed_internal_event_identity(self):
+        for name, value in (
+            ("marketing_event_sequence", 999),
+            ("marketing_event_company_id", self.env.company.id),
+        ):
+            with self.subTest(field=name):
+                with self.assertRaises(AccessError):
+                    self.env["crm.lead"].create({"name": "Forged scope", name: value})
+                with self.assertRaises(AccessError):
+                    self.env["crm.lead"].with_context(
+                        **{"default_%s" % name: value}
+                    ).create({"name": "Forged default scope"})
+        copied = self.lead.copy()
+        self.assertEqual(copied.marketing_event_sequence, 1)
+        self.assertEqual(len(self._events(copied, "lead_created")), 1)
+
     def test_won_and_lost_are_explicit(self):
         self.lead.write({"stage_id": self.stage_won.id})
         self.assertEqual(len(self._events(event_type="won")), 1)
@@ -384,7 +400,20 @@ class TestMarketingCenterCrm(SavepointCase):
         self.assertEqual(global_lead.marketing_event_company_id, self.env.company)
 
     def test_backfill_is_paginated_and_does_not_duplicate_live_tracking(self):
+        self.lead._track_finalize()
         self.lead.write({"stage_id": self.stage_b.id})
+        # Odoo persists these rows at precommit, after write() has emitted its
+        # sequence event. Exercise that real ordering without committing a test.
+        self.lead._track_finalize()
+        self.assertTrue(
+            self.env["mail.tracking.value"].search_count(
+                [
+                    ("mail_message_id.model", "=", "crm.lead"),
+                    ("mail_message_id.res_id", "=", self.lead.id),
+                    ("field.name", "=", "stage_id"),
+                ]
+            )
+        )
         before = self._events()
         first_page = self.service._backfill_lead_events(
             self.lead, after_tracking_id=0, limit=1
@@ -409,6 +438,15 @@ class TestMarketingCenterCrm(SavepointCase):
         action = self.lead.with_user(manager).action_backfill_marketing_events()
         self.assertEqual(action["type"], "ir.actions.client")
         self.assertEqual(self._events(), before)
+
+    def test_backfill_does_not_rewrite_creation_facts_after_conversion(self):
+        lead = self.env["crm.lead"].create({"name": "Converted", "type": "lead"})
+        event = self._events(lead, "lead_created")
+        before_observations = len(event.observation_ids)
+        lead.write({"type": "opportunity"})
+        self.service._backfill_lead_events(lead)
+        self.assertEqual(event.snapshot_json["extensions"]["crm.lead_type"], "lead")
+        self.assertEqual(len(event.observation_ids), before_observations)
 
     def test_link_rules_follow_crm_ownership(self):
         sales_group = self.env.ref("sales_team.group_sale_salesman")

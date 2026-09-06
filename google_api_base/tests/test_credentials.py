@@ -124,6 +124,37 @@ class TestGoogleCredentialResolver(SavepointCase):
             _validated_value("secret\ud800value")
         self.assertIsNone(caught.exception.__context__)
 
+    def test_file_backends_reject_fifo_without_waiting_for_a_writer(self):
+        real_open = os.open
+
+        def nonblocking_open(path, flags):
+            # Make a regression fail immediately instead of hanging this suite.
+            self.assertTrue(flags & os.O_NONBLOCK)
+            return real_open(path, flags)
+
+        with tempfile.TemporaryDirectory() as directory:
+            os.mkfifo(Path(directory) / "google-credential", mode=0o600)
+            for resolver in (resolve_credential, resolve_service_account_info):
+                with self.subTest(resolver=resolver.__name__), patch.dict(
+                    os.environ, {"ODOO_GOOGLE_API_SECRET_DIR": directory}
+                ), patch(
+                    "odoo.addons.google_api_base.services.credentials.os.open",
+                    side_effect=nonblocking_open,
+                ), self.assertRaisesRegex(
+                    GoogleCredentialResolutionError, "file is unsafe"
+                ):
+                    resolver("file", "google-credential")
+
+    def test_service_account_rejects_excessively_nested_json(self):
+        nested = "[" * 2000 + "0" + "]" * 2000
+        with patch.dict(
+            os.environ, {"ODOO_GOOGLE_SERVICE_ACCOUNT_JSON": nested}
+        ), self.assertRaises(GoogleCredentialResolutionError) as caught:
+            resolve_service_account_info(
+                "environment", "ODOO_GOOGLE_SERVICE_ACCOUNT_JSON"
+            )
+        self.assertIsNone(caught.exception.__cause__)
+
     def test_invalid_file_bytes_do_not_survive_in_exception_context(self):
         with tempfile.TemporaryDirectory() as directory:
             credential = Path(directory) / "invalid-token"

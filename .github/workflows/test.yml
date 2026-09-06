@@ -2,6 +2,11 @@ name: tests
 
 on:
   workflow_dispatch:
+    inputs:
+      peer_ref:
+        description: "Full Contact Center commit SHA for coordinated release validation"
+        required: false
+        type: string
   pull_request:
     branches:
       - "16.0*"
@@ -43,6 +48,7 @@ jobs:
     name: ${{ matrix.name }}
     env:
       PIP_CONSTRAINT: ${{ github.workspace }}/constraints.txt
+      PEER_REF: ${{ inputs.peer_ref || '324fec1c642f187cd25ce8dd68d427aaa2871534' }}
     strategy:
       fail-fast: false
       matrix:
@@ -52,7 +58,7 @@ jobs:
             makepot: "false"
     services:
       postgres:
-        image: postgres:12
+        image: postgres:16
         env:
           POSTGRES_USER: odoo
           POSTGRES_PASSWORD: odoo
@@ -63,13 +69,20 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+      - name: Validate coordinated dependency revision
+        shell: bash
+        run: |
+          if ! [[ "$PEER_REF" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "peer_ref must be a full 40-character commit SHA."
+            exit 1
+          fi
       - name: Checkout private Contact Center dependency
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: soloztech/contact-center
-          # Release CI is intentionally coupled to the matching, immutable
-          # cross-repository candidate instead of the moving 16.0 branch.
-          ref: "16.0.20260904.3-rc1"
+          # PRs use the published baseline; a manual release run can select the
+          # exact coordinated peer commit without rewriting the workflow.
+          ref: ${{ env.PEER_REF }}
           path: .ci-private-dependency/contact-center
           token: ${{ secrets.CROSS_REPO_READ_TOKEN }}
           persist-credentials: false
@@ -81,6 +94,7 @@ jobs:
           sibling_root="${sibling_parent}/contact-center"
           mv "${GITHUB_WORKSPACE}/.ci-private-dependency/contact-center" "${sibling_root}"
           python -m pip install --editable "${sibling_root}/setup/contact_center_base"
+          python -m pip install --editable "${sibling_root}/setup/contact_center_kanban"
           python -m pip install --editable "${sibling_root}/setup/contact_center_crm"
       - name: Install addons and dependencies
         run: oca_install_addons

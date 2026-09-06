@@ -1,7 +1,7 @@
 {
     "name": "Marketing Center - Sales Accounting Bridge",
     "summary": "Preserve typed causal links between invoices and sales orders",
-    "version": "16.0.1.1.1",
+    "version": "16.0.1.0.0",
     "category": "Marketing",
     "author": "Soloz Technologies",
     "website": "https://github.com/soloztech/marketing-center",

@@ -380,8 +380,18 @@ def parse_web_ingress_payload(
     )
 
 
-def canonical_request_digest(payload: WebIngressPayload, origin: str = "") -> str:
+def canonical_request_digest(
+    payload: WebIngressPayload,
+    origin: str = "",
+    *,
+    server_assigned_timestamp: bool = False,
+) -> str:
     canonical = payload.safe_canonical_dict()
+    if server_assigned_timestamp:
+        # A WhatsApp claim carries no client timestamp. Retrying the same claim
+        # must retain its identity while the stored event keeps the first time
+        # the server accepted it. Client timestamps remain part of the digest.
+        canonical.pop("occurred_at", None)
     if origin:
         canonical["origin"] = normalize_origin(origin)
     encoded = json.dumps(

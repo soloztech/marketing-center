@@ -85,6 +85,74 @@ class TestMetaGraphClient(SavepointCase):
         super().setUpClass()
         cls.app = FakeGraphApp()
 
+    @mock.patch(REQUEST_PATCH)
+    def test_private_multipart_upload_is_bounded_and_uses_bearer_and_form_proof(
+        self, request
+    ):
+        response = FakeGraphResponse(payload={"attachment_id": "123456789"})
+        request.return_value = response
+        result = graph_request(
+            self.app,
+            self.PAGE_TOKEN,
+            "POST",
+            "%s/message_attachments" % self.PAGE_ID,
+            data={"message": '{"attachment":{"type":"image"}}'},
+            files={"filedata": ("image.png", b"synthetic-image", "image/png")},
+        )
+        self.assertEqual(result, {"attachment_id": "123456789"})
+        self.assertEqual(
+            request.call_args.kwargs["files"],
+            {"filedata": ("image.png", b"synthetic-image", "image/png")},
+        )
+        self.assertIn("appsecret_proof", request.call_args.kwargs["data"])
+        self.assertNotIn("Content-Type", request.call_args.kwargs["headers"])
+        self.assertTrue(response.closed)
+
+    @mock.patch(REQUEST_PATCH)
+    def test_multipart_rejects_nonlocal_unbounded_or_conflicting_uploads_before_network(
+        self, request
+    ):
+        invalid = (
+            {"method": "GET", "files": {"filedata": ("safe.png", b"x", "image/png")}},
+            {"json_data": {}, "files": {"filedata": ("safe.png", b"x", "image/png")}},
+            {"files": {"filedata": ("../unsafe.png", b"x", "image/png")}},
+            {
+                "files": {
+                    "filedata": (
+                        "safe.png",
+                        "https://example.invalid/image",
+                        "image/png",
+                    )
+                }
+            },
+            {"files": {"filedata": ("safe.png", b"", "image/png")}},
+            {
+                "files": {
+                    "filedata": ("safe.png", b"x" * (25 * 1024 * 1024 + 1), "image/png")
+                }
+            },
+            {"files": {"filedata": ("safe.png", b"x", "image/png\r\nX: bad")}},
+            {
+                "files": {
+                    "filedata": ("safe.png", b"x", "image/png"),
+                    "second": ("safe.png", b"x", "image/png"),
+                }
+            },
+        )
+        for values in invalid:
+            with self.subTest(case=list(values)):
+                method = values.get("method", "POST")
+                with self.assertRaises(MetaApiError):
+                    graph_request(
+                        self.app,
+                        self.PAGE_TOKEN,
+                        method,
+                        "%s/message_attachments" % self.PAGE_ID,
+                        files=values["files"],
+                        json_data=values.get("json_data"),
+                    )
+        request.assert_not_called()
+
     def test_proof_and_app_token_are_built_only_in_memory(self):
         expected = hmac.new(
             self.APP_SECRET.encode("utf-8"),

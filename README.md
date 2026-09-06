@@ -52,6 +52,11 @@ before initializing its database, so dependency drift fails before addon tests.
 
 ## Current greenfield baseline
 
+All eighteen addons now use `16.0.1.0.0`, coordinated with the six Contact Center
+addons. The [2026-09-05 audit](reviews/2026-09-05-greenfield-audit.md) records the
+current corrections and validation; the older laboratory totals below describe
+their historical source tree, not this candidate.
+
 The pre-production development lineage was squashed before the first production
 candidate. Older laboratory schemas are not supported upgrade origins. After the first
 go-live, every persistent schema or data change must ship with a cumulative versioned

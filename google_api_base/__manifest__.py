@@ -1,7 +1,7 @@
 {
     "name": "Google API Base",
     "summary": "Bounded Google Ads REST transport and external credentials",
-    "version": "16.0.1.1.2",
+    "version": "16.0.1.0.0",
     "category": "Technical",
     "author": "Soloz Technologies",
     "website": "https://github.com/soloztech/marketing-center",

@@ -3,7 +3,7 @@ import logging
 import re
 import uuid
 
-from psycopg2 import IntegrityError
+from psycopg2 import IntegrityError, OperationalError
 
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, ValidationError
@@ -254,6 +254,10 @@ class MetaWebhookDelivery(models.Model):
                     internal.public_ref,
                 )
                 return False
+        except OperationalError:
+            # Let Odoo/queue_job retry the complete database transaction. A
+            # serialization conflict is not a failed provider delivery attempt.
+            raise
         except Exception as error:  # queue isolation boundary
             _logger.error(
                 "Unexpected Meta webhook delivery fan-out failure for %s: %s",
@@ -777,6 +781,8 @@ class MetaWebhookDispatch(models.Model):
                     "Meta webhook dispatch retry limit reached for %s", internal.id
                 )
                 return False
+        except OperationalError:
+            raise
         except Exception as error:  # queue isolation boundary
             _logger.error(
                 "Unexpected Meta webhook consumer failure for dispatch %s: %s",

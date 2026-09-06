@@ -1,4 +1,5 @@
 import datetime
+import json
 import pickle
 from unittest import mock
 
@@ -14,11 +15,7 @@ from ..services.errors import (
     GoogleApiRateLimitError,
     GoogleApiTransientError,
 )
-from ..services.oauth import (
-    GoogleAuthRequest,
-    _BoundedGoogleAuthRequest,
-    refresh_access_token,
-)
+from ..services.oauth import _BoundedGoogleAuthRequest, refresh_access_token
 from .common import FakeResponse
 
 REQUEST_PATCH = "odoo.addons.google_api_base.services.oauth.requests.request"
@@ -87,23 +84,67 @@ class TestGoogleOAuth(SavepointCase):
         with self.assertRaises(TypeError):
             pickle.dumps(token)
 
-    def test_service_account_transport_disables_redirects(self):
-        with mock.patch.object(
-            GoogleAuthRequest,
-            "__call__",
-            autospec=True,
-            return_value=mock.sentinel.response,
-        ) as parent_call:
-            response = _BoundedGoogleAuthRequest()(
-                "https://oauth2.googleapis.com/token",
-                method="POST",
-                timeout=120,
-                allow_redirects=True,
-            )
+    def test_service_account_transport_is_bounded_and_private(self):
+        response = FakeResponse(payload={"access_token": self.ACCESS_TOKEN})
+        session = mock.Mock()
+        session.request.return_value = response
+        transport = _BoundedGoogleAuthRequest(session=session)
+        result = transport(
+            "https://oauth2.googleapis.com/token",
+            method="POST",
+            body=b"signed-assertion",
+            timeout=120,
+            allow_redirects=True,
+        )
 
-        self.assertIs(response, mock.sentinel.response)
-        self.assertEqual(parent_call.call_args.kwargs["timeout"], 20)
-        self.assertFalse(parent_call.call_args.kwargs["allow_redirects"])
+        self.assertEqual(json.loads(result.data)["access_token"], self.ACCESS_TOKEN)
+        self.assertNotIn(self.ACCESS_TOKEN, repr(result))
+        self.assertEqual(session.request.call_args.kwargs["timeout"], (5, 20))
+        self.assertFalse(session.request.call_args.kwargs["allow_redirects"])
+        self.assertTrue(session.request.call_args.kwargs["stream"])
+        self.assertTrue(response.closed)
+
+    def test_service_account_transport_preserves_limits_and_retry_taxonomy(self):
+        cases = (
+            (FakeResponse(content=b" " * (64 * 1024 + 1)), GoogleApiLimitError),
+            (FakeResponse(status_code=503, content=b"proxy"), GoogleApiTransientError),
+            (FakeResponse(status_code=429, content=b""), GoogleApiRateLimitError),
+            (
+                FakeResponse(status_code=400, payload={"error": "invalid_grant"}),
+                GoogleApiPausedError,
+            ),
+            (
+                FakeResponse(
+                    status_code=400, payload={"error": "temporarily_unavailable"}
+                ),
+                GoogleApiTransientError,
+            ),
+            (
+                FakeResponse(stream_error=requests.ConnectionError(self.ACCESS_TOKEN)),
+                GoogleApiTransientError,
+            ),
+        )
+        for response, error_class in cases:
+            session = mock.Mock()
+            session.request.return_value = response
+            with self.subTest(error=error_class), self.assertRaises(
+                error_class
+            ) as caught:
+                _BoundedGoogleAuthRequest(session=session)(
+                    "https://oauth2.googleapis.com/token", method="POST"
+                )
+            session.request.assert_called_once()
+            self.assertTrue(response.closed)
+            self.assertNotIn(self.ACCESS_TOKEN, str(caught.exception))
+            self.assertIsNone(caught.exception.__context__)
+
+    def test_service_account_transport_rejects_other_endpoints_before_network(self):
+        session = mock.Mock()
+        with self.assertRaises(GoogleApiPausedError):
+            _BoundedGoogleAuthRequest(session=session)(
+                "https://attacker.invalid/token", method="POST"
+            )
+        session.request.assert_not_called()
 
     def test_network_and_transient_provider_failures_are_retryable_without_context(
         self,

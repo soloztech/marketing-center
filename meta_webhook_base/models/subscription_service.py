@@ -3,6 +3,8 @@ import json
 import logging
 import re
 
+from psycopg2 import OperationalError
+
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
@@ -58,12 +60,17 @@ def _next_after(payload, current, seen):
         return ""
     if not isinstance(paging, dict):
         raise MetaApiError("Meta Graph pagination is invalid")
+    next_page = paging.get("next")
+    if next_page in (None, False, ""):
+        # Graph returns cursors on the final page too. Only `next` proves that
+        # another page exists; its URL is never followed or used as credentials.
+        return ""
+    if not isinstance(next_page, str):
+        raise MetaApiError("Meta Graph pagination is invalid")
     cursors = paging.get("cursors")
     after = cursors.get("after") if isinstance(cursors, dict) else ""
     if after in (None, ""):
-        if paging.get("next"):
-            raise MetaApiError("Meta Graph pagination is invalid")
-        return ""
+        raise MetaApiError("Meta Graph pagination is invalid")
     if not isinstance(after, str):
         raise MetaApiError("Meta Graph pagination is invalid")
     try:
@@ -404,7 +411,7 @@ class MetaWebhookSubscriptionService(models.AbstractModel):
                 expected_union_hash,
             )
             return False
-        except RetryableJobError:
+        except (RetryableJobError, OperationalError):
             raise
         except Exception as error:  # queue isolation boundary
             _logger.error(

@@ -222,23 +222,26 @@ class MarketingWebsiteActionService(models.AbstractModel):
         action = self._active_action(website, values["action_ref"], "whatsapp_handoff")
         self._validate_runtime_origin(action, origin)
         occurred_at = self._utc(now)
-        result = self._ingest_action(
-            action,
-            values["event_id"],
-            values["session_ref"],
-            "organic_link",
-            origin,
-            occurred_at,
-        )
-        if result.disposition not in ("accepted", "duplicate"):
-            return result, ""
-        token = (
-            self.env["marketing.website.redirect.grant"]
-            .sudo()
-            .with_context(allowed_company_ids=[action.company_id.id])
-            .with_company(action.company_id)
-            ._issue(action, values["event_id"], now=occurred_at)
-        )
+        # The public controller catches application failures and returns 503.
+        # Keep the evidence and usable redirect atomic even when issuance fails.
+        with self.env.cr.savepoint():
+            result = self._ingest_action(
+                action,
+                values["event_id"],
+                values["session_ref"],
+                "organic_link",
+                origin,
+                occurred_at,
+            )
+            if result.disposition not in ("accepted", "duplicate"):
+                return result, ""
+            token = (
+                self.env["marketing.website.redirect.grant"]
+                .sudo()
+                .with_context(allowed_company_ids=[action.company_id.id])
+                .with_company(action.company_id)
+                ._issue(action, values["event_id"], now=occurred_at)
+            )
         return result, token
 
     @api.model

@@ -3,7 +3,8 @@ import json
 import logging
 import secrets
 
-from psycopg2 import IntegrityError
+from psycopg2 import OperationalError, errorcodes
+from psycopg2.errors import SerializationFailure, UniqueViolation
 from werkzeug.wrappers import Response
 
 from odoo import http
@@ -20,6 +21,14 @@ from ..services.sanitizer import MetaWebhookSanitizationError, sanitized_webhook
 from ..services.tokens import META_WEBHOOK_INTERNAL_TOKEN
 
 _logger = logging.getLogger(__name__)
+
+
+class _WebhookSerializationFailure(SerializationFailure):
+    """Request a fresh transaction through Odoo's normal concurrency retry."""
+
+    @property
+    def pgcode(self):
+        return errorcodes.SERIALIZATION_FAILURE
 
 
 def _json_response(payload, status=200):
@@ -106,7 +115,9 @@ def _bounded_request_body(endpoint):
         return None, _rejected("empty_payload", 400, endpoint=endpoint)
     if declared > MAX_WEBHOOK_BODY_BYTES:
         return None, _rejected("payload_too_large", 413, endpoint=endpoint)
-    body = request.httprequest.get_data(cache=False)
+    # A serialization failure can replay this controller in the same HTTP
+    # request. Preserve the bounded signed body after consuming the stream.
+    body = request.httprequest.get_data(cache=True)
     if len(body) != declared or len(body) > MAX_WEBHOOK_BODY_BYTES:
         return None, _rejected(
             "invalid_content_length", 400, endpoint=endpoint, body=body
@@ -150,12 +161,16 @@ def _persist_delivery(
             )
             delivery._enqueue()
             return delivery, False
-    except IntegrityError:
-        delivery = _find_delivery(endpoint, digest)
-        if not delivery:
+    except UniqueViolation as error:
+        if error.diag.constraint_name != (
+            "meta_webhook_delivery_endpoint_content_unique"
+        ):
             raise
-        delivery._enqueue()
-        return delivery, True
+        # A concurrent winner is not visible in the current REPEATABLE READ
+        # snapshot. Retry the request so the normal lookup can observe it.
+        raise _WebhookSerializationFailure(
+            "Concurrent Meta webhook requires a fresh snapshot"
+        ) from None
 
 
 class MetaWebhookController(http.Controller):
@@ -244,6 +259,8 @@ class MetaWebhookController(http.Controller):
             )
         except (MetaWebhookSanitizationError, ValueError):
             return _rejected("invalid_envelope", 400, endpoint=endpoint, body=body)
+        except OperationalError:
+            raise
         except Exception as error:
             # Consumer extensions inspect the raw bounded envelope and may carry
             # provider-private values in their exceptions. Never render the

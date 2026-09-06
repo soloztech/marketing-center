@@ -143,7 +143,14 @@ class MarketingWebIngressService(models.AbstractModel):
         elapsed = abs((observed_at - normalized.occurred_at).total_seconds())
         if elapsed > endpoint.replay_window_seconds:
             raise ValidationError(_("The web ingress timestamp is outside its window."))
-        request_digest = canonical_request_digest(normalized, normalized_origin)
+        request_digest = canonical_request_digest(
+            normalized,
+            normalized_origin,
+            server_assigned_timestamp=(
+                ingress_provenance == "website_confirmed_action"
+                and normalized.event_type == "organic_link"
+            ),
+        )
         with self.env.cr.savepoint():
             return self._ingest_atomic(
                 endpoint,

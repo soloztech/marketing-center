@@ -1,3 +1,5 @@
+import dataclasses
+import json
 from collections.abc import Mapping
 
 import requests
@@ -33,21 +35,52 @@ _OAUTH_TRANSIENT_ERRORS = {"server_error", "temporarily_unavailable"}
 _GOOGLE_ADS_SCOPE = "https://www.googleapis.com/auth/adwords"
 
 
+@dataclasses.dataclass(frozen=True)
+class _GoogleAuthResponse:
+    status: int
+    data: bytes = dataclasses.field(repr=False)
+    headers: dict = dataclasses.field(repr=False)
+
+
 class _BoundedGoogleAuthRequest(GoogleAuthRequest if GoogleAuthRequest else object):
     def __call__(
         self, url, method="GET", body=None, headers=None, timeout=120, **kwargs
     ):
-        # The service-account token URI is allow-listed at credential loading,
-        # and redirects must not widen that trust boundary.
-        kwargs["allow_redirects"] = False
-        return super().__call__(
-            url=url,
-            method=method,
-            body=body,
-            headers=headers,
-            timeout=_OAUTH_TIMEOUT[1],
-            **kwargs,
-        )
+        if url != _OAUTH_TOKEN_URL or method != "POST":
+            raise GoogleApiPausedError("Google OAuth endpoint is unsupported")
+        response = None
+        try:
+            response = self.session.request(
+                method,
+                url,
+                data=body,
+                headers=headers,
+                timeout=_OAUTH_TIMEOUT,
+                allow_redirects=False,
+                stream=True,
+            )
+        except requests.RequestException:
+            response = None
+        if response is None:
+            raise GoogleApiTransientError(
+                "Google OAuth endpoint did not respond", operation="oauth.refresh"
+            )
+        try:
+            status = response.status_code
+            if status in (401, 403, 408, 425, 429) or status >= 500:
+                _raise_oauth_error(response, {})
+            payload = bounded_json(response, _OAUTH_RESPONSE_LIMIT)
+            if not 200 <= status < 300:
+                # Surface the shared taxonomy before google-auth can retry
+                # internally or turn a retryable OAuth response into a pause.
+                _raise_oauth_error(response, payload)
+            return _GoogleAuthResponse(
+                status=status,
+                data=json.dumps(payload).encode("utf-8"),
+                headers=dict(response.headers),
+            )
+        finally:
+            response.close()
 
 
 def _runtime_identity(identity):
@@ -174,7 +207,8 @@ def _refresh_service_account(identity):
             dict(identity.service_account_info),
             scopes=(_GOOGLE_ADS_SCOPE,),
         )
-        credentials.refresh(_BoundedGoogleAuthRequest())
+        with requests.Session() as session:
+            credentials.refresh(_BoundedGoogleAuthRequest(session=session))
     except google.auth.exceptions.TransportError:
         raise GoogleApiTransientError(
             "Google OAuth endpoint did not respond",

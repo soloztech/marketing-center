@@ -587,7 +587,14 @@ class MarketingCrmService(models.AbstractModel):
 
     @api.model
     def _emit_stage_events(
-        self, lead, old_stage, new_stage, occurrence_ref, occurred_at=None, sequence=0
+        self,
+        lead,
+        old_stage,
+        new_stage,
+        occurrence_ref,
+        occurred_at=None,
+        sequence=0,
+        tracking_watermark=None,
     ):
         if old_stage == new_stage:
             return self.env["marketing.business.event"]
@@ -600,6 +607,8 @@ class MarketingCrmService(models.AbstractModel):
         }
         if sequence:
             extensions["crm.transition_sequence"] = sequence
+        if tracking_watermark is not None:
+            extensions["crm.tracking_watermark"] = tracking_watermark
         events = self._ingest_lead_event(
             lead,
             "lead_stage_changed",
@@ -627,7 +636,13 @@ class MarketingCrmService(models.AbstractModel):
 
     @api.model
     def _emit_lost_event(
-        self, lead, occurrence_ref, occurred_at=None, sequence=0, lost_reason=None
+        self,
+        lead,
+        occurrence_ref,
+        occurred_at=None,
+        sequence=0,
+        lost_reason=None,
+        tracking_watermark=None,
     ):
         sequence = sequence or self._known_transition_sequence(
             lead, "lost", occurrence_ref
@@ -637,6 +652,8 @@ class MarketingCrmService(models.AbstractModel):
         }
         if sequence:
             extensions["crm.transition_sequence"] = sequence
+        if tracking_watermark is not None:
+            extensions["crm.tracking_watermark"] = tracking_watermark
         return self._ingest_lead_event(
             lead,
             "lost",
@@ -651,24 +668,35 @@ class MarketingCrmService(models.AbstractModel):
         after_tracking_id = max(int(after_tracking_id or 0), 0)
         limit = min(max(int(limit or 200), 1), 1000)
         created = self._existing_lead_event(lead, "lead_created", "created")
-        created_sequence = 0
-        if created and created.snapshot_json:
-            created_sequence = int(
-                created.snapshot_json.get("extensions", {}).get(
-                    "crm.transition_sequence"
-                )
-                or 0
+        if not created:
+            self._ingest_lead_event(
+                lead,
+                "lead_created",
+                "created",
+                occurred_at=lead.create_date or fields.Datetime.now(),
+                extensions={"crm.lead_type": lead.type},
             )
-        created_extensions = {"crm.lead_type": lead.type}
-        if created_sequence:
-            created_extensions["crm.transition_sequence"] = created_sequence
-        self._ingest_lead_event(
-            lead,
-            "lead_created",
-            "created",
-            occurred_at=lead.create_date or fields.Datetime.now(),
-            extensions=created_extensions,
+        events = (
+            self.env["marketing.business.event"]
+            .sudo()
+            .search(
+                [
+                    ("company_id", "=", company.id),
+                    ("source_system", "=", "odoo.crm"),
+                    ("source_model", "=", "crm.lead"),
+                    ("source_res_id", "=", lead.id),
+                ]
+            )
         )
+        watermarks = [
+            event.snapshot_json["extensions"]["crm.tracking_watermark"]
+            for event in events
+            if "crm.tracking_watermark" in event.snapshot_json.get("extensions", {})
+        ]
+        # Odoo creates chatter tracking at precommit, after the live sequence
+        # events already exist. Only history preceding live capture needs
+        # importing; later chatter rows describe those same occurrences.
+        historical_domain = [("id", "<=", min(watermarks))] if watermarks else []
         tracking_values = (
             self.env["mail.tracking.value"]
             .sudo()
@@ -678,7 +706,8 @@ class MarketingCrmService(models.AbstractModel):
                     ("mail_message_id.model", "=", "crm.lead"),
                     ("mail_message_id.res_id", "=", lead.id),
                     ("field.name", "in", ["stage_id", "active"]),
-                ],
+                ]
+                + historical_domain,
                 order="id asc",
                 limit=limit,
             )

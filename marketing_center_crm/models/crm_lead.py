@@ -62,11 +62,18 @@ class CrmLead(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        leads = super().create(vals_list)
-        if (
+        internal_write = (
             self.env.context.get("marketing_crm_event_write_token")
             is MARKETING_CRM_EVENT_WRITE_TOKEN
+        )
+        protected = {"marketing_event_sequence", "marketing_event_company_id"}
+        if not internal_write and (
+            any(protected & set(values) for values in vals_list)
+            or any(self.env.context.get("default_%s" % name) for name in protected)
         ):
+            raise AccessError(_("The marketing event scope is managed internally."))
+        leads = super().create(vals_list)
+        if internal_write:
             return leads
         service = self.env["marketing.crm.service"]
         for lead in leads:
@@ -79,6 +86,7 @@ class CrmLead(models.Model):
                 extensions={
                     "crm.lead_type": lead.type,
                     "crm.transition_sequence": sequence,
+                    "crm.tracking_watermark": 0,
                 },
             )
         return leads
@@ -147,6 +155,7 @@ class CrmLead(models.Model):
                     occurrence_ref,
                     occurred_at=tracking.mail_message_id.date if tracking else now,
                     sequence=sequence,
+                    tracking_watermark=watermark,
                 )
             if became_lost:
                 tracking = by_field.get("active") or by_field.get("lost_reason_id")
@@ -160,6 +169,7 @@ class CrmLead(models.Model):
                     occurrence_ref,
                     occurred_at=tracking.mail_message_id.date if tracking else now,
                     sequence=sequence,
+                    tracking_watermark=watermark,
                     lost_reason=(
                         lead.lost_reason_id
                         or self.env["crm.lost.reason"].browse(

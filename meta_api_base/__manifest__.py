@@ -1,7 +1,7 @@
 {
     "name": "Meta API Base",
     "summary": "Provider-neutral Meta Graph transport and webhook authentication",
-    "version": "16.0.1.1.1",
+    "version": "16.0.1.0.0",
     "category": "Technical",
     "author": "Soloz Technologies",
     "website": "https://github.com/soloztech/marketing-center",

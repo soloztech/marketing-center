@@ -27,8 +27,9 @@ class AccountPartialReconcile(models.Model):
             self.env.context.get("marketing_account_internal_write_token")
             is MARKETING_ACCOUNT_INTERNAL_WRITE_TOKEN
         )
-        if not internal and any(
-            "marketing_account_event_claimed" in values for values in vals_list
+        if not internal and (
+            any("marketing_account_event_claimed" in values for values in vals_list)
+            or self.env.context.get("default_marketing_account_event_claimed")
         ):
             raise AccessError(
                 _("The payment-allocation marketing claim is managed internally.")

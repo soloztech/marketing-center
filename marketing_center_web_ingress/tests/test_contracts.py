@@ -110,6 +110,26 @@ class TestWebIngressPureContract(ContractTestCase):
             ):
                 self._parse(self._payload(**{field_name: "must-not-enter"}))
 
+    def test_server_timestamp_does_not_change_claim_identity(self):
+        original = self._parse(self._organic_link_payload())
+        replay = self._parse(
+            self._organic_link_payload(occurred_at="2026-09-01T12:00:05Z")
+        )
+        self.assertNotEqual(
+            canonical_request_digest(original), canonical_request_digest(replay)
+        )
+        self.assertEqual(
+            canonical_request_digest(original, server_assigned_timestamp=True),
+            canonical_request_digest(replay, server_assigned_timestamp=True),
+        )
+        changed_session = self._parse(
+            self._organic_link_payload(session_ref="different-session-001")
+        )
+        self.assertNotEqual(
+            canonical_request_digest(original, server_assigned_timestamp=True),
+            canonical_request_digest(changed_session, server_assigned_timestamp=True),
+        )
+
     def test_rejects_nested_or_invalid_click_values(self):
         with self.assertRaises(WebIngressContractError):
             self._parse(self._payload(gclid={"raw": "nested"}))

@@ -1,7 +1,7 @@
 {
     "name": "Marketing Center - Web Ingress",
     "summary": "Provider-neutral first-party web attribution ingress",
-    "version": "16.0.2.1.1",
+    "version": "16.0.1.0.0",
     "category": "Marketing",
     "author": "Soloz Technologies",
     "website": "https://github.com/soloztech/marketing-center",

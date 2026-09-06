@@ -15,6 +15,10 @@ from odoo.addons.marketing_center_base.services.dto import (
     sha256_text,
 )
 from odoo.addons.marketing_center_base.services.scheduler import fair_scheduler_batch
+from odoo.addons.marketing_center_base.services.serialization import (
+    MarketingSerializationFailure,
+    acquire_advisory_xact_lock,
+)
 from odoo.addons.meta_api_base.services.errors import (
     MetaApiError,
     MetaApiPausedError,
@@ -1608,8 +1612,10 @@ class MarketingCenterMetaLeadService(models.AbstractModel):
             route.meta_app_id.id,
             leadgen_id,
         )
-        self.env.cr.execute(
-            "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", [lock_key]
+        acquire_advisory_xact_lock(
+            self.env.cr,
+            lock_key,
+            "Concurrent Meta lead submission requires a fresh snapshot",
         )
         submission = model.search(domain, limit=1)
         if submission:
@@ -1662,11 +1668,17 @@ class MarketingCenterMetaLeadService(models.AbstractModel):
                         "hint_sha256": hint_sha256,
                     }
                 )
-        except pg_errors.UniqueViolation:
-            submission = model.search(domain, limit=1)
-            if not submission:
+        except pg_errors.UniqueViolation as error:
+            if error.diag.constraint_name != (
+                "marketing_center_meta_lead_submission_app_lead_unique"
+            ):
                 raise
-            return submission
+            # Another writer may have committed after this transaction's
+            # earlier route lookup established its REPEATABLE READ snapshot.
+            # Searching again cannot observe that row; retry the transaction.
+            raise MarketingSerializationFailure(
+                "Concurrent Meta lead submission requires a fresh snapshot"
+            ) from None
 
     @api.model
     def _route_is_current(

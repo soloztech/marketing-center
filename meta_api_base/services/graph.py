@@ -22,6 +22,7 @@ _GRAPH_PATH_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*$")
 _META_APP_ID_PATTERN = re.compile(r"^[0-9]{1,64}$")
 _GRAPH_MAX_PATH_BYTES = 2 * 1024
 _GRAPH_MAX_REQUEST_BYTES = 2 * 1024 * 1024
+_GRAPH_MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 _GRAPH_MAX_REQUEST_DEPTH = 32
 _GRAPH_MAX_REQUEST_NODES = 10_000
 _GRAPH_MAX_INTEGER_BITS = 4096
@@ -386,6 +387,37 @@ def _raise_graph_error(response, payload, *, mutating):
     )
 
 
+def _validated_files(files, method, json_data):
+    """Accept one bounded in-memory multipart file, never a path or stream."""
+
+    if files is None:
+        return None
+    if method != "POST" or json_data is not None or not isinstance(files, dict):
+        raise MetaApiError("Meta Graph multipart requires a POST form body")
+    if len(files) != 1:
+        raise MetaApiError("Meta Graph multipart requires exactly one file")
+    for name, value in files.items():
+        if (
+            not isinstance(name, str)
+            or not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", name)
+            or name in _CALLER_FORBIDDEN_KEYS
+            or not isinstance(value, tuple)
+            or len(value) != 3
+        ):
+            raise MetaApiError("Meta Graph multipart file is invalid")
+        filename, content, mimetype = value
+        if (
+            not isinstance(filename, str)
+            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,199}", filename)
+            or not isinstance(content, bytes)
+            or not 0 < len(content) <= _GRAPH_MAX_UPLOAD_BYTES
+            or not isinstance(mimetype, str)
+            or not re.fullmatch(r"[a-z0-9.+-]+/[a-z0-9.+-]+", mimetype)
+        ):
+            raise MetaApiError("Meta Graph multipart file is invalid")
+    return dict(files)
+
+
 def graph_request(
     app,
     access_token,
@@ -395,6 +427,7 @@ def graph_request(
     params=None,
     data=None,
     json_data=None,
+    files=None,
     mutating=False,
     max_response_bytes=256 * 1024,
 ):
@@ -411,6 +444,7 @@ def graph_request(
         or not 1024 <= max_response_bytes <= 1024 * 1024
     ):
         raise MetaApiError("Meta Graph response limit is invalid")
+    files = _validated_files(files, str(method or "").upper(), json_data)
     app, method, path, params, data, json_data = _validated_request(
         app, access_token, method, path, params, data, json_data
     )
@@ -429,6 +463,7 @@ def graph_request(
             timeout=_GRAPH_TIMEOUT,
             allow_redirects=False,
             stream=True,
+            **({"files": files} if files else {}),
         )
     except requests.RequestException:
         error_class = (
