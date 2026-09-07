@@ -31,7 +31,7 @@ um perfil de instalação; ele não acrescenta um 15º domínio.
 | Domínio Odoo | `marketing_center_contact_center`     | Converte aquisição e episódios de atendimento do Contact Center em evidência/eventos de marketing, sem mover a mensageria para este projeto.                                                                        |
 | Cola         | `marketing_center_website_crm`        | Correlaciona, de forma idempotente, o sucesso de um formulário nativo com o lead criado. Existe porque Website e CRM continuam opcionais e nenhum deve depender do outro.                                           |
 | Cola         | `marketing_center_meta_crm`           | Projeta uma submissão autenticada de Meta Lead Ads no CRM quando essa política estiver habilitada.                                                                                                                  |
-| Cola         | `marketing_center_contact_center_crm` | Converge casos/leads do Contact Center com a atribuição de marketing quando os dois domínios estão instalados.                                                                                                      |
+| Cola         | `marketing_center_contact_center_crm` | Converge conversas/leads do Contact Center, sem exigir Kanban com a atribuição de marketing quando os dois domínios estão instalados.                                                                               |
 | Cola         | `marketing_center_sale_account`       | Preserva a ligação causal tipada entre pedido e fatura/recebimento sem fazer Vendas depender da Contabilidade, ou o inverso.                                                                                        |
 
 Os addons compartilhados `google_api_base`, `meta_api_base` e `meta_webhook_base` são

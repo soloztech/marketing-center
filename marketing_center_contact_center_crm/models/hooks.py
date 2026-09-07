@@ -1,25 +1,39 @@
 from odoo import api, models
 
 
-class ContactCenterCrmCaseLink(models.Model):
-    _inherit = "contact.center.crm.case.link"
+class ContactCenterCrmConversationLink(models.Model):
+    _inherit = "contact.center.crm.conversation.link"
 
     @api.model_create_multi
     def create(self, vals_list):
         links = super().create(vals_list)
         # Persist only bounded queue intents in the originating request.  The
-        # potentially large case x touchpoint projection runs after commit.
-        self.env["marketing.contact.center.crm.service"].sudo()._enqueue_case_links(
-            links
-        )
+        # potentially large conversation link x touchpoint projection runs after commit.
+        self.env[
+            "marketing.contact.center.crm.service"
+        ].sudo()._enqueue_conversation_links(links)
         return links
 
-    def _contact_center_before_tombstone(self, reason):
+    def _transfer_to_lead(self, lead):
+        result = super()._transfer_to_lead(lead)
+        # Native CRM merge preserves the link ID while replacing lead_id.
+        # Rebuild the current assertion identity after commit; Marketing's own
+        # merge ledger preserves the original evidence in the meantime.
+        self.env[
+            "marketing.contact.center.crm.service"
+        ].sudo()._enqueue_conversation_links(
+            self.filtered(lambda link: link.state == "active" and bool(link.lead_id))
+        )
+        return result
+
+    def _before_tombstone(self, reason):
         # The Contact Center core invokes this hook only after its graph lock and
         # repeated authorization check, while the live CRM identity is still
         # available. Revocation and tombstone therefore share one transaction.
-        result = super()._contact_center_before_tombstone(reason)
-        self.env["marketing.contact.center.crm.service"].sudo()._revoke_case_links(self)
+        result = super()._before_tombstone(reason)
+        self.env[
+            "marketing.contact.center.crm.service"
+        ].sudo()._revoke_conversation_links(self)
         return result
 
 

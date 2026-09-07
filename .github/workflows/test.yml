@@ -48,7 +48,7 @@ jobs:
     name: ${{ matrix.name }}
     env:
       PIP_CONSTRAINT: ${{ github.workspace }}/constraints.txt
-      PEER_REF: ${{ inputs.peer_ref || '751f38ef7ea8f342c58c1d7d7325f2c0249ac817' }}
+      PEER_REF: ${{ inputs.peer_ref || '4c32f049d2f0bb006a29ed06f2c41b4146e8c380' }}
     strategy:
       fail-fast: false
       matrix:
@@ -94,7 +94,7 @@ jobs:
           sibling_root="${sibling_parent}/contact-center"
           mv "${GITHUB_WORKSPACE}/.ci-private-dependency/contact-center" "${sibling_root}"
           python -m pip install --editable "${sibling_root}/setup/contact_center_base"
-          python -m pip install --editable "${sibling_root}/setup/contact_center_kanban"
+          python -m pip install --editable "${sibling_root}/setup/contact_center_ui"
           python -m pip install --editable "${sibling_root}/setup/contact_center_crm"
       - name: Install addons and dependencies
         run: oca_install_addons
@@ -108,6 +108,16 @@ jobs:
         run: oca_init_test_database
       - name: Run tests
         run: oca_run_tests
+      - name: Verify Marketing suite does not install Kanban
+        run: |
+          python - <<'PYTHON'
+          import os
+          import psycopg2
+          with psycopg2.connect(dbname=os.environ["PGDATABASE"]) as connection:
+              with connection.cursor() as cursor:
+                  cursor.execute("SELECT (SELECT count(*) FROM ir_module_module WHERE name = 'contact_center_crm' AND state = 'installed') = 1 AND NOT EXISTS (SELECT 1 FROM ir_module_module WHERE name = 'contact_center_kanban' AND state = 'installed') AND NOT EXISTS (SELECT 1 FROM ir_model WHERE model = 'contact.center.case')")
+                  assert cursor.fetchone()[0], "CRM must install without Kanban or case models"
+          PYTHON
       - name: Upload screenshots from JS tests
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: ${{ failure() }}

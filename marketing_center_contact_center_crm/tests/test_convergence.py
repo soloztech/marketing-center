@@ -14,7 +14,9 @@ from odoo.addons.contact_center_base.services.dto import AdapterResult
 from odoo.addons.contact_center_base.services.tokens import (
     CONTACT_CENTER_ATTRIBUTION_TOKEN,
 )
-from odoo.addons.contact_center_crm.models.stage_sync import stage_sync_graph_is_locked
+from odoo.addons.contact_center_crm.models.conversation_link import (
+    conversation_graph_is_locked,
+)
 from odoo.addons.marketing_center_contact_center_crm.models import (
     crm_lead as bridge_crm_lead,
     service as bridge_service,
@@ -70,22 +72,6 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
                 }
             )
         )
-        cls.pipeline = cls.env["contact.center.pipeline"].create(
-            {
-                "name": "CC marketing pipeline %s" % suffix,
-                "code": "cc-marketing-%s" % uuid.uuid4().hex[:8],
-                "company_id": cls.env.company.id,
-            }
-        )
-        cls.env["contact.center.pipeline.stage"].create(
-            {
-                "name": "Temporary local initial",
-                "code": "local-initial",
-                "pipeline_id": cls.pipeline.id,
-                "sequence": 1,
-                "is_initial": True,
-            }
-        )
         cls.crm_team = cls.env["crm.team"].create(
             {
                 "name": "CC marketing CRM %s" % suffix,
@@ -100,27 +86,11 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
                 "team_id": cls.crm_team.id,
             }
         )
-        cls.pipeline_binding = cls.env["contact.center.crm.pipeline.binding"].create(
-            {
-                "pipeline_id": cls.pipeline.id,
-                "crm_team_id": cls.crm_team.id,
-            }
-        )
-        cls.stage_binding = cls.env["contact.center.crm.stage.binding"].search(
-            [
-                ("pipeline_binding_id", "=", cls.pipeline_binding.id),
-                ("crm_stage_id", "=", cls.crm_stage.id),
-                ("active", "=", True),
-            ],
-            limit=1,
-        )
         cls.team = cls.env["contact.center.team"].create(
             {
                 "name": "CC marketing team %s" % suffix,
                 "company_id": cls.env.company.id,
                 "agent_ids": [(6, 0, cls.user.ids)],
-                "pipeline_ids": [(6, 0, cls.pipeline.ids)],
-                "default_pipeline_id": cls.pipeline.id,
             }
         )
         cls.account = cls.env["contact.center.account"].create(
@@ -130,7 +100,6 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
                 "platform": "whatsapp",
                 "external_ref": "cc-marketing-account-%s" % suffix,
                 "default_team_id": cls.team.id,
-                "default_pipeline_id": cls.pipeline.id,
             }
         )
         cls.connection = cls.env["contact.center.provider.connection"].create(
@@ -189,19 +158,15 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
             }
         )
 
-    def _link_case(self, case, lead, reconcile=True):
-        if case.stage_id != self.stage_binding.stage_id:
-            case.with_user(self.user).action_transition(self.stage_binding.stage_id.id)
-        case.with_user(self.user).action_link_crm_lead(lead.id)
-        case_link = self.env["contact.center.crm.case.link"].search(
-            [("case_id", "=", case.id), ("lead_id", "=", lead.id)],
-            limit=1,
+    def _link_conversation(self, channel, lead, reconcile=True):
+        link = (
+            self.env["contact.center.crm.conversation.link"]
+            .with_user(self.user)
+            ._link(channel.with_user(self.user), lead.with_user(self.user))
         )
         if reconcile:
-            case_link.company_id._job_marketing_contact_center_crm_case_link(
-                case_link.id
-            )
-        return case_link
+            link.company_id._job_marketing_contact_center_crm_conversation_link(link.id)
+        return link
 
     def _source_and_projection(
         self,
@@ -268,15 +233,14 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
             )
         return source, bridge_link
 
-    def _default_case(self, channel):
-        return channel.contact_center_case_ids.filtered("is_default")
+    def test_conversation_first_then_attribution_converges(self):
+        channel, binding = self._channel("conversation-first")
+        lead = self._lead("Conversation first")
+        self._link_conversation(channel, lead)
 
-    def test_case_first_then_attribution_converges(self):
-        channel, binding = self._channel("case-first")
-        lead = self._lead("Case first")
-        self._link_case(self._default_case(channel), lead)
-
-        _source, bridge_link = self._source_and_projection(binding, "case-first")
+        _source, bridge_link = self._source_and_projection(
+            binding, "conversation-first"
+        )
 
         links = self.env["marketing.attribution.crm.link"].search(
             [
@@ -285,11 +249,12 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
             ]
         )
         self.assertEqual(len(links), 1)
-        self.assertIn("contact_center:case:", links.source_ref)
+        self.assertIn("contact_center:conversation:", links.source_ref)
 
-    def test_prebaseline_assertion_cannot_replace_current_case_link_identity(self):
+    def test_prebaseline_assertion_cannot_replace_current_conversation_link_identity(
+        self,
+    ):
         channel, binding = self._channel("current-assertion-identity")
-        case = self._default_case(channel)
         lead = self._lead("Current assertion identity")
         _source, bridge = self._source_and_projection(
             binding, "current-assertion-identity"
@@ -298,20 +263,20 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
         prebaseline = self.env["marketing.crm.service"]._link_touchpoint_lead(
             touchpoint,
             lead,
-            "contact_center:case:%s:canonical:%s"
-            % (case.case_ref, touchpoint.canonical_key),
-            authority_key="contact_center.case",
-            authority_ref=case.case_ref,
+            "contact_center:conversation:%s:canonical:%s"
+            % (str(channel.id), touchpoint.canonical_key),
+            authority_key="contact_center.conversation",
+            authority_ref=str(channel.id),
             assertion_ref="prebaseline-contact-center:%s" % uuid.uuid4(),
         )
 
-        case_link = self._link_case(case, lead)
+        conversation_link = self._link_conversation(channel, lead)
         assertions = self.env["marketing.attribution.crm.link"].search(
             [
                 ("touchpoint_id", "=", touchpoint.id),
                 ("lead_id", "=", lead.id),
-                ("authority_key", "=", "contact_center.case"),
-                ("authority_ref", "=", case.case_ref),
+                ("authority_key", "=", "contact_center.conversation"),
+                ("authority_ref", "=", str(channel.id)),
             ]
         )
 
@@ -320,43 +285,30 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
         current = assertions - prebaseline
         self.assertEqual(
             current.assertion_ref,
-            "case-link:%s:canonical:%s:lead:%s"
-            % (case_link.id, touchpoint.canonical_key, lead.id),
+            "conversation-link:%s:canonical:%s:lead:%s"
+            % (conversation_link.id, touchpoint.canonical_key, lead.id),
         )
         self.assertEqual(self.convergence._reconcile_channel(channel), current)
 
-    def test_attribution_first_then_case_converges(self):
+    def test_attribution_first_then_conversation_converges(self):
         channel, binding = self._channel("attribution-first")
         _source, bridge_link = self._source_and_projection(binding, "attribution-first")
         self.assertFalse(bridge_link.marketing_touchpoint_id.crm_link_ids)
 
         lead = self._lead("Attribution first")
-        self._link_case(self._default_case(channel), lead)
+        self._link_conversation(channel, lead)
 
         self.assertEqual(
             bridge_link.marketing_touchpoint_id.crm_link_ids.mapped("lead_id"), lead
         )
 
-    def test_many_cases_many_leads_and_replay_are_idempotent(self):
-        channel, binding = self._channel("many-cases")
-        first_case = self._default_case(channel)
-        second_case = (
-            self.env["contact.center.case"]
-            .with_user(self.user)
-            .create(
-                {
-                    "name": "Second marketing case",
-                    "channel_id": channel.id,
-                    "pipeline_id": self.pipeline.id,
-                    "stage_id": self.stage_binding.stage_id.id,
-                }
-            )
-        )
+    def test_many_links_many_leads_and_replay_are_idempotent(self):
+        channel, binding = self._channel("many-links")
         leads = self._lead("Proposal A") | self._lead("Proposal B")
-        self._link_case(first_case, leads[0])
-        self._link_case(second_case, leads[1])
-        _source_a, bridge_a = self._source_and_projection(binding, "many-cases-a")
-        _source_b, bridge_b = self._source_and_projection(binding, "many-cases-b")
+        self._link_conversation(channel, leads[0])
+        self._link_conversation(channel, leads[1])
+        _source_a, bridge_a = self._source_and_projection(binding, "many-links-a")
+        _source_b, bridge_b = self._source_and_projection(binding, "many-links-b")
 
         touchpoints = (
             bridge_a.marketing_touchpoint_id | bridge_b.marketing_touchpoint_id
@@ -388,7 +340,7 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
         touchpoints = self.env["marketing.attribution.touchpoint"]
         for label in ("conversation-a", "conversation-b"):
             channel, binding = self._channel(label)
-            self._link_case(self._default_case(channel), lead)
+            self._link_conversation(channel, lead)
             _source, bridge = self._source_and_projection(binding, label)
             touchpoints |= bridge.marketing_touchpoint_id
 
@@ -397,22 +349,21 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
         )
         self.assertEqual(len(links), 2)
 
-    def test_case_unlink_revokes_only_its_authority_and_relink_recovers(self):
+    def test_conversation_unlink_revokes_only_its_authority_and_relink_recovers(self):
         channel, binding = self._channel("authority-revocation")
-        case = self._default_case(channel)
         lead = self._lead("Authority revocation")
-        case_link = self._link_case(case, lead)
+        conversation_link = self._link_conversation(channel, lead)
         _source, bridge = self._source_and_projection(binding, "authority-revocation")
         touchpoint = bridge.marketing_touchpoint_id
-        case_assertion = self.env["marketing.attribution.crm.link"].search(
+        conversation_assertion = self.env["marketing.attribution.crm.link"].search(
             [
                 ("touchpoint_id", "=", touchpoint.id),
                 ("lead_id", "=", lead.id),
-                ("authority_key", "=", "contact_center.case"),
-                ("authority_ref", "=", case.case_ref),
+                ("authority_key", "=", "contact_center.conversation"),
+                ("authority_ref", "=", str(channel.id)),
             ]
         )
-        self.assertEqual(len(case_assertion), 1)
+        self.assertEqual(len(conversation_assertion), 1)
 
         manual_assertion = self.env["marketing.crm.service"]._link_touchpoint_lead(
             touchpoint,
@@ -431,39 +382,41 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
         )
         self.assertEqual(effective.assertion_count, 2)
 
-        case_link.action_unlink()
-        case_link.invalidate_recordset(["lead_id", "state"])
-        self.assertFalse(case_link.lead_id)
-        self.assertEqual(case_link.state, "unlinked")
-        self.assertEqual(len(case_assertion.revocation_ids), 1)
+        conversation_link._tombstone()
+        conversation_link.invalidate_recordset(["lead_id", "state"])
+        self.assertFalse(conversation_link.lead_id)
+        self.assertEqual(conversation_link.state, "unlinked")
+        self.assertEqual(len(conversation_assertion.revocation_ids), 1)
         self.assertFalse(manual_assertion.revocation_ids)
         effective = self.env["marketing.attribution.crm.effective.link"].search(
             effective_domain
         )
         self.assertEqual(effective.assertion_count, 1)
 
-        new_case_link = self._link_case(case, lead)
-        self.assertNotEqual(new_case_link.id, case_link.id)
-        active_case_assertions = self.env["marketing.attribution.crm.link"].search(
+        new_conversation_link = self._link_conversation(channel, lead)
+        self.assertNotEqual(new_conversation_link.id, conversation_link.id)
+        active_conversation_assertions = self.env[
+            "marketing.attribution.crm.link"
+        ].search(
             [
                 ("touchpoint_id", "=", touchpoint.id),
                 ("lead_id", "=", lead.id),
-                ("authority_key", "=", "contact_center.case"),
-                ("authority_ref", "=", case.case_ref),
+                ("authority_key", "=", "contact_center.conversation"),
+                ("authority_ref", "=", str(channel.id)),
                 ("revocation_ids", "=", False),
             ]
         )
-        self.assertEqual(len(active_case_assertions), 1)
+        self.assertEqual(len(active_conversation_assertions), 1)
         effective = self.env["marketing.attribution.crm.effective.link"].search(
             effective_domain
         )
         effective.invalidate_recordset(["assertion_count"])
         self.assertEqual(effective.assertion_count, 2)
 
-    def test_case_unlink_removes_projection_without_other_authority(self):
+    def test_conversation_unlink_removes_projection_without_other_authority(self):
         channel, binding = self._channel("sole-authority-revocation")
         lead = self._lead("Sole authority revocation")
-        case_link = self._link_case(self._default_case(channel), lead)
+        conversation_link = self._link_conversation(channel, lead)
         _source, bridge = self._source_and_projection(
             binding, "sole-authority-revocation"
         )
@@ -476,24 +429,23 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
             self.env["marketing.attribution.crm.effective.link"].search(domain)
         )
 
-        case_link.action_unlink()
-        case_link.invalidate_recordset(["lead_id", "state"])
-        self.assertFalse(case_link.lead_id)
-        self.assertEqual(case_link.state, "unlinked")
+        conversation_link._tombstone()
+        conversation_link.invalidate_recordset(["lead_id", "state"])
+        self.assertFalse(conversation_link.lead_id)
+        self.assertEqual(conversation_link.state, "unlinked")
 
         self.assertFalse(
             self.env["marketing.attribution.crm.effective.link"].search(domain)
         )
 
-    def test_tombstoned_case_link_is_not_replayed(self):
+    def test_tombstoned_conversation_link_is_not_replayed(self):
         channel, binding = self._channel("tombstone-replay")
-        case = self._default_case(channel)
         lead = self._lead("Tombstone replay")
-        case_link = self._link_case(case, lead)
+        conversation_link = self._link_conversation(channel, lead)
         lead.unlink()
-        case_link.invalidate_recordset(["lead_id", "state"])
-        self.assertFalse(case_link.lead_id)
-        self.assertEqual(case_link.state, "unlinked")
+        conversation_link.invalidate_recordset(["lead_id", "state"])
+        self.assertFalse(conversation_link.lead_id)
+        self.assertEqual(conversation_link.state, "unlinked")
 
         _source, bridge = self._source_and_projection(binding, "after-tombstone")
 
@@ -503,7 +455,7 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
     def test_late_conversation_resolution_converges_existing_projection(self):
         channel, binding = self._channel("late-resolution")
         lead = self._lead("Late conversation resolution")
-        self._link_case(self._default_case(channel), lead)
+        self._link_conversation(channel, lead)
         source, bridge = self._source_and_projection(
             binding,
             "late-resolution",
@@ -531,13 +483,13 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
     def test_bounded_replay_rejects_records_from_another_conversation(self):
         channel_a, _binding_a = self._channel("scope-a")
         channel_b, _binding_b = self._channel("scope-b")
-        lead = self._lead("Scoped case")
-        case_link = self._link_case(self._default_case(channel_a), lead)
+        lead = self._lead("Scoped link")
+        conversation_link = self._link_conversation(channel_a, lead)
 
         with self.assertRaises(ValidationError):
             self.convergence._reconcile_channel(
                 channel_b,
-                case_links=case_link,
+                conversation_links=conversation_link,
             )
 
     def test_non_contact_center_channel_is_rejected(self):
@@ -547,46 +499,50 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
         with self.assertRaises(ValidationError):
             self.convergence._reconcile_channel(channel)
 
-    def test_case_create_enqueues_durable_convergence_instead_of_linking_inline(self):
-        channel, binding = self._channel("queued-case-hook")
+    def test_conversation_create_enqueues_durable_convergence_instead_of_linking_inline(
+        self,
+    ):
+        channel, binding = self._channel("queued-link-hook")
         _source, bridge = self._source_and_projection(
             binding,
-            "queued-case-hook",
+            "queued-link-hook",
             reconcile=False,
         )
-        lead = self._lead("Queued case hook")
+        lead = self._lead("Queued link hook")
 
         with trap_jobs() as trap:
-            case_link = self._link_case(
-                self._default_case(channel),
+            conversation_link = self._link_conversation(
+                channel,
                 lead,
                 reconcile=False,
             )
 
             trap.assert_enqueued_job(
-                case_link.company_id._job_marketing_contact_center_crm_case_link,
-                args=(case_link.id, 0, 100),
+                self.env.company._job_marketing_contact_center_crm_conversation_link,
+                args=(conversation_link.id, 0, 100),
                 properties={
                     "identity_key": (
-                        "marketing_contact_center_crm:case:%s:after_attribution:0"
-                        % case_link.id
+                        "marketing_contact_center_crm:conversation:%s:after_attribution:0"
+                        % conversation_link.id
                     ),
                     "priority": 40,
                 },
             )
         self.assertFalse(bridge.marketing_touchpoint_id.crm_link_ids)
 
-        case_link.company_id._job_marketing_contact_center_crm_case_link(case_link.id)
+        self.env.company._job_marketing_contact_center_crm_conversation_link(
+            conversation_link.id
+        )
         self.assertEqual(
             bridge.marketing_touchpoint_id.crm_link_ids.mapped("lead_id"),
             lead,
         )
 
-    def test_case_job_pages_cross_product_and_chains_monotonic_cursor(self):
-        channel, binding = self._channel("bounded-case-job")
-        lead = self._lead("Bounded case job")
-        case_link = self._link_case(
-            self._default_case(channel),
+    def test_conversation_job_pages_cross_product_and_chains_monotonic_cursor(self):
+        channel, binding = self._channel("bounded-link-job")
+        lead = self._lead("Bounded link job")
+        conversation_link = self._link_conversation(
+            channel,
             lead,
             reconcile=False,
         )
@@ -594,23 +550,25 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
         for index in range(3):
             _source, bridge = self._source_and_projection(
                 binding,
-                "bounded-case-job-%s" % index,
+                "bounded-link-job-%s" % index,
                 reconcile=False,
             )
             bridges |= bridge
 
         with trap_jobs() as trap:
-            first = case_link.company_id._job_marketing_contact_center_crm_case_link(
-                case_link.id,
-                after_attribution_link_id=0,
-                limit=2,
+            first = (
+                self.env.company._job_marketing_contact_center_crm_conversation_link(
+                    conversation_link.id,
+                    after_attribution_link_id=0,
+                    limit=2,
+                )
             )
 
             self.assertFalse(first["done"])
             self.assertEqual(first["processed"], 2)
             trap.assert_enqueued_job(
-                case_link.company_id._job_marketing_contact_center_crm_case_link,
-                args=(case_link.id, first["last_attribution_link_id"], 2),
+                self.env.company._job_marketing_contact_center_crm_conversation_link,
+                args=(conversation_link.id, first["last_attribution_link_id"], 2),
             )
         self.assertEqual(
             self.env["marketing.attribution.crm.link"].search_count(
@@ -622,8 +580,8 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
             2,
         )
 
-        second = case_link.company_id._job_marketing_contact_center_crm_case_link(
-            case_link.id,
+        second = self.env.company._job_marketing_contact_center_crm_conversation_link(
+            conversation_link.id,
             after_attribution_link_id=first["last_attribution_link_id"],
             limit=2,
         )
@@ -639,27 +597,13 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
             3,
         )
 
-    def test_attribution_job_pages_cases_and_eventually_converges(self):
+    def test_attribution_job_pages_conversation_links_and_eventually_converges(self):
         channel, binding = self._channel("bounded-attribution-job")
-        cases = self._default_case(channel)
-        for index in range(2):
-            cases |= (
-                self.env["contact.center.case"]
-                .with_user(self.user)
-                .create(
-                    {
-                        "name": "Bounded attribution case %s" % index,
-                        "channel_id": channel.id,
-                        "pipeline_id": self.pipeline.id,
-                        "stage_id": self.stage_binding.stage_id.id,
-                    }
-                )
-            )
         leads = self.env["crm.lead"]
-        for index, case in enumerate(cases):
+        for index in range(3):
             lead = self._lead("Bounded attribution lead %s" % index)
             leads |= lead
-            self._link_case(case, lead, reconcile=False)
+            self._link_conversation(channel, lead, reconcile=False)
         _source, bridge = self._source_and_projection(
             binding,
             "bounded-attribution-job",
@@ -670,7 +614,7 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
             first = (
                 bridge.company_id._job_marketing_contact_center_crm_attribution_link(
                     bridge.id,
-                    after_case_link_id=0,
+                    after_conversation_link_id=0,
                     limit=2,
                 )
             )
@@ -679,7 +623,7 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
             self.assertEqual(first["processed"], 2)
             trap.assert_enqueued_job(
                 bridge.company_id._job_marketing_contact_center_crm_attribution_link,
-                args=(bridge.id, first["last_case_link_id"], 2),
+                args=(bridge.id, first["last_conversation_link_id"], 2),
             )
         self.assertCountEqual(
             bridge.marketing_touchpoint_id.crm_link_ids.mapped("lead_id").ids,
@@ -688,7 +632,7 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
 
         second = bridge.company_id._job_marketing_contact_center_crm_attribution_link(
             bridge.id,
-            after_case_link_id=first["last_case_link_id"],
+            after_conversation_link_id=first["last_conversation_link_id"],
             limit=2,
         )
         self.assertTrue(second["done"])
@@ -702,7 +646,7 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
     def test_bridge_fences_contact_graph_before_marketing_stage_lock(self):
         channel, _binding = self._channel("bridge-lock-order")
         lead = self._lead("Bridge lock order")
-        self._link_case(self._default_case(channel), lead)
+        self._link_conversation(channel, lead)
         next_stage = self.env["crm.stage"].create(
             {
                 "name": "CC marketing next %s" % uuid.uuid4(),
@@ -719,7 +663,7 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
             return original_graph(records, **kwargs)
 
         def record_marketing(records):
-            self.assertTrue(stage_sync_graph_is_locked(records.env))
+            self.assertTrue(conversation_graph_is_locked(records.env))
             order.append("marketing_lead")
             return original_marketing(records)
 
@@ -735,35 +679,19 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
             lead.with_user(self.user).write({"stage_id": next_stage.id})
 
         self.assertEqual(order[:2], ["contact_graph", "marketing_lead"])
-        case = self._default_case(channel)
-        stage_binding = self.env["contact.center.crm.stage.binding"].search(
-            [
-                ("pipeline_binding_id", "=", self.pipeline_binding.id),
-                ("crm_stage_id", "=", next_stage.id),
-                ("active", "=", True),
-            ],
-            limit=1,
+        self.assertEqual(lead.stage_id, next_stage)
+        self.assertEqual(
+            self.env["contact.center.crm.conversation.link"]
+            .search([("channel_id", "=", channel.id), ("state", "=", "active")])
+            .mapped("lead_id"),
+            lead,
         )
-        self.assertEqual(case.stage_id, stage_binding.stage_id)
 
     def test_bridge_fences_contact_graph_before_marketing_merge_snapshot(self):
         channel, binding = self._channel("bridge-merge-lock-order")
-        first_case = self._default_case(channel)
-        second_case = (
-            self.env["contact.center.case"]
-            .with_user(self.user)
-            .create(
-                {
-                    "name": "Second merge case",
-                    "channel_id": channel.id,
-                    "pipeline_id": self.pipeline.id,
-                    "stage_id": self.stage_binding.stage_id.id,
-                }
-            )
-        )
         leads = self._lead("Merge source") | self._lead("Merge survivor")
-        case_links = self._link_case(first_case, leads[0])
-        case_links |= self._link_case(second_case, leads[1])
+        conversation_links = self._link_conversation(channel, leads[0])
+        conversation_links |= self._link_conversation(channel, leads[1])
         _source, bridge = self._source_and_projection(
             binding,
             "bridge-merge-lock-order",
@@ -777,7 +705,7 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
             return original_graph(records, **kwargs)
 
         def record_prepare(service, merge_leads):
-            self.assertTrue(stage_sync_graph_is_locked(merge_leads.env))
+            self.assertTrue(conversation_graph_is_locked(merge_leads.env))
             order.append("marketing_merge")
             return original_prepare(service, merge_leads)
 
@@ -793,13 +721,62 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
             survivor = leads._merge_opportunity()
 
         self.assertEqual(order[:2], ["contact_graph", "marketing_merge"])
-        case_links.invalidate_recordset(["lead_id", "state"])
-        self.assertTrue(all(link.state == "active" for link in case_links))
-        self.assertEqual(case_links.mapped("lead_id"), survivor)
+        conversation_links.invalidate_recordset(["lead_id", "state"])
+        active_links = conversation_links.filtered(lambda link: link.state == "active")
+        self.assertEqual(len(active_links), 1)
+        self.assertEqual(active_links.lead_id, survivor)
         bridge.marketing_touchpoint_id.invalidate_recordset(["crm_link_ids"])
         self.assertEqual(
             bridge.marketing_touchpoint_id.crm_link_ids.mapped("lead_id"),
             survivor,
+        )
+
+    def test_merge_moves_link_and_convergence_identity_then_unlink_revokes_all(self):
+        channel_a, binding_a = self._channel("merge-distinct-a")
+        channel_b, binding_b = self._channel("merge-distinct-b")
+        leads = self._lead("Distinct merge A") | self._lead("Distinct merge B")
+        links = self._link_conversation(channel_a, leads[0])
+        links |= self._link_conversation(channel_b, leads[1])
+        _source_a, bridge_a = self._source_and_projection(binding_a, "merge-distinct-a")
+        _source_b, bridge_b = self._source_and_projection(binding_b, "merge-distinct-b")
+        original_ids = links.ids
+        with trap_jobs() as trap:
+            survivor = leads._merge_opportunity()
+            self.assertTrue(trap.enqueued_jobs)
+        links.invalidate_recordset(["lead_id", "state"])
+        self.assertEqual(links.ids, original_ids)
+        self.assertTrue(all(link.state == "active" for link in links))
+        self.assertEqual(links.mapped("lead_id"), survivor)
+        for link in links:
+            link.company_id._job_marketing_contact_center_crm_conversation_link(link.id)
+        for link, bridge in ((links[0], bridge_a), (links[1], bridge_b)):
+            expected = self.convergence._assertion_reference(
+                link, bridge.marketing_touchpoint_id
+            )
+            self.assertTrue(
+                self.env["marketing.attribution.crm.link"].search(
+                    [
+                        ("assertion_ref", "=", expected),
+                        ("lead_id", "=", survivor.id),
+                    ]
+                )
+            )
+        links[0]._tombstone()
+        self.assertFalse(
+            self.env["marketing.attribution.crm.effective.link"].search(
+                [
+                    ("touchpoint_id", "=", bridge_a.marketing_touchpoint_id.id),
+                    ("lead_id", "=", survivor.id),
+                ]
+            )
+        )
+        self.assertTrue(
+            self.env["marketing.attribution.crm.effective.link"].search(
+                [
+                    ("touchpoint_id", "=", bridge_b.marketing_touchpoint_id.id),
+                    ("lead_id", "=", survivor.id),
+                ]
+            )
         )
 
     def test_attribution_create_enqueues_inverse_bounded_job(self):
@@ -817,7 +794,7 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
                 args=(bridge.id, 0, 100),
                 properties={
                     "identity_key": (
-                        "marketing_contact_center_crm:attribution:%s:after_case:0"
+                        "marketing_contact_center_crm:attribution:%s:after_conversation:0"
                         % bridge.id
                     ),
                     "priority": 40,
@@ -827,8 +804,8 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
     def test_convergence_job_cannot_cross_company_boundary(self):
         channel, _binding = self._channel("job-company-boundary")
         lead = self._lead("Job company boundary")
-        case_link = self._link_case(
-            self._default_case(channel),
+        conversation_link = self._link_conversation(
+            channel,
             lead,
             reconcile=False,
         )
@@ -836,22 +813,24 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
             {"name": "Other convergence company %s" % uuid.uuid4()}
         )
 
-        result = other_company._job_marketing_contact_center_crm_case_link(case_link.id)
+        result = other_company._job_marketing_contact_center_crm_conversation_link(
+            conversation_link.id
+        )
 
         self.assertTrue(result["done"])
         self.assertEqual(result["processed"], 0)
 
-    def test_backfill_page_only_enqueues_bounded_case_jobs(self):
+    def test_backfill_page_only_enqueues_bounded_conversation_jobs(self):
         channel_a, _binding_a = self._channel("bounded-backfill-a")
         channel_b, _binding_b = self._channel("bounded-backfill-b")
         with trap_jobs():
-            first = self._link_case(
-                self._default_case(channel_a),
+            first = self._link_conversation(
+                channel_a,
                 self._lead("Bounded backfill A"),
                 reconcile=False,
             )
-            self._link_case(
-                self._default_case(channel_b),
+            self._link_conversation(
+                channel_b,
                 self._lead("Bounded backfill B"),
                 reconcile=False,
             )
@@ -859,35 +838,35 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
         with trap_jobs() as trap:
             result = self.convergence._reconcile_existing(
                 company=self.env.company,
-                after_case_link_id=0,
+                after_conversation_link_id=0,
                 limit=1,
             )
 
-            self.assertEqual(result["processed_case_links"], 1)
-            self.assertEqual(result["enqueued_case_links"], 1)
+            self.assertEqual(result["processed_conversation_links"], 1)
+            self.assertEqual(result["enqueued_conversation_links"], 1)
             self.assertTrue(result["has_more"])
-            self.assertEqual(result["last_case_link_id"], first.id)
+            self.assertEqual(result["last_conversation_link_id"], first.id)
             trap.assert_enqueued_job(
-                self.env.company._job_marketing_contact_center_crm_case_link,
+                self.env.company._job_marketing_contact_center_crm_conversation_link,
                 args=(first.id, 0, 100),
             )
 
     def test_convergence_locks_contact_graph_before_channel_serialization(self):
         channel, binding = self._channel("convergence-lock-order")
-        self._link_case(
-            self._default_case(channel),
+        self._link_conversation(
+            channel,
             self._lead("Convergence lock order"),
         )
         self._source_and_projection(binding, "convergence-lock-order")
         order = []
         original_graph = (
-            bridge_service.MarketingContactCenterCrmService._lock_case_link_graph
+            bridge_service.MarketingContactCenterCrmService._lock_conversation_link_graph
         )
         original_channel = bridge_service.MarketingContactCenterCrmService._lock_channel
 
-        def record_graph(service, case_links):
+        def record_graph(service, conversation_links):
             order.append("contact_graph")
-            return original_graph(service, case_links)
+            return original_graph(service, conversation_links)
 
         def record_channel(service, locked_channel):
             order.append("channel")
@@ -895,7 +874,7 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
 
         with patch.object(
             bridge_service.MarketingContactCenterCrmService,
-            "_lock_case_link_graph",
+            "_lock_conversation_link_graph",
             record_graph,
         ), patch.object(
             bridge_service.MarketingContactCenterCrmService,

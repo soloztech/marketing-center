@@ -29,10 +29,10 @@ class TestMarketingContactCenterCrmBootstrap(SavepointCase):
         with patch.object(
             type(service),
             "_reconcile_existing",
-            return_value={"last_case_link_id": 220, "has_more": True},
+            return_value={"last_conversation_link_id": 220, "has_more": True},
         ), trap_jobs() as trap:
             result = self.env.company._job_marketing_contact_center_crm_backfill(
-                after_case_link_id=20,
+                after_conversation_link_id=20,
                 limit=200,
             )
 
@@ -42,17 +42,17 @@ class TestMarketingContactCenterCrmBootstrap(SavepointCase):
                 args=(220, 200),
             )
         self.assertFalse(result["done"])
-        self.assertEqual(result["last_case_link_id"], 220)
+        self.assertEqual(result["last_conversation_link_id"], 220)
 
     def test_job_rejects_non_advancing_cursor(self):
         service = self.env["marketing.contact.center.crm.service"]
         with patch.object(
             type(service),
             "_reconcile_existing",
-            return_value={"last_case_link_id": 20, "has_more": True},
+            return_value={"last_conversation_link_id": 20, "has_more": True},
         ), self.assertRaisesRegex(ValidationError, "cursor did not advance"):
             self.env.company._job_marketing_contact_center_crm_backfill(
-                after_case_link_id=20,
+                after_conversation_link_id=20,
                 limit=200,
             )
 

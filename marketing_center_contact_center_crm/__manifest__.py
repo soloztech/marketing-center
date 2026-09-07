@@ -1,6 +1,6 @@
 {
     "name": "Marketing Center - Contact Center CRM Bridge",
-    "summary": "Converge Contact Center CRM cases with marketing attribution",
+    "summary": "Converge conversation CRM links with marketing attribution",
     "version": "16.0.1.0.0",
     "category": "Marketing",
     "author": "Soloz Technologies",
