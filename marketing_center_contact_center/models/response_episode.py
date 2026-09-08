@@ -7,6 +7,9 @@ from psycopg2 import OperationalError
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 
+from odoo.addons.contact_center_base.services.tokens import (
+    CONTACT_CENTER_DELETION_TOKEN,
+)
 from odoo.addons.marketing_center_base.services import MarketingBusinessEventDTO
 from odoo.addons.marketing_center_base.services.serialization import (
     acquire_advisory_xact_lock,
@@ -46,7 +49,12 @@ class ImmutableMarketingContactCenterEpisodeMixin(models.AbstractModel):
     def write(self, values):  # pylint: disable=method-required-super
         raise AccessError(_("Contact Center response episodes cannot be edited."))
 
-    def unlink(self):  # pylint: disable=method-required-super
+    def unlink(self):
+        if (
+            self.env.context.get("contact_center_deletion_token")
+            is CONTACT_CENTER_DELETION_TOKEN
+        ):
+            return super().unlink()
         raise AccessError(_("Contact Center response episodes cannot be deleted."))
 
 
@@ -271,7 +279,12 @@ class MarketingContactCenterResponseCursor(models.Model):
             raise AccessError(_("Contact Center response cursor scope is immutable."))
         return super().write(values)
 
-    def unlink(self):  # pylint: disable=method-required-super
+    def unlink(self):
+        if (
+            self.env.context.get("contact_center_deletion_token")
+            is CONTACT_CENTER_DELETION_TOKEN
+        ):
+            return super().unlink()
         raise AccessError(_("Contact Center response cursors cannot be deleted."))
 
     @api.constrains(

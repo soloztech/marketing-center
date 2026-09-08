@@ -495,6 +495,60 @@ class TestMarketingContactCenterLifecycleBridge(SavepointCase):
         self.assertEqual(len(self._events(channel, "interaction_started")), 1)
         self.assertEqual(len(self._events(channel, "first_human_response")), 1)
 
+    def test_deleting_conversation_keeps_canonical_marketing_events(self):
+        self.account.write({"conversation_delete_enabled": True})
+        channel, binding = self._conversation()
+        other_channel, other_binding = self._conversation()
+        for target in (binding, other_binding):
+            self._message_binding(
+                target,
+                direction="inbound",
+                origin="provider",
+                date="2026-09-01 13:00:00",
+                delivery_state="delivered",
+                skip_enqueue=True,
+            )
+            self._message_binding(
+                target,
+                direction="outbound",
+                origin="agent",
+                date="2026-09-01 13:02:00",
+                delivery_state="sent",
+                skip_enqueue=True,
+            )
+            self.episode_service._reconcile_channel(target)
+        events = self._events(channel, "interaction_started") | self._events(
+            channel, "first_human_response"
+        )
+        before = events.read(["business_event_key", "occurred_at", "snapshot_json"])
+        response_models = (
+            "marketing.contact.center.response.signal",
+            "marketing.contact.center.response.cursor",
+            "marketing.contact.center.response.episode",
+        )
+        for model in response_models:
+            self.assertTrue(
+                self.env[model].search_count([("channel_binding_id", "=", binding.id)])
+            )
+        self.env["contact.center.ui.api"].with_user(self.agent).delete_conversation(
+            channel.id
+        )
+        self.assertFalse(channel.exists())
+        self.assertFalse(binding.exists())
+        self.assertEqual(
+            events.read(["business_event_key", "occurred_at", "snapshot_json"]), before
+        )
+        for model in response_models:
+            self.assertFalse(
+                self.env[model].search_count([("channel_binding_id", "=", binding.id)])
+            )
+            self.assertTrue(
+                self.env[model].search_count(
+                    [("channel_binding_id", "=", other_binding.id)]
+                )
+            )
+        self.assertTrue(other_channel.exists())
+
     def test_external_device_closes_episode_and_next_inbound_opens_another(self):
         channel, channel_binding = self._conversation()
         self._message_binding(

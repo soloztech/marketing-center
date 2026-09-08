@@ -4,6 +4,7 @@ import re
 import uuid
 
 from psycopg2 import IntegrityError, OperationalError
+from psycopg2.errors import LockNotAvailable
 
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, ValidationError
@@ -574,6 +575,81 @@ class MetaWebhookItem(models.Model):
             if not isinstance(values.get("payload_json"), dict):
                 raise ValidationError(_("The Meta webhook item must be an object."))
         return super().create(vals_list)
+
+    def _erase_consumer_message_content(self, consumer_key):
+        """Erase an exclusive consumer's content, retaining its delivery receipt."""
+        if not _internal(self) or not isinstance(consumer_key, str) or not consumer_key:
+            raise AccessError(
+                _("Only an internal consumer can erase its message content.")
+            )
+        # Subscription writers fence and advance Endpoint revision before
+        # changing the consumer set. SHARE gives a stable ownership decision;
+        # NOWAIT avoids a lock inversion with a consumer's own account fence.
+        # A changed revision under REPEATABLE READ triggers the native retry.
+        endpoints = self.mapped("delivery_id.endpoint_id")
+        endpoints.flush_recordset(["revision"])
+        if endpoints:
+            try:
+                with self.env.cr.savepoint():
+                    self.env.cr.execute(
+                        "SELECT id FROM meta_webhook_endpoint WHERE id IN %s "
+                        "ORDER BY id FOR SHARE NOWAIT",
+                        [tuple(sorted(endpoints.ids))],
+                    )
+            except LockNotAvailable as error:
+                raise ValidationError(
+                    _(
+                        "Meta routing configuration is changing. "
+                        "Try deleting the conversation again shortly."
+                    )
+                ) from error
+        self.invalidate_recordset(["dispatch_ids", "payload_json"])
+        erased = self.browse()
+        for item in self:
+            if item.kind != "messaging" or item.company_id not in self.env.companies:
+                raise AccessError(
+                    _("Only messaging items in active companies can be erased.")
+                )
+            assets = (
+                self.env["meta.webhook.asset"]
+                .sudo()
+                .search(
+                    [
+                        ("endpoint_id", "=", item.delivery_id.endpoint_id.id),
+                        ("external_asset_id", "=", item.target_asset_id),
+                        ("object_type", "=", item.object_type),
+                    ]
+                )
+            )
+            subscriptions = (
+                self.env["meta.webhook.subscription"]
+                .sudo()
+                .search(
+                    [
+                        ("page_id", "in", assets.page_id.ids),
+                        ("object_type", "=", item.object_type),
+                        ("field_name", "=", item.event_field),
+                    ]
+                )
+            )
+            consumers = set(item.dispatch_ids.mapped("consumer_key")) | set(
+                subscriptions.mapped("consumer_key")
+            )
+            if consumers != {consumer_key}:
+                continue
+            # Preserve the original event digest/occurrence for replay dedupe.
+            # Do not alter other items in this delivery or other consumers' data.
+            super(MetaWebhookItem, item).write(
+                {
+                    "payload_json": {
+                        "schema_version": "meta.webhook.v1",
+                        "reason": "consumer_content_erased",
+                        "consumer_key": consumer_key,
+                    }
+                }
+            )
+            erased |= item
+        return erased
 
     def write(self, values):  # pylint: disable=method-required-super
         raise AccessError(_("Meta webhook item evidence is immutable."))
