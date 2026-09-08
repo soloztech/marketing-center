@@ -41,7 +41,7 @@ class TestMarketingContactCenterLifecycleBridge(SavepointCase):
                 "company_id": cls.env.company.id,
                 "platform": "whatsapp",
                 "external_ref": "marketing-lifecycle-account-%s" % suffix,
-                "default_team_id": cls.team.id,
+                "access_team_ids": [(6, 0, cls.team.ids)],
             }
         )
         cls.service = cls.env["marketing.contact.center.lifecycle.service"]
@@ -69,7 +69,7 @@ class TestMarketingContactCenterLifecycleBridge(SavepointCase):
         channel = env["mail.channel"]._contact_center_create_channel(
             account=account,
             identity=identity,
-            team=team,
+            teams=team,
             guest_ids=guest.ids,
         )
         binding = (
@@ -409,7 +409,7 @@ class TestMarketingContactCenterLifecycleBridge(SavepointCase):
                 "company_id": other_company.id,
                 "platform": "whatsapp",
                 "external_ref": "other-lifecycle-%s" % uuid.uuid4(),
-                "default_team_id": team.id,
+                "access_team_ids": [(6, 0, team.ids)],
             }
         )
         channel, channel_binding = self._conversation(
