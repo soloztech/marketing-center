@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_order_form_content_catalog" model="ir.ui.view">
+        <field name="name">sale.order.form.content.catalog</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button
+                    name="action_open_content_catalog"
+                    type="object"
+                    class="oe_stat_button"
+                    icon="fa-book"
+                    string="Content Catalog"
+                    groups="marketing_center_catalog.group_catalog_reader"
+                />
+            </xpath>
+        </field>
+    </record>
+</odoo>

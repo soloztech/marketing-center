@@ -40,6 +40,26 @@ Accounting business rules.
 See [ARCHITECTURE.md](ARCHITECTURE.md) for boundaries and installation profiles and
 [plan.md](plan.md) for the delivery record and remaining production gates.
 
+## Community content catalog
+
+[Marketing Center Catalog](catalog-plan.md) is an independently installable
+content application for company information, product families and variants, documents,
+media and FAQs. It uses direct editing without an editorial approval workflow.
+
+- `marketing_center_catalog` — standalone content catalog using native Odoo modules;
+- `marketing_center_catalog_contact_center` — optional conversation popup and composer integration;
+- `marketing_center_catalog_sale` — optional access from quotations and sales orders.
+
+These addons do not require `marketing_center_base` or the attribution bridges and
+are not included in `marketing_center_suite`. The catalog has its own menu and
+Reader/Editor groups. Grant access through the user settings after installation.
+
+Install `marketing_center_catalog` for the library alone, add
+`marketing_center_catalog_sale` for quotations, or add
+`marketing_center_catalog_contact_center` for conversations. The latter needs the
+Contact Center repository on the addons path. Source distribution does not make
+catalog records or files public. See each addon README for configuration and usage.
+
 Install the repository Python dependencies with its versioned compatibility contract:
 
 ```bash
@@ -52,8 +72,9 @@ before initializing its database, so dependency drift fails before addon tests.
 
 ## Current greenfield baseline
 
-All eighteen addons now use `16.0.1.0.0`, coordinated with the six Contact Center
-addons. The [2026-09-05 audit](reviews/2026-09-05-greenfield-audit.md) records the
+The eighteen analytics and provider addons in the original greenfield baseline
+use `16.0.1.0.0`, coordinated with the six Contact Center addons. The three
+independent content catalog addons are versioned separately. The [2026-09-05 audit](reviews/2026-09-05-greenfield-audit.md) records the
 current corrections and validation; the older laboratory totals below describe
 their historical source tree, not this candidate.
 

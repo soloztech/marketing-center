@@ -1,0 +1,5 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_catalog_subject_reader,catalog.subject.reader,model_marketing_center_catalog_subject,group_catalog_reader,1,0,0,0
+access_catalog_subject_editor,catalog.subject.editor,model_marketing_center_catalog_subject,group_catalog_editor,1,1,1,1
+access_catalog_item_reader,catalog.item.reader,model_marketing_center_catalog_item,group_catalog_reader,1,0,0,0
+access_catalog_item_editor,catalog.item.editor,model_marketing_center_catalog_item,group_catalog_editor,1,1,1,1

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+    <t
+        t-name="marketing_center_catalog.X2ManyField"
+        t-inherit="web.X2ManyField"
+        t-inherit-mode="primary"
+        owl="1"
+    >
+        <xpath expr="//div[@t-attf-class]" position="attributes">
+            <attribute
+                name="t-attf-class"
+            >o_field_x2many o_field_x2many_{{viewMode}} o_catalog_x2many</attribute>
+        </xpath>
+        <xpath expr="//div[hasclass('o_x2m_control_panel')]" position="inside">
+            <div
+                class="btn-group o_catalog_view_switch"
+                role="group"
+                aria-label="Content view"
+            >
+                <button
+                    type="button"
+                    class="btn btn-sm btn-light o_catalog_view_list"
+                    t-att-class="{active: viewMode === 'list'}"
+                    t-att-aria-pressed="viewMode === 'list' ? 'true' : 'false'"
+                    t-att-disabled="switchState.busy"
+                    t-on-click.stop="() => this.switchView('list')"
+                    title="List"
+                ><i class="fa fa-list-ul me-1" aria-hidden="true" />List</button>
+                <button
+                    type="button"
+                    class="btn btn-sm btn-light o_catalog_view_kanban"
+                    t-att-class="{active: viewMode === 'kanban'}"
+                    t-att-aria-pressed="viewMode === 'kanban' ? 'true' : 'false'"
+                    t-att-disabled="switchState.busy"
+                    t-on-click.stop="() => this.switchView('kanban')"
+                    title="Kanban"
+                ><i class="fa fa-th-large me-1" aria-hidden="true" />Kanban</button>
+            </div>
+        </xpath>
+    </t>
+</templates>

@@ -1,0 +1,184 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* marketing_center_catalog_contact_center
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 16.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-11 17:38+0000\n"
+"PO-Revision-Date: 2026-09-11 17:38+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: pt_BR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#. module: marketing_center_catalog_contact_center
+#. odoo-javascript
+#: code:addons/marketing_center_catalog_contact_center/static/src/xml/catalog_dialog.xml:0
+#, python-format
+msgid "Add to message"
+msgstr "Adicionar à mensagem"
+
+#. module: marketing_center_catalog_contact_center
+#. odoo-javascript
+#: code:addons/marketing_center_catalog_contact_center/static/src/xml/catalog_dialog.xml:0
+#, python-format
+msgid "Close"
+msgstr "Fechar"
+
+#. module: marketing_center_catalog_contact_center
+#: model:ir.model,name:marketing_center_catalog_contact_center.model_contact_center_ui_api
+msgid "Contact Center UI API v1"
+msgstr "API v1 da interface do Contact Center"
+
+#. module: marketing_center_catalog_contact_center
+#. odoo-javascript
+#: code:addons/marketing_center_catalog_contact_center/static/src/xml/catalog_dialog.xml:0
+#, python-format
+msgid "Content"
+msgstr "Conteúdo"
+
+#. module: marketing_center_catalog_contact_center
+#. odoo-javascript
+#: code:addons/marketing_center_catalog_contact_center/static/src/js/catalog_dialog.esm.js:0
+#, python-format
+msgid "Content Catalog"
+msgstr "Catálogo de Conteúdo"
+
+#. module: marketing_center_catalog_contact_center
+#. odoo-javascript
+#: code:addons/marketing_center_catalog_contact_center/static/src/js/catalog_dialog.esm.js:0
+#, python-format
+msgid ""
+"Could not add the selected content. Check its availability, the draft length"
+" and your access."
+msgstr "Não foi possível adicionar o conteúdo selecionado. Confira sua disponibilidade, o tamanho do rascunho e seu acesso."
+
+#. module: marketing_center_catalog_contact_center
+#. odoo-python
+#: code:addons/marketing_center_catalog_contact_center/models/ui_api.py:0
+#: code:addons/marketing_center_catalog_contact_center/models/ui_api.py:0
+#, python-format
+msgid "Enter a search of up to 256 characters."
+msgstr "Digite uma busca com até 256 caracteres."
+
+#. module: marketing_center_catalog_contact_center
+#. odoo-python
+#: code:addons/marketing_center_catalog_contact_center/models/ui_api.py:0
+#, python-format
+msgid "Invalid catalog selection."
+msgstr "Seleção de catálogo inválida."
+
+#. module: marketing_center_catalog_contact_center
+#. odoo-python
+#: code:addons/marketing_center_catalog_contact_center/models/ui_api.py:0
+#, python-format
+msgid "Invalid content type."
+msgstr "Tipo de conteúdo inválido."
+
+#. module: marketing_center_catalog_contact_center
+#. odoo-python
+#: code:addons/marketing_center_catalog_contact_center/models/ui_api.py:0
+#, python-format
+msgid "Invalid result page."
+msgstr "Página de resultados inválida."
+
+#. module: marketing_center_catalog_contact_center
+#. odoo-python
+#: code:addons/marketing_center_catalog_contact_center/models/ui_api.py:0
+#, python-format
+msgid "Invalid subject type."
+msgstr "Tipo de ficha inválido."
+
+#. module: marketing_center_catalog_contact_center
+#. odoo-javascript
+#: code:addons/marketing_center_catalog_contact_center/static/src/xml/catalog_dialog.xml:0
+#: code:addons/marketing_center_catalog_contact_center/static/src/xml/catalog_dialog.xml:0
+#, python-format
+msgid "Open content catalog"
+msgstr "Abrir catálogo de conteúdo"
+
+#. module: marketing_center_catalog_contact_center
+#. odoo-python
+#: code:addons/marketing_center_catalog_contact_center/models/ui_api.py:0
+#, python-format
+msgid "Select some content first."
+msgstr "Selecione algum conteúdo primeiro."
+
+#. module: marketing_center_catalog_contact_center
+#. odoo-python
+#: code:addons/marketing_center_catalog_contact_center/models/ui_api.py:0
+#, python-format
+msgid "Select up to %s records."
+msgstr "Selecione até %s registros."
+
+#. module: marketing_center_catalog_contact_center
+#. odoo-javascript
+#: code:addons/marketing_center_catalog_contact_center/static/src/js/catalog_dialog.esm.js:0
+#, python-format
+msgid ""
+"Some content was not added. The prepared items remain in the draft; check "
+"the remaining files before retrying."
+msgstr "Alguns conteúdos não foram adicionados. Os itens preparados permanecem no rascunho; confira os arquivos restantes antes de tentar novamente."
+
+#. module: marketing_center_catalog_contact_center
+#. odoo-python
+#: code:addons/marketing_center_catalog_contact_center/models/ui_api.py:0
+#, python-format
+msgid "Some selected content is no longer available to share."
+msgstr "Algum conteúdo selecionado não está mais disponível para compartilhamento."
+
+#. module: marketing_center_catalog_contact_center
+#. odoo-javascript
+#: code:addons/marketing_center_catalog_contact_center/static/src/js/catalog_dialog.esm.js:0
+#, python-format
+msgid "The conversation or draft changed. Reopen the catalog to add content."
+msgstr "A conversa ou o rascunho mudou. Reabra o catálogo para adicionar conteúdo."
+
+#. module: marketing_center_catalog_contact_center
+#. odoo-javascript
+#: code:addons/marketing_center_catalog_contact_center/static/src/js/message_composer.esm.js:0
+#, python-format
+msgid "The selected text exceeds the draft length limit."
+msgstr "O texto selecionado ultrapassa o limite do rascunho."
+
+#. module: marketing_center_catalog_contact_center
+#. odoo-python
+#: code:addons/marketing_center_catalog_contact_center/models/ui_api.py:0
+#, python-format
+msgid "This content is unavailable for this conversation."
+msgstr "Este conteúdo não está disponível para esta conversa."
+
+#. module: marketing_center_catalog_contact_center
+#. odoo-python
+#: code:addons/marketing_center_catalog_contact_center/models/ui_api.py:0
+#, python-format
+msgid "This subject is unavailable for this conversation."
+msgstr "Esta ficha não está disponível para esta conversa."
+
+#. module: marketing_center_catalog_contact_center
+#. odoo-javascript
+#: code:addons/marketing_center_catalog_contact_center/static/src/xml/catalog_dialog.xml:0
+#, python-format
+msgid ""
+"To add content, select a message draft in this conversation without another "
+"action in progress."
+msgstr "Para adicionar conteúdo, selecione um rascunho de mensagem nesta conversa sem outra ação em andamento."
+
+#. module: marketing_center_catalog_contact_center
+#. odoo-python
+#: code:addons/marketing_center_catalog_contact_center/models/ui_api.py:0
+#, python-format
+msgid "content ID"
+msgstr "ID do conteúdo"
+
+#. module: marketing_center_catalog_contact_center
+#. odoo-python
+#: code:addons/marketing_center_catalog_contact_center/models/ui_api.py:0
+#, python-format
+msgid "subject ID"
+msgstr "ID da ficha"

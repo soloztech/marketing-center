@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+    <t
+        t-name="marketing_center_catalog_contact_center.MessageComposer"
+        t-inherit="contact_center_ui.MessageComposer"
+        t-inherit-mode="extension"
+        owl="1"
+    >
+        <xpath expr="//div[hasclass('cc-composer__field')]" position="before">
+            <button
+                t-if="store.capabilities.content_catalog"
+                type="button"
+                class="cc-attachment-button cc-catalog-button"
+                title="Open content catalog"
+                aria-label="Open content catalog"
+                t-att-disabled="!canOpenContentCatalog"
+                t-on-click="openContentCatalog"
+            >
+                <i class="fa fa-book" aria-hidden="true" />
+                <span class="sr-only">Content</span>
+            </button>
+        </xpath>
+    </t>
+    <t t-name="marketing_center_catalog_contact_center.CatalogDialog" owl="1">
+        <Dialog title="title" size="'xl'">
+            <div class="o_cc_catalog">
+                <div
+                    t-if="state.error"
+                    class="alert alert-warning"
+                    role="alert"
+                    t-esc="state.error"
+                />
+                <CatalogBrowser
+                    loadSubjects.bind="loadSubjects"
+                    loadItems.bind="loadItems"
+                    searchProducts.bind="searchProducts"
+                    onSelectionChange.bind="onSelectionChange"
+                    selectionEnabled="true"
+                    selectedItems="state.selected"
+                    selectionDisabled="state.busy"
+                />
+                <p
+                    t-if="!state.busy &amp;&amp; !props.canAdd()"
+                    class="text-muted mt-3"
+                >To add content, select a message draft in this conversation without another action in progress.</p>
+            </div>
+            <t t-set-slot="footer">
+                <button
+                    type="button"
+                    class="btn btn-primary"
+                    t-on-click="addToMessage"
+                    t-att-disabled="state.busy || !selectionCount || !props.canAdd()"
+                >
+                    <i
+                        t-if="state.busy"
+                        class="fa fa-spinner fa-spin me-1"
+                    />Add to message<t t-if="selectionCount"> (<t
+                            t-esc="selectionCount"
+                        />)</t>
+                </button>
+                <button
+                    type="button"
+                    class="btn btn-secondary"
+                    t-on-click="props.close"
+                    t-att-disabled="state.busy"
+                >Close</button>
+            </t>
+        </Dialog>
+    </t>
+</templates>

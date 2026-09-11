@@ -1,0 +1,360 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<templates xml:space="preserve">
+    <t t-name="marketing_center_catalog.Browser" owl="1">
+        <div class="o_catalog_browser">
+            <div class="o_catalog_toolbar">
+                <form
+                    class="o_catalog_search"
+                    t-on-submit.prevent="() => this.search()"
+                >
+                    <i class="fa fa-search text-muted" aria-hidden="true" />
+                    <input
+                        class="form-control"
+                        t-model="state.query"
+                        placeholder="Search subjects, content or product references…"
+                        aria-label="Search catalog"
+                    />
+                    <button
+                        class="btn btn-primary"
+                        type="submit"
+                        t-att-disabled="state.loading"
+                    >Search</button>
+                </form>
+                <button
+                    t-if="props.searchProducts"
+                    class="btn btn-light o_catalog_product_toggle"
+                    t-on-click="() => state.productsOpen = !state.productsOpen"
+                    t-att-aria-expanded="state.productsOpen"
+                >
+                    <i class="fa fa-filter me-1" />Products <span
+                        t-if="state.products.length"
+                        class="badge text-bg-secondary ms-1"
+                        t-esc="state.products.length"
+                    />
+                </button>
+            </div>
+            <div t-if="state.products.length" class="d-flex flex-wrap gap-2 mb-2">
+                <span
+                    t-foreach="state.products"
+                    t-as="product"
+                    t-key="product.id"
+                    class="badge rounded-pill o_catalog_product_chip"
+                >
+                    <t t-esc="product.name" />
+                    <button
+                        class="btn btn-link p-0 ms-2"
+                        t-on-click="() => this.removeProduct(product.id)"
+                        aria-label="Remove product filter"
+                    ><i class="fa fa-times" /></button>
+                </span>
+            </div>
+            <form
+                t-if="state.productsOpen and props.searchProducts"
+                class="o_catalog_product_search mb-3"
+                t-on-submit.prevent="searchProducts"
+            >
+                <div class="input-group">
+                    <input
+                        class="form-control"
+                        t-model="state.productQuery"
+                        placeholder="Product name or reference"
+                        aria-label="Search products"
+                    />
+                    <button
+                        type="submit"
+                        class="btn btn-secondary"
+                    >Find products</button>
+                </div>
+                <div class="list-group mt-1">
+                    <button
+                        t-foreach="state.productResults"
+                        t-as="product"
+                        t-key="product.id"
+                        type="button"
+                        class="list-group-item list-group-item-action"
+                        t-on-click="() => this.chooseProduct(product)"
+                        t-esc="product.name"
+                    />
+                </div>
+            </form>
+            <nav
+                t-if="state.subject"
+                class="o_catalog_breadcrumb"
+                aria-label="Catalog navigation"
+            >
+                <button class="btn btn-link p-0" t-on-click="goHome"><i
+                        class="fa fa-th-large me-1"
+                    />All subjects</button>
+                <i class="fa fa-angle-right text-muted" />
+                <button
+                    t-if="state.item"
+                    class="btn btn-link p-0 text-truncate"
+                    t-on-click="() => state.item = null"
+                    t-esc="state.subject.name"
+                />
+                <span t-else="" class="text-truncate" t-esc="state.subject.name" />
+            </nav>
+            <div t-if="state.error" class="alert alert-warning my-2" role="alert"><t
+                    t-esc="state.error"
+                /> <button
+                    class="btn btn-link p-0"
+                    t-on-click="() => this.search()"
+                >Retry</button></div>
+            <div class="o_catalog_browser_body" t-att-aria-busy="state.loading">
+                <t t-if="!state.subject">
+                    <div class="o_catalog_subject_grid">
+                        <article
+                            t-foreach="state.subjects"
+                            t-as="subject"
+                            t-key="subject.id"
+                            class="o_catalog_subject_card"
+                            t-att-data-subject-id="subject.id"
+                        >
+                            <button
+                                type="button"
+                                class="o_catalog_subject_open"
+                                t-on-click="() => this.openSubject(subject)"
+                            >
+                                <div class="o_catalog_subject_image">
+                                    <img
+                                        t-if="subject.image_url"
+                                        t-att-src="subject.image_url"
+                                        t-att-alt="subject.name"
+                                        loading="lazy"
+                                    />
+                                    <i
+                                        t-else=""
+                                        class="fa fa-book"
+                                        aria-hidden="true"
+                                    />
+                                </div>
+                                <div class="o_catalog_subject_copy">
+                                    <h5 t-esc="subject.name" />
+                                    <div t-if="subject.counts" class="o_catalog_counts">
+                                        <span><i class="fa fa-file-text-o" /> <t
+                                                t-esc="subject.counts.information"
+                                            /> Information</span>
+                                        <span><i class="fa fa-picture-o" /> <t
+                                                t-esc="subject.counts.materials"
+                                            /> Materials</span>
+                                        <span><i class="fa fa-question-circle-o" /> <t
+                                                t-esc="subject.counts.faq"
+                                            /> FAQs</span>
+                                    </div>
+                                </div>
+                                <i
+                                    class="fa fa-angle-right text-muted align-self-center"
+                                    aria-hidden="true"
+                                />
+                            </button>
+                        </article>
+                    </div>
+                    <div
+                        t-if="!state.loading and !state.subjects.length and !state.error"
+                        class="o_catalog_empty"
+                    ><i class="fa fa-search" /><h5>No subjects found</h5><p
+                        >Try another search or remove a product filter.</p></div>
+                </t>
+                <t t-elif="state.item">
+                    <article class="o_catalog_detail">
+                        <div class="d-flex justify-content-between gap-3 mb-3">
+                            <div><h4 t-esc="state.item.name" /><span
+                                    t-if="!state.item.shareable"
+                                    class="text-muted"
+                                ><i
+                                        class="fa fa-lock me-1"
+                                    />Internal use — consultation only</span></div>
+                            <label
+                                t-if="props.selectionEnabled"
+                                class="o_catalog_item_select"
+                                t-att-data-item-id="state.item.id"
+                            >
+                                <input
+                                    type="checkbox"
+                                    t-att-checked="!!props.selectedItems[state.item.id]"
+                                    t-att-disabled="props.selectionDisabled || !state.item.shareable"
+                                    t-on-change="() => this.toggleItem(state.item)"
+                                /> Select
+                            </label>
+                        </div>
+                        <CatalogMediaPreview
+                            t-if="state.item.kind === 'file'"
+                            type="state.item.preview_kind || 'file'"
+                            url="state.item.preview_url"
+                            name="state.item.name"
+                            large="true"
+                        />
+                        <div class="o_catalog_detail_text mt-3">
+                            <t t-if="state.item.kind === 'faq'"><h5
+                                    t-if="state.item.question"
+                                    t-esc="state.item.question"
+                                /><div
+                                    t-if="state.item.answer_html"
+                                    t-out="html(state.item.answer_html)"
+                                /><p
+                                    t-else=""
+                                    class="o_catalog_plaintext"
+                                    t-esc="state.item.text"
+                                /></t>
+                            <div
+                                t-elif="state.item.body_html"
+                                t-out="html(state.item.body_html)"
+                            />
+                            <p
+                                t-else=""
+                                class="o_catalog_plaintext"
+                                t-esc="state.item.text"
+                            />
+                        </div>
+                        <div
+                            t-if="state.item.applicability"
+                            class="small text-muted mt-3"
+                        ><strong>Applies to: </strong><t
+                                t-esc="applicability(state.item)"
+                            /></div>
+                        <div class="d-flex gap-2 mt-3">
+                            <a
+                                t-if="state.item.download_url"
+                                t-att-href="state.item.download_url"
+                                class="btn btn-secondary"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            ><i class="fa fa-download me-1" />Download file</a>
+                            <a
+                                t-if="state.item.kind === 'link' and state.item.url"
+                                t-att-href="state.item.url"
+                                class="btn btn-secondary"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            ><i class="fa fa-external-link me-1" />Open link</a>
+                        </div>
+                    </article>
+                </t>
+                <t t-else="">
+                    <header class="o_catalog_subject_header">
+                        <img
+                            t-if="state.subject.image_url"
+                            t-att-src="state.subject.image_url"
+                            t-att-alt="state.subject.name"
+                        />
+                        <div><h4 t-esc="state.subject.name" /></div>
+                    </header>
+                    <div class="nav nav-tabs o_catalog_tabs" role="tablist">
+                        <button
+                            t-foreach="sections"
+                            t-as="section"
+                            t-key="section.id"
+                            class="nav-link"
+                            t-att-class="{active: state.section === section.id}"
+                            t-att-data-section="section.id"
+                            role="tab"
+                            t-att-aria-selected="state.section === section.id"
+                            t-on-click="() => this.changeSection(section.id)"
+                        >
+                            <t t-esc="section.name" /><span
+                                t-if="state.subject.counts"
+                                class="badge ms-2"
+                                t-esc="state.subject.counts[section.id]"
+                            />
+                        </button>
+                    </div>
+                    <div
+                        class="o_catalog_item_grid"
+                        t-att-class="{'o_catalog_material_grid': state.section === 'materials'}"
+                    >
+                        <article
+                            t-foreach="state.items"
+                            t-as="item"
+                            t-key="item.id"
+                            class="o_catalog_item_card"
+                            t-att-class="{'o_catalog_item_selected': props.selectedItems[item.id]}"
+                            t-att-data-item-id="item.id"
+                        >
+                            <button
+                                type="button"
+                                class="o_catalog_item_open"
+                                t-on-click="() => state.item = item"
+                            >
+                                <CatalogMediaPreview
+                                    t-if="state.section === 'materials'"
+                                    type="item.preview_kind || item.kind"
+                                    url="item.preview_url"
+                                    name="item.name"
+                                />
+                                <div class="o_catalog_item_copy"><h6
+                                        t-esc="item.name"
+                                    /><p
+                                        t-if="item.kind !== 'file'"
+                                        class="text-muted o_catalog_clamp mb-0"
+                                        t-esc="item.text"
+                                    /><span
+                                        t-if="item.file_name"
+                                        class="small text-muted o_catalog_clamp"
+                                        t-esc="item.file_name"
+                                    /></div>
+                            </button>
+                            <div class="o_catalog_item_bottom">
+                                <label
+                                    t-if="props.selectionEnabled"
+                                    class="o_catalog_item_select"
+                                    t-att-data-item-id="item.id"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        t-att-checked="!!props.selectedItems[item.id]"
+                                        t-att-disabled="props.selectionDisabled || !item.shareable"
+                                        t-on-change="() => this.toggleItem(item)"
+                                    /> Select
+                                </label>
+                                <span t-if="!item.shareable" class="small text-muted"><i
+                                        class="fa fa-lock me-1"
+                                    />Internal use</span>
+                                <span
+                                    t-elif="!props.selectionEnabled"
+                                    class="small text-muted"
+                                >Available to share</span>
+                                <button
+                                    class="btn btn-link btn-sm p-0 ms-auto"
+                                    t-on-click="() => state.item = item"
+                                >View <i class="fa fa-angle-right" /></button>
+                            </div>
+                        </article>
+                    </div>
+                    <div
+                        t-if="!state.loading and !state.items.length and !state.error"
+                        class="o_catalog_empty"
+                    ><i class="fa fa-folder-open-o" /><h5
+                        >No content in this section</h5><p
+                        >Choose another tab or change your search.</p></div>
+                </t>
+                <div
+                    t-if="state.loading"
+                    class="text-center text-muted p-4"
+                    role="status"
+                ><i class="fa fa-spinner fa-spin me-2" />Loading catalog…</div>
+                <div
+                    t-if="state.hasMore and !state.loading and !state.item and !state.error"
+                    class="text-center my-3"
+                ><button
+                        class="btn btn-secondary"
+                        t-on-click="() => this.search(true)"
+                    >Load more</button></div>
+            </div>
+        </div>
+    </t>
+    <t t-name="marketing_center_catalog.BrowseDialog" owl="1">
+        <Dialog title="title" size="'xl'">
+            <CatalogBrowser
+                loadSubjects.bind="loadSubjects"
+                loadItems.bind="loadItems"
+                searchProducts.bind="searchProducts"
+                initialProductIds="props.productIds"
+                initialProductLabels="products"
+            />
+            <t t-set-slot="footer"><button
+                    class="btn btn-secondary"
+                    t-on-click="props.close"
+                >Close</button></t>
+        </Dialog>
+    </t>
+</templates>

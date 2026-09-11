@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <menuitem
+        id="menu_catalog_root"
+        name="Content Catalog"
+        sequence="36"
+        groups="group_catalog_reader"
+        web_icon="marketing_center_catalog,static/description/icon.png"
+    />
+    <menuitem
+        id="menu_catalog_subjects"
+        name="Subjects"
+        parent="menu_catalog_root"
+        action="action_catalog_subjects"
+        sequence="10"
+    />
+    <menuitem
+        id="menu_catalog_items"
+        name="Content Library"
+        parent="menu_catalog_root"
+        action="action_catalog_items"
+        sequence="20"
+    />
+    <menuitem
+        id="menu_catalog_faq"
+        name="FAQ"
+        parent="menu_catalog_root"
+        action="action_catalog_faq"
+        sequence="30"
+    />
+</odoo>

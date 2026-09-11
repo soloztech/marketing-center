@@ -1,0 +1,349 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_catalog_item_kanban" model="ir.ui.view">
+        <field name="name">marketing.center.catalog.item.kanban</field>
+        <field name="model">marketing.center.catalog.item</field>
+        <field name="arch" type="xml">
+            <kanban class="o_catalog_item_kanban" quick_create="false">
+                <field name="name" />
+                <field name="kind" />
+                <field name="preview_kind" />
+                <field name="file_name" />
+                <field name="mimetype" />
+                <field name="question" />
+                <field name="subject_id" />
+                <field name="visibility" />
+                <field name="material_type" />
+                <field name="applicability" />
+                <templates>
+                    <t t-name="kanban-box">
+                        <div class="oe_kanban_global_click o_catalog_card">
+                            <div class="o_catalog_card__image">
+                                <field
+                                    name="preview_kind"
+                                    widget="catalog_media_preview"
+                                />
+                            </div>
+                            <div class="o_catalog_card__body">
+                                <strong class="o_catalog_card__title"><field
+                                        name="name"
+                                    /></strong>
+                                <div class="text-muted o_catalog_card__subtitle"><field
+                                        name="subject_id"
+                                    /></div>
+                                <div
+                                    t-if="record.question.raw_value"
+                                    class="o_catalog_card__summary"
+                                ><field name="question" /></div>
+                                <div class="o_catalog_card__meta">
+                                    <span class="badge text-bg-light"><field
+                                            name="kind"
+                                        /></span>
+                                    <span class="badge text-bg-light"><field
+                                            name="visibility"
+                                        /></span>
+                                </div>
+                                <div
+                                    class="text-muted o_catalog_card__applicability"
+                                ><field name="applicability" /></div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+    <record id="view_catalog_item_tree" model="ir.ui.view">
+        <field name="name">marketing.center.catalog.item.tree</field>
+        <field name="model">marketing.center.catalog.item</field>
+        <field name="arch" type="xml">
+            <tree decoration-muted="not active">
+                <field name="sequence" widget="handle" />
+                <field name="name" />
+                <field name="subject_id" />
+                <field name="kind" />
+                <field name="material_type" optional="hide" />
+                <field name="visibility" widget="badge" />
+                <field name="applicability" optional="show" />
+                <field name="company_id" groups="base.group_multi_company" />
+                <field name="active" invisible="1" />
+            </tree>
+        </field>
+    </record>
+    <record id="view_catalog_item_information_tree" model="ir.ui.view">
+        <field name="name">marketing.center.catalog.item.information.tree</field>
+        <field name="model">marketing.center.catalog.item</field>
+        <field name="priority">60</field>
+        <field name="arch" type="xml">
+            <tree class="o_catalog_information_tree">
+                <field name="name" />
+                <field name="body" widget="html" />
+            </tree>
+        </field>
+    </record>
+    <record id="view_catalog_item_material_tree" model="ir.ui.view">
+        <field name="name">marketing.center.catalog.item.material.tree</field>
+        <field name="model">marketing.center.catalog.item</field>
+        <field name="priority">60</field>
+        <field name="arch" type="xml">
+            <tree class="o_catalog_material_tree">
+                <field name="name" />
+                <field name="material_type" />
+                <field name="visibility" widget="badge" optional="hide" />
+            </tree>
+        </field>
+    </record>
+    <record id="view_catalog_item_faq_tree" model="ir.ui.view">
+        <field name="name">marketing.center.catalog.item.faq.tree</field>
+        <field name="model">marketing.center.catalog.item</field>
+        <field name="priority">60</field>
+        <field name="arch" type="xml">
+            <tree class="o_catalog_faq_tree" editable="bottom">
+                <field name="name" invisible="1" required="0" force_save="1" />
+                <field name="kind" invisible="1" />
+                <field name="question" required="1" />
+                <field
+                    name="answer"
+                    widget="html"
+                    required="1"
+                    options="{'minHeight': 48, 'maxHeight': 180}"
+                />
+            </tree>
+        </field>
+    </record>
+    <record id="view_catalog_item_form" model="ir.ui.view">
+        <field name="name">marketing.center.catalog.item.form</field>
+        <field name="model">marketing.center.catalog.item</field>
+        <field name="arch" type="xml">
+            <form string="Catalog Content">
+                <sheet>
+                    <widget
+                        name="web_ribbon"
+                        title="Archived"
+                        bg_color="bg-danger"
+                        attrs="{'invisible': [('active', '=', True)]}"
+                    />
+                    <field name="active" invisible="1" />
+                    <div class="oe_title">
+                        <label for="name" />
+                        <h1><field name="name" placeholder="Content title" /></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="subject_id" options="{'no_create': True}" />
+                            <field name="kind" />
+                            <field
+                                name="material_type"
+                                attrs="{'invisible': [('kind', 'not in', ['file', 'link'])]}"
+                            />
+                        </group>
+                        <group>
+                            <field name="visibility" />
+                            <field
+                                name="company_id"
+                                groups="base.group_multi_company"
+                            />
+                            <field name="company_id" invisible="1" />
+                            <field name="search_aliases" />
+                        </group>
+                    </group>
+                    <field
+                        name="body"
+                        attrs="{'invisible': [('kind', '!=', 'text')]}"
+                        placeholder="Company information, specifications, warranty or instructions..."
+                    />
+                    <group attrs="{'invisible': [('kind', '!=', 'faq')]}">
+                        <field
+                            name="question"
+                            attrs="{'required': [('kind', '=', 'faq')]}"
+                        />
+                    </group>
+                    <field
+                        name="answer"
+                        attrs="{'invisible': [('kind', '!=', 'faq')]}"
+                        placeholder="Answer..."
+                    />
+                    <group attrs="{'invisible': [('kind', '!=', 'file')]}">
+                        <field
+                            name="file_data"
+                            filename="file_name"
+                            attrs="{'required': [('kind', '=', 'file')]}"
+                        />
+                        <field name="file_name" invisible="1" />
+                        <field name="mimetype" invisible="1" />
+                    </group>
+                    <div
+                        class="o_catalog_form_preview"
+                        attrs="{'invisible': [('kind', '!=', 'file')]}"
+                    >
+                        <field
+                            name="preview_kind"
+                            widget="catalog_media_preview"
+                            nolabel="1"
+                            options="{'large': True}"
+                        />
+                    </div>
+                    <group attrs="{'invisible': [('kind', '!=', 'link')]}">
+                        <field
+                            name="url"
+                            widget="url"
+                            placeholder="https://..."
+                            attrs="{'required': [('kind', '=', 'link')]}"
+                        />
+                    </group>
+                    <group string="Only for these products / variants">
+                        <div
+                            class="text-muted"
+                            colspan="2"
+                        >Leave both fields empty to follow the subject's products. When searching without a product, all content is visible with its applicability.</div>
+                        <field
+                            name="product_tmpl_ids"
+                            widget="many2many_tags"
+                            options="{'no_create': True}"
+                            domain="['|', ('company_id', '=', False), ('company_id', '=', company_id)]"
+                        />
+                        <field
+                            name="product_ids"
+                            widget="many2many_tags"
+                            options="{'no_create': True}"
+                            domain="['|', ('company_id', '=', False), ('company_id', '=', company_id)]"
+                        />
+                        <field name="applicability" />
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="view_catalog_item_embedded_form" model="ir.ui.view">
+        <field name="name">marketing.center.catalog.item.embedded.form</field>
+        <field name="model">marketing.center.catalog.item</field>
+        <field name="inherit_id" ref="view_catalog_item_form" />
+        <field name="mode">primary</field>
+        <field name="priority">50</field>
+        <field name="arch" type="xml">
+            <field name="subject_id" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </field>
+        </field>
+    </record>
+    <record id="view_catalog_item_information_form" model="ir.ui.view">
+        <field name="name">marketing.center.catalog.item.information.form</field>
+        <field name="model">marketing.center.catalog.item</field>
+        <field name="inherit_id" ref="view_catalog_item_embedded_form" />
+        <field name="mode">primary</field>
+        <field name="priority">60</field>
+        <field name="arch" type="xml">
+            <field name="kind" position="attributes">
+                <attribute name="readonly">1</attribute>
+                <attribute name="force_save">1</attribute>
+            </field>
+        </field>
+    </record>
+    <record id="view_catalog_item_material_form" model="ir.ui.view">
+        <field name="name">marketing.center.catalog.item.material.form</field>
+        <field name="model">marketing.center.catalog.item</field>
+        <field name="inherit_id" ref="view_catalog_item_embedded_form" />
+        <field name="mode">primary</field>
+        <field name="priority">60</field>
+        <field name="arch" type="xml">
+            <field name="kind" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </field>
+            <field name="kind" position="after">
+                <field name="material_kind" required="1" />
+            </field>
+        </field>
+    </record>
+    <record id="view_catalog_item_faq_form" model="ir.ui.view">
+        <field name="name">marketing.center.catalog.item.faq.form</field>
+        <field name="model">marketing.center.catalog.item</field>
+        <field name="inherit_id" ref="view_catalog_item_embedded_form" />
+        <field name="mode">primary</field>
+        <field name="priority">60</field>
+        <field name="arch" type="xml">
+            <field name="kind" position="attributes">
+                <attribute name="readonly">1</attribute>
+                <attribute name="force_save">1</attribute>
+            </field>
+        </field>
+    </record>
+    <record id="view_catalog_item_search" model="ir.ui.view">
+        <field name="name">marketing.center.catalog.item.search</field>
+        <field name="model">marketing.center.catalog.item</field>
+        <field name="arch" type="xml">
+            <search string="Search Content">
+                <field
+                    name="name"
+                    string="Content"
+                    filter_domain="['|', '|', '|', '|', '|', '|', '|', '|', '|', '|', '|', '|', '|', ('name', 'ilike', self), ('body', 'ilike', self), ('question', 'ilike', self), ('answer', 'ilike', self), ('search_aliases', 'ilike', self), ('subject_id.name', 'ilike', self), ('product_tmpl_ids.name', 'ilike', self), ('product_ids.name', 'ilike', self), ('product_ids.default_code', 'ilike', self), ('product_tmpl_ids.product_variant_ids.default_code', 'ilike', self), ('subject_id.product_tmpl_ids.name', 'ilike', self), ('subject_id.product_ids.name', 'ilike', self), ('subject_id.product_ids.default_code', 'ilike', self), ('subject_id.product_tmpl_ids.product_variant_ids.default_code', 'ilike', self)]"
+                />
+                <field name="subject_id" />
+                <field name="product_tmpl_ids" />
+                <field name="product_ids" />
+                <separator />
+                <filter
+                    name="catalog_products"
+                    string="Selected Products"
+                    domain="[('catalog_matches_context', '=', True)]"
+                />
+                <separator />
+                <filter
+                    name="company"
+                    string="Company Information"
+                    domain="[('subject_id.kind', '=', 'company')]"
+                />
+                <filter name="text" string="Texts" domain="[('kind', '=', 'text')]" />
+                <filter name="faq" string="FAQ" domain="[('kind', '=', 'faq')]" />
+                <filter name="file" string="Files" domain="[('kind', '=', 'file')]" />
+                <filter name="link" string="Links" domain="[('kind', '=', 'link')]" />
+                <separator />
+                <filter
+                    name="shareable"
+                    string="Can Share with Customer"
+                    domain="[('visibility', '=', 'shareable')]"
+                />
+                <filter
+                    name="internal"
+                    string="Internal Use"
+                    domain="[('visibility', '=', 'internal')]"
+                />
+                <separator />
+                <filter
+                    name="archived"
+                    string="Archived"
+                    domain="[('active', '=', False)]"
+                />
+                <group expand="0" string="Group By">
+                    <filter
+                        name="group_subject"
+                        string="Subject"
+                        context="{'group_by': 'subject_id'}"
+                    />
+                    <filter
+                        name="group_kind"
+                        string="Content Type"
+                        context="{'group_by': 'kind'}"
+                    />
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="action_catalog_items" model="ir.actions.act_window">
+        <field name="name">Content Library</field>
+        <field name="res_model">marketing.center.catalog.item</field>
+        <field name="view_mode">kanban,tree,form</field>
+        <field name="search_view_id" ref="view_catalog_item_search" />
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Add company and product content</p>
+            <p
+            >Save text, FAQs, files and links. Saved content is immediately available to catalog readers.</p>
+        </field>
+    </record>
+    <record id="action_catalog_faq" model="ir.actions.act_window">
+        <field name="name">FAQ</field>
+        <field name="res_model">marketing.center.catalog.item</field>
+        <field name="view_mode">kanban,tree,form</field>
+        <field name="search_view_id" ref="view_catalog_item_search" />
+        <field name="context">{'search_default_faq': 1, 'default_kind': 'faq'}</field>
+    </record>
+</odoo>

@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<templates xml:space="preserve">
+    <t t-name="marketing_center_catalog.MediaPreview" owl="1">
+        <div
+            t-ref="root"
+            class="o_catalog_media"
+            t-att-class="{'o_catalog_media_large': props.large}"
+        >
+            <img
+                t-if="props.type === 'image' and props.url and !state.failed"
+                t-att-src="props.url"
+                t-att-alt="props.name || ''"
+                loading="lazy"
+                t-on-error="() => state.failed = true"
+            />
+            <iframe
+                t-elif="props.type === 'pdf' and props.url and props.large"
+                t-att-src="pdfUrl"
+                t-att-title="props.name || 'PDF'"
+            />
+            <t t-elif="props.type === 'pdf' and props.url and !state.failed">
+                <canvas
+                    t-ref="canvas"
+                    t-att-class="{'d-none': !state.ready}"
+                    t-att-aria-label="props.name || 'PDF'"
+                />
+                <i t-if="!state.ready" class="fa fa-file-pdf-o" aria-hidden="true" />
+            </t>
+            <video
+                t-elif="props.type === 'video' and props.url and props.large and !state.failed"
+                controls="controls"
+                preload="metadata"
+                t-att-src="props.url"
+                t-on-error="() => state.failed = true"
+            />
+            <div t-else="" class="o_catalog_media_fallback">
+                <i t-att-class="'fa ' + icon" aria-hidden="true" />
+                <span t-if="state.failed" class="small mt-2">Preview unavailable</span>
+            </div>
+            <span
+                t-if="props.type === 'pdf' and !props.large"
+                class="o_catalog_media_badge"
+            >PDF</span>
+            <span
+                t-if="props.type === 'video' and !props.large"
+                class="o_catalog_media_badge"
+            ><i class="fa fa-play me-1" />Video</span>
+        </div>
+    </t>
+    <t t-name="marketing_center_catalog.MediaPreviewField" owl="1">
+        <p
+            t-if="props.large and !previewUrl"
+            class="text-muted"
+        >Save to preview this file.</p>
+        <CatalogMediaPreview
+            type="props.record.data[props.name] || 'file'"
+            url="previewUrl"
+            name="props.record.data.file_name || props.record.data.name || ''"
+            large="props.large"
+        />
+    </t>
+</templates>

@@ -1,0 +1,25 @@
+.o_catalog_x2many {
+    .o_catalog_view_switch {
+        margin-left: auto;
+        gap: 0;
+
+        .btn {
+            border: 1px solid #dee2e6;
+            white-space: nowrap;
+        }
+
+        .btn.active {
+            color: #fff;
+            background-color: #71639e;
+            border-color: #71639e;
+        }
+    }
+
+    .o_x2m_control_panel {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        padding-bottom: 0.5rem;
+    }
+}

@@ -40,6 +40,26 @@ fisicamente neste repositório para simplificar versionamento e release, mas con
 oferecendo credenciais, transporte e ingresso autenticado reutilizáveis por outros
 produtos, inclusive o Contact Center. Nenhum deles depende de `marketing_center_base`.
 
+## Catálogo de Conteúdo
+
+O [plano do Marketing Center Catalog](catalog-plan.md) acrescenta uma aplicação
+comunitária de conteúdo, com instalação independente da suíte analítica descrita acima.
+Os três addons abaixo têm instalação independente e não integram a contagem dos
+componentes analíticos nem o perfil `marketing_center_suite`.
+
+| Addon                                     | Responsabilidade                                                                  | Dependências diretas                            |
+| ----------------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `marketing_center_catalog`                | Fichas de empresa/solução, produtos e variantes, textos, FAQ, documentos e mídias | `product`, `mail`, `web`, `web_editor`          |
+| `marketing_center_catalog_contact_center` | Popup e conteúdo no composer da conversa                                          | `marketing_center_catalog`, `contact_center_ui` |
+| `marketing_center_catalog_sale`           | Consulta de materiais na cotação/pedido                                           | `marketing_center_catalog`, `sale`              |
+
+O catálogo tem menu e grupos próprios, sem dependência de `marketing_center_base`. O
+catálogo externo de anúncios, o serviço `marketing.center.catalog.service` e as pontes
+de atribuição existentes mantêm suas responsabilidades. Os novos modelos editoriais são
+`marketing.center.catalog.subject` e `marketing.center.catalog.item`. Cadastro direto,
+sem aprovação editorial, permanece o escopo inicial. A distribuição pública do código
+não publica os dados cadastrados.
+
 ## Fluxo ponta a ponta
 
 ```text

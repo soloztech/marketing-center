@@ -1,0 +1,410 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<odoo>
+    <record id="view_catalog_subject_kanban" model="ir.ui.view">
+        <field name="name">marketing.center.catalog.subject.kanban</field>
+        <field name="model">marketing.center.catalog.subject</field>
+        <field name="arch" type="xml">
+            <kanban class="o_catalog_subject_kanban" quick_create="false">
+                <field name="id" />
+                <field name="name" />
+                <field name="kind" />
+                <field name="image" />
+                <field name="information_count" />
+                <field name="material_count" />
+                <field name="faq_count" />
+                <templates>
+                    <t t-name="kanban-box">
+                        <div class="oe_kanban_global_click o_catalog_card">
+                            <div class="o_catalog_card__image">
+                                <img
+                                    t-if="record.image.raw_value"
+                                    t-att-src="kanban_image('marketing.center.catalog.subject', 'image', record.id.raw_value)"
+                                    alt="Subject image"
+                                />
+                                <i
+                                    t-else=""
+                                    class="fa fa-book o_catalog_card__placeholder"
+                                    role="img"
+                                    aria-label="Catalog subject"
+                                />
+                            </div>
+                            <div class="o_catalog_card__body">
+                                <strong class="o_catalog_card__title">
+                                    <field name="name" />
+                                </strong>
+                                <div class="text-muted o_catalog_card__subtitle">
+                                    <field name="kind" />
+                                </div>
+                                <div class="o_catalog_card__counts">
+                                    <span>
+                                        <field
+                                            name="information_count"
+                                        /> Information</span>
+                                    <span>
+                                        <field name="material_count" /> Materials</span>
+                                    <span>
+                                        <field name="faq_count" /> FAQ</span>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+    <record id="view_catalog_subject_tree" model="ir.ui.view">
+        <field name="name">marketing.center.catalog.subject.tree</field>
+        <field name="model">marketing.center.catalog.subject</field>
+        <field name="arch" type="xml">
+            <tree>
+                <field name="name" />
+                <field name="kind" />
+                <field name="product_tmpl_ids" widget="many2many_tags" />
+                <field name="product_ids" widget="many2many_tags" optional="show" />
+                <field name="company_id" groups="base.group_multi_company" />
+            </tree>
+        </field>
+    </record>
+    <record id="view_catalog_subject_form" model="ir.ui.view">
+        <field name="name">marketing.center.catalog.subject.form</field>
+        <field name="model">marketing.center.catalog.subject</field>
+        <field name="arch" type="xml">
+            <form string="Catalog Subject" js_class="catalog_subject_form">
+                <sheet>
+                    <widget
+                        name="web_ribbon"
+                        title="Archived"
+                        bg_color="bg-danger"
+                        attrs="{'invisible': [('active', '=', True)]}"
+                    />
+                    <field name="active" invisible="1" />
+                    <field name="image" widget="image" class="oe_avatar" />
+                    <div class="oe_title">
+                        <label for="name" />
+                        <h1>
+                            <field name="name" placeholder="Company or solution name" />
+                        </h1>
+                    </div>
+                    <group>
+                        <field name="kind" />
+                        <field name="company_id" groups="base.group_multi_company" />
+                        <field name="company_id" invisible="1" />
+                    </group>
+                    <notebook>
+                        <page string="Information" name="information">
+                            <separator string="Structured Information" />
+                            <field
+                                name="information_ids"
+                                context="{'default_kind': 'text', 'form_view_ref': 'marketing_center_catalog.view_catalog_item_information_form'}"
+                                mode="tree,kanban"
+                                widget="catalog_x2many"
+                                options="{'default_view': 'list'}"
+                            >
+                                <tree class="o_catalog_information_tree">
+                                    <field name="name" />
+                                    <field name="body" widget="html" />
+                                </tree>
+                                <kanban
+                                    class="o_catalog_item_kanban"
+                                    quick_create="false"
+                                >
+                                    <field name="name" />
+                                    <field name="kind" />
+                                    <field name="preview_kind" />
+                                    <field name="file_name" />
+                                    <field name="mimetype" />
+                                    <field name="question" />
+                                    <field name="subject_id" />
+                                    <field name="visibility" />
+                                    <field name="material_type" />
+                                    <field name="applicability" />
+                                    <templates>
+                                        <t t-name="kanban-box">
+                                            <div
+                                                class="oe_kanban_global_click o_catalog_card"
+                                            >
+                                                <div class="o_catalog_card__image">
+                                                    <field
+                                                        name="preview_kind"
+                                                        widget="catalog_media_preview"
+                                                    />
+                                                </div>
+                                                <div class="o_catalog_card__body">
+                                                    <strong
+                                                        class="o_catalog_card__title"
+                                                    >
+                                                        <field name="name" />
+                                                    </strong>
+                                                    <div
+                                                        class="text-muted o_catalog_card__subtitle"
+                                                    >
+                                                        <field name="subject_id" />
+                                                    </div>
+                                                    <div
+                                                        t-if="record.question.raw_value"
+                                                        class="o_catalog_card__summary"
+                                                    >
+                                                        <field name="question" />
+                                                    </div>
+                                                    <div class="o_catalog_card__meta">
+                                                        <span
+                                                            class="badge text-bg-light"
+                                                        >
+                                                            <field name="kind" />
+                                                        </span>
+                                                        <span
+                                                            class="badge text-bg-light"
+                                                        >
+                                                            <field name="visibility" />
+                                                        </span>
+                                                    </div>
+                                                    <div
+                                                        class="text-muted o_catalog_card__applicability"
+                                                    >
+                                                        <field name="applicability" />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </t>
+                                    </templates>
+                                </kanban>
+                            </field>
+                            <separator string="Frequently Asked Questions" />
+                            <field
+                                name="faq_ids"
+                                context="{'default_kind': 'faq', 'form_view_ref': 'marketing_center_catalog.view_catalog_item_faq_form'}"
+                                mode="tree,kanban"
+                                widget="catalog_x2many"
+                                options="{'default_view': 'list'}"
+                            >
+                                <tree class="o_catalog_faq_tree" editable="bottom">
+                                    <field
+                                        name="name"
+                                        invisible="1"
+                                        required="0"
+                                        force_save="1"
+                                    />
+                                    <field name="kind" invisible="1" />
+                                    <field name="question" required="1" />
+                                    <field
+                                        name="answer"
+                                        widget="html"
+                                        required="1"
+                                        options="{'minHeight': 48, 'maxHeight': 180}"
+                                    />
+                                </tree>
+                                <kanban
+                                    class="o_catalog_item_kanban"
+                                    quick_create="false"
+                                >
+                                    <field name="name" />
+                                    <field name="kind" />
+                                    <field name="preview_kind" />
+                                    <field name="file_name" />
+                                    <field name="mimetype" />
+                                    <field name="question" />
+                                    <field name="subject_id" />
+                                    <field name="visibility" />
+                                    <field name="material_type" />
+                                    <field name="applicability" />
+                                    <templates>
+                                        <t t-name="kanban-box">
+                                            <div
+                                                class="oe_kanban_global_click o_catalog_card"
+                                            >
+                                                <div class="o_catalog_card__image">
+                                                    <field
+                                                        name="preview_kind"
+                                                        widget="catalog_media_preview"
+                                                    />
+                                                </div>
+                                                <div class="o_catalog_card__body">
+                                                    <strong
+                                                        class="o_catalog_card__title"
+                                                    >
+                                                        <field name="name" />
+                                                    </strong>
+                                                    <div
+                                                        class="text-muted o_catalog_card__subtitle"
+                                                    >
+                                                        <field name="subject_id" />
+                                                    </div>
+                                                    <div
+                                                        t-if="record.question.raw_value"
+                                                        class="o_catalog_card__summary"
+                                                    >
+                                                        <field name="question" />
+                                                    </div>
+                                                    <div class="o_catalog_card__meta">
+                                                        <span
+                                                            class="badge text-bg-light"
+                                                        >
+                                                            <field name="kind" />
+                                                        </span>
+                                                        <span
+                                                            class="badge text-bg-light"
+                                                        >
+                                                            <field name="visibility" />
+                                                        </span>
+                                                    </div>
+                                                    <div
+                                                        class="text-muted o_catalog_card__applicability"
+                                                    >
+                                                        <field name="applicability" />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </t>
+                                    </templates>
+                                </kanban>
+                            </field>
+                        </page>
+                        <page string="Materials" name="materials">
+                            <field
+                                name="material_ids"
+                                context="{'default_kind': 'file', 'form_view_ref': 'marketing_center_catalog.view_catalog_item_material_form'}"
+                                mode="tree,kanban"
+                                widget="catalog_x2many"
+                                options="{'default_view': 'kanban'}"
+                            >
+                                <tree class="o_catalog_material_tree">
+                                    <field name="name" />
+                                    <field name="material_type" />
+                                    <field
+                                        name="visibility"
+                                        widget="badge"
+                                        optional="hide"
+                                    />
+                                </tree>
+                                <kanban
+                                    class="o_catalog_item_kanban"
+                                    quick_create="false"
+                                >
+                                    <field name="name" />
+                                    <field name="kind" />
+                                    <field name="preview_kind" />
+                                    <field name="file_name" />
+                                    <field name="mimetype" />
+                                    <field name="question" />
+                                    <field name="subject_id" />
+                                    <field name="visibility" />
+                                    <field name="material_type" />
+                                    <field name="applicability" />
+                                    <templates>
+                                        <t t-name="kanban-box">
+                                            <div
+                                                class="oe_kanban_global_click o_catalog_card"
+                                            >
+                                                <div class="o_catalog_card__image">
+                                                    <field
+                                                        name="preview_kind"
+                                                        widget="catalog_media_preview"
+                                                    />
+                                                </div>
+                                                <div class="o_catalog_card__body">
+                                                    <strong
+                                                        class="o_catalog_card__title"
+                                                    >
+                                                        <field name="name" />
+                                                    </strong>
+                                                    <div
+                                                        class="text-muted o_catalog_card__subtitle"
+                                                    >
+                                                        <field name="subject_id" />
+                                                    </div>
+                                                    <div
+                                                        t-if="record.question.raw_value"
+                                                        class="o_catalog_card__summary"
+                                                    >
+                                                        <field name="question" />
+                                                    </div>
+                                                    <div class="o_catalog_card__meta">
+                                                        <span
+                                                            class="badge text-bg-light"
+                                                        >
+                                                            <field name="kind" />
+                                                        </span>
+                                                        <span
+                                                            class="badge text-bg-light"
+                                                        >
+                                                            <field name="visibility" />
+                                                        </span>
+                                                    </div>
+                                                    <div
+                                                        class="text-muted o_catalog_card__applicability"
+                                                    >
+                                                        <field name="applicability" />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </t>
+                                    </templates>
+                                </kanban>
+                            </field>
+                        </page>
+                        <page string="Linked Products" name="products">
+                            <group>
+                                <field
+                                    name="product_tmpl_ids"
+                                    widget="many2many_tags"
+                                    options="{'no_create': True}"
+                                    domain="['|', ('company_id', '=', False), ('company_id', '=', company_id)]"
+                                />
+                                <field
+                                    name="product_ids"
+                                    widget="many2many_tags"
+                                    options="{'no_create': True}"
+                                    domain="['|', ('company_id', '=', False), ('company_id', '=', company_id)]"
+                                />
+                            </group>
+                            <p
+                                class="text-muted"
+                            >A product template includes all its variants. A variant link applies only to that variant. Leave both fields empty for company information or content that applies to all products.</p>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="view_catalog_subject_search" model="ir.ui.view">
+        <field name="name">marketing.center.catalog.subject.search</field>
+        <field name="model">marketing.center.catalog.subject</field>
+        <field name="arch" type="xml">
+            <search string="Search Subjects">
+                <field
+                    name="name"
+                    filter_domain="['|', '|', '|', '|', '|', '|', '|', '|', '|', ('name', 'ilike', self), ('product_tmpl_ids.name', 'ilike', self), ('product_ids.name', 'ilike', self), ('product_ids.default_code', 'ilike', self), ('product_tmpl_ids.product_variant_ids.default_code', 'ilike', self), ('item_ids.name', 'ilike', self), ('item_ids.body', 'ilike', self), ('item_ids.question', 'ilike', self), ('item_ids.answer', 'ilike', self), ('item_ids.search_aliases', 'ilike', self)]"
+                />
+                <field name="product_tmpl_ids" />
+                <field name="product_ids" />
+                <filter
+                    name="company"
+                    string="Companies"
+                    domain="[('kind', '=', 'company')]"
+                />
+                <filter
+                    name="solution"
+                    string="Solutions / Products"
+                    domain="[('kind', '=', 'solution')]"
+                />
+                <separator />
+                <filter
+                    name="archived"
+                    string="Archived"
+                    domain="[('active', '=', False)]"
+                />
+            </search>
+        </field>
+    </record>
+    <record id="action_catalog_subjects" model="ir.actions.act_window">
+        <field name="name">Catalog Subjects</field>
+        <field name="res_model">marketing.center.catalog.subject</field>
+        <field name="view_mode">kanban,tree,form</field>
+        <field name="help" type="html">
+            <p
+                class="o_view_nocontent_smiling_face"
+            >Create a company or solution subject</p>
+            <p>Keep technical information, marketing materials and FAQs together.</p>
+        </field>
+    </record>
+</odoo>

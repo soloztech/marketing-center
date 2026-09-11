@@ -1,0 +1,931 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* marketing_center_catalog
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 16.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-11 17:40+0000\n"
+"PO-Revision-Date: 2026-09-11 17:40+0000\n"
+"Last-Translator: Soloz Technologies\n"
+"Language-Team: \n"
+"Language: pt_BR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.9.1\n"
+
+#. module: marketing_center_catalog
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_subject_form
+msgid ""
+"A product template includes all its variants. A variant link applies only to"
+" that variant. Leave both fields empty for company information or content "
+"that applies to all products."
+msgstr ""
+"Um produto pai inclui todas as suas variantes. Um vínculo com variante se "
+"aplica apenas a ela. Deixe os dois campos vazios para informações da empresa"
+" ou conteúdo aplicável a todos os produtos."
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_item__active
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_subject__active
+msgid "Active"
+msgstr "Ativo"
+
+#. module: marketing_center_catalog
+#: model_terms:ir.actions.act_window,help:marketing_center_catalog.action_catalog_items
+msgid "Add company and product content"
+msgstr "Adicione conteúdo da empresa e dos produtos"
+
+#. module: marketing_center_catalog
+#. odoo-python
+#: code:addons/marketing_center_catalog/models/catalog_item.py:0
+#, python-format
+msgid "All products / company information"
+msgstr "Todos os produtos / informações da empresa"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#, python-format
+msgid "All subjects"
+msgstr "Todas as fichas"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_item__search_aliases
+msgid "Alternative Search Terms"
+msgstr "Termos alternativos de busca"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_item__answer
+msgid "Answer"
+msgstr "Resposta"
+
+#. module: marketing_center_catalog
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_item_form
+msgid "Answer..."
+msgstr "Resposta..."
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_item__applicability
+msgid "Applicability"
+msgstr "Aplicabilidade"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#, python-format
+msgid "Applies to:"
+msgstr "Aplicável a:"
+
+#. module: marketing_center_catalog
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_item_form
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_item_search
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_subject_form
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_subject_search
+msgid "Archived"
+msgstr "Arquivado"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#, python-format
+msgid "Available to share"
+msgstr "Disponível para compartilhar"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields.selection,name:marketing_center_catalog.selection__marketing_center_catalog_item__visibility__shareable
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_item_search
+msgid "Can Share with Customer"
+msgstr "Pode compartilhar com cliente"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields.selection,name:marketing_center_catalog.selection__marketing_center_catalog_item__material_type__catalog
+msgid "Catalog"
+msgstr "Catálogo"
+
+#. module: marketing_center_catalog
+#: model:ir.model,name:marketing_center_catalog.model_marketing_center_catalog_item
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_item_form
+msgid "Catalog Content"
+msgstr "Conteúdo do catálogo"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_item__catalog_matches_context
+msgid "Catalog Matches Context"
+msgstr "Catálogo corresponde ao contexto"
+
+#. module: marketing_center_catalog
+#: model:ir.model,name:marketing_center_catalog.model_marketing_center_catalog_subject
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_subject_form
+msgid "Catalog Subject"
+msgstr "Ficha do catálogo"
+
+#. module: marketing_center_catalog
+#: model:ir.actions.act_window,name:marketing_center_catalog.action_catalog_subjects
+msgid "Catalog Subjects"
+msgstr "Fichas do catálogo"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#, python-format
+msgid "Catalog navigation"
+msgstr "Navegação do catálogo"
+
+#. module: marketing_center_catalog
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_subject_kanban
+msgid "Catalog subject"
+msgstr "Ficha do catálogo"
+
+#. module: marketing_center_catalog
+#. odoo-python
+#: code:addons/marketing_center_catalog/models/catalog_item.py:0
+#, python-format
+msgid "Choose Information, Materials or FAQ."
+msgstr "Escolha Informações, Materiais ou FAQ."
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#, python-format
+msgid "Choose another tab or change your search."
+msgstr "Escolha outra aba ou altere sua busca."
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#, python-format
+msgid "Close"
+msgstr "Fechar"
+
+#. module: marketing_center_catalog
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_subject_search
+msgid "Companies"
+msgstr "Empresas"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_item__company_id
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_subject__company_id
+#: model:ir.model.fields.selection,name:marketing_center_catalog.selection__marketing_center_catalog_subject__kind__company
+msgid "Company"
+msgstr "Empresa"
+
+#. module: marketing_center_catalog
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_item_search
+msgid "Company Information"
+msgstr "Informações da empresa"
+
+#. module: marketing_center_catalog
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_item_form
+msgid "Company information, specifications, warranty or instructions..."
+msgstr "Informações da empresa, especificações, garantia ou instruções..."
+
+#. module: marketing_center_catalog
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_subject_form
+msgid "Company or solution name"
+msgstr "Nome da empresa ou solução"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_subject__item_ids
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.product_template_form_catalog
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.product_variant_form_catalog
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_item_search
+msgid "Content"
+msgstr "Conteúdo"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#. odoo-python
+#: code:addons/marketing_center_catalog/models/catalog_item.py:0
+#: code:addons/marketing_center_catalog/static/src/js/catalog_action.js:0
+#: model:ir.module.category,name:marketing_center_catalog.module_category_content_catalog
+#: model:ir.ui.menu,name:marketing_center_catalog.menu_catalog_root
+#, python-format
+msgid "Content Catalog"
+msgstr "Catálogo de Conteúdo"
+
+#. module: marketing_center_catalog
+#: model:ir.actions.act_window,name:marketing_center_catalog.action_catalog_items
+#: model:ir.ui.menu,name:marketing_center_catalog.menu_catalog_items
+msgid "Content Library"
+msgstr "Biblioteca de conteúdo"
+
+#. module: marketing_center_catalog
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_item_search
+msgid "Content Type"
+msgstr "Tipo de conteúdo"
+
+#. module: marketing_center_catalog
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_item_form
+msgid "Content title"
+msgstr "Título do conteúdo"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/js/catalog_browser.js:0
+#, python-format
+msgid "Could not load products. Try again or check your access."
+msgstr ""
+"Não foi possível carregar os produtos. Tente novamente ou confira seu "
+"acesso."
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/js/catalog_browser.js:0
+#, python-format
+msgid "Could not load the catalog. Try again or check your access."
+msgstr ""
+"Não foi possível carregar o catálogo. Tente novamente ou confira seu acesso."
+
+#. module: marketing_center_catalog
+#: model_terms:ir.actions.act_window,help:marketing_center_catalog.action_catalog_subjects
+msgid "Create a company or solution subject"
+msgstr "Crie uma ficha de empresa ou solução"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_item__create_uid
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_subject__create_uid
+msgid "Created by"
+msgstr "Criado por"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_item__create_date
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_subject__create_date
+msgid "Created on"
+msgstr "Criado em"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields.selection,name:marketing_center_catalog.selection__marketing_center_catalog_item__material_type__datasheet
+msgid "Datasheet"
+msgstr "Ficha técnica"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_item__display_name
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_subject__display_name
+msgid "Display Name"
+msgstr "Nome exibido"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#, python-format
+msgid "Download file"
+msgstr "Baixar arquivo"
+
+#. module: marketing_center_catalog
+#: model:res.groups,name:marketing_center_catalog.group_catalog_editor
+msgid "Editor"
+msgstr "Editor"
+
+#. module: marketing_center_catalog
+#. odoo-python
+#: code:addons/marketing_center_catalog/models/catalog_item.py:0
+#: code:addons/marketing_center_catalog/models/catalog_item.py:0
+#, python-format
+msgid "Enter both the FAQ question and answer."
+msgstr "Preencha a pergunta e a resposta da FAQ."
+
+#. module: marketing_center_catalog
+#. odoo-python
+#: code:addons/marketing_center_catalog/models/catalog_item.py:0
+#, python-format
+msgid "Enter the content text."
+msgstr "Preencha o texto do conteúdo."
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_item__url
+msgid "External Link"
+msgstr "Link externo"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/js/catalog_browser.js:0
+#: model:ir.actions.act_window,name:marketing_center_catalog.action_catalog_faq
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_subject__faq_ids
+#: model:ir.model.fields.selection,name:marketing_center_catalog.selection__marketing_center_catalog_item__kind__faq
+#: model:ir.model.fields.selection,name:marketing_center_catalog.selection__marketing_center_catalog_item__preview_kind__faq
+#: model:ir.ui.menu,name:marketing_center_catalog.menu_catalog_faq
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_item_search
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_subject_kanban
+#, python-format
+msgid "FAQ"
+msgstr "FAQ"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#, python-format
+msgid "FAQs"
+msgstr "FAQs"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_subject__faq_count
+msgid "Faq Count"
+msgstr "Quantidade de FAQs"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_item__file_data
+#: model:ir.model.fields.selection,name:marketing_center_catalog.selection__marketing_center_catalog_item__kind__file
+#: model:ir.model.fields.selection,name:marketing_center_catalog.selection__marketing_center_catalog_item__material_kind__file
+#: model:ir.model.fields.selection,name:marketing_center_catalog.selection__marketing_center_catalog_item__preview_kind__file
+msgid "File"
+msgstr "Arquivo"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_item__file_name
+msgid "Filename"
+msgstr "Nome do arquivo"
+
+#. module: marketing_center_catalog
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_item_search
+msgid "Files"
+msgstr "Arquivos"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#, python-format
+msgid "Find products"
+msgstr "Buscar produtos"
+
+#. module: marketing_center_catalog
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_item_search
+msgid "Group By"
+msgstr "Agrupar por"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_item__id
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_subject__id
+msgid "ID"
+msgstr "ID"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_subject__image
+#: model:ir.model.fields.selection,name:marketing_center_catalog.selection__marketing_center_catalog_item__preview_kind__image
+msgid "Image"
+msgstr "Imagem"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/js/catalog_browser.js:0
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_subject__information_ids
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_subject_form
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_subject_kanban
+#, python-format
+msgid "Information"
+msgstr "Informações"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_subject__information_count
+msgid "Information Count"
+msgstr "Quantidade de informações"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields.selection,name:marketing_center_catalog.selection__marketing_center_catalog_item__visibility__internal
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_item_search
+msgid "Internal Use"
+msgstr "Uso interno"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#, python-format
+msgid "Internal use"
+msgstr "Uso interno"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#, python-format
+msgid "Internal use — consultation only"
+msgstr "Uso interno — somente consulta"
+
+#. module: marketing_center_catalog
+#: model_terms:ir.actions.act_window,help:marketing_center_catalog.action_catalog_subjects
+msgid "Keep technical information, marketing materials and FAQs together."
+msgstr ""
+"Reúna informações técnicas, materiais de marketing e perguntas frequentes."
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_item__kind
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_subject__kind
+msgid "Kind"
+msgstr "Tipo"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_item____last_update
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_subject____last_update
+msgid "Last Modified on"
+msgstr "Última modificação em"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_item__write_uid
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_subject__write_uid
+msgid "Last Updated by"
+msgstr "Última atualização por"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_item__write_date
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_subject__write_date
+msgid "Last Updated on"
+msgstr "Última atualização em"
+
+#. module: marketing_center_catalog
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_item_form
+msgid ""
+"Leave both fields empty to follow the subject's products. When searching "
+"without a product, all content is visible with its applicability."
+msgstr ""
+"Deixe os dois campos vazios para acompanhar os produtos da ficha. Na busca "
+"sem produto, todo conteúdo aparece com sua aplicabilidade."
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,help:marketing_center_catalog.field_marketing_center_catalog_item__product_tmpl_ids
+msgid ""
+"Leave both product restrictions empty to follow the subject's products."
+msgstr "Deixe as duas restrições vazias para acompanhar os produtos da ficha."
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields.selection,name:marketing_center_catalog.selection__marketing_center_catalog_item__kind__link
+#: model:ir.model.fields.selection,name:marketing_center_catalog.selection__marketing_center_catalog_item__material_kind__link
+#: model:ir.model.fields.selection,name:marketing_center_catalog.selection__marketing_center_catalog_item__preview_kind__link
+msgid "Link"
+msgstr "Link"
+
+#. module: marketing_center_catalog
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_subject_form
+msgid "Linked Products"
+msgstr "Produtos vinculados"
+
+#. module: marketing_center_catalog
+#. odoo-python
+#: code:addons/marketing_center_catalog/models/catalog_subject.py:0
+#, python-format
+msgid "Linked products must belong to the catalog company or be shared."
+msgstr ""
+"Os produtos vinculados devem pertencer à empresa do catálogo ou ser "
+"compartilhados."
+
+#. module: marketing_center_catalog
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_item_search
+msgid "Links"
+msgstr "Links"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#, python-format
+msgid "Load more"
+msgstr "Carregar mais"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#, python-format
+msgid "Loading catalog…"
+msgstr "Carregando catálogo…"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields.selection,name:marketing_center_catalog.selection__marketing_center_catalog_item__material_type__manual
+msgid "Manual"
+msgstr "Manual"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_item__material_type
+msgid "Material Category"
+msgstr "Categoria do material"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_subject__material_count
+msgid "Material Count"
+msgstr "Quantidade de materiais"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_item__material_kind
+msgid "Material Format"
+msgstr "Formato do material"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/js/catalog_browser.js:0
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_subject__material_ids
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_subject_form
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_subject_kanban
+#, python-format
+msgid "Materials"
+msgstr "Materiais"
+
+#. module: marketing_center_catalog
+#. odoo-python
+#: code:addons/marketing_center_catalog/models/catalog_item.py:0
+#, python-format
+msgid "Materials can only be files or links."
+msgstr "Materiais devem ser arquivos ou links."
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_item__mimetype
+msgid "Mimetype"
+msgstr "Tipo MIME"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_subject__name
+msgid "Name"
+msgstr "Nome"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#, python-format
+msgid "No content in this section"
+msgstr "Nenhum conteúdo nesta aba"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#, python-format
+msgid "No subjects found"
+msgstr "Nenhuma ficha encontrada"
+
+#. module: marketing_center_catalog
+#. odoo-python
+#: code:addons/marketing_center_catalog/models/catalog_item.py:0
+#, python-format
+msgid "One or more selected products no longer exist."
+msgstr "Um ou mais produtos selecionados não existem mais."
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_item__product_tmpl_ids
+msgid "Only These Product Templates"
+msgstr "Somente estes produtos pai"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_item__product_ids
+msgid "Only These Variants"
+msgstr "Somente estas variantes"
+
+#. module: marketing_center_catalog
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_item_form
+msgid "Only for these products / variants"
+msgstr "Somente para estes produtos / variantes"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#, python-format
+msgid "Open link"
+msgstr "Abrir link"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields.selection,name:marketing_center_catalog.selection__marketing_center_catalog_item__material_type__other
+msgid "Other"
+msgstr "Outro"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_media_preview.xml:0
+#: model:ir.model.fields.selection,name:marketing_center_catalog.selection__marketing_center_catalog_item__preview_kind__pdf
+#, python-format
+msgid "PDF"
+msgstr "PDF"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields.selection,name:marketing_center_catalog.selection__marketing_center_catalog_item__material_type__photo
+msgid "Photo"
+msgstr "Foto"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_item__preview_kind
+msgid "Preview Kind"
+msgstr "Tipo de prévia"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_media_preview.xml:0
+#, python-format
+msgid "Preview unavailable"
+msgstr "Prévia indisponível"
+
+#. module: marketing_center_catalog
+#: model:ir.model,name:marketing_center_catalog.model_product_template
+msgid "Product"
+msgstr "Produto"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_subject__product_tmpl_ids
+msgid "Product Templates"
+msgstr "Produtos pai"
+
+#. module: marketing_center_catalog
+#: model:ir.model,name:marketing_center_catalog.model_product_product
+msgid "Product Variant"
+msgstr "Variante do produto"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_subject__product_ids
+msgid "Product Variants"
+msgstr "Variantes dos produtos"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#, python-format
+msgid "Product name or reference"
+msgstr "Nome ou referência do produto"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#, python-format
+msgid "Products"
+msgstr "Produtos"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_item__question
+msgid "Question"
+msgstr "Pergunta"
+
+#. module: marketing_center_catalog
+#: model:res.groups,name:marketing_center_catalog.group_catalog_reader
+msgid "Reader"
+msgstr "Leitor"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#, python-format
+msgid "Remove product filter"
+msgstr "Remover filtro de produto"
+
+#. module: marketing_center_catalog
+#. odoo-python
+#: code:addons/marketing_center_catalog/models/catalog_item.py:0
+#, python-format
+msgid "Restricted products must belong to the catalog company or be shared."
+msgstr ""
+"Os produtos das restrições devem pertencer à empresa do catálogo ou ser "
+"compartilhados."
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#, python-format
+msgid "Retry"
+msgstr "Tentar novamente"
+
+#. module: marketing_center_catalog
+#: model_terms:ir.actions.act_window,help:marketing_center_catalog.action_catalog_items
+msgid ""
+"Save text, FAQs, files and links. Saved content is immediately available to "
+"catalog readers."
+msgstr ""
+"Cadastre textos, perguntas frequentes, arquivos e links. O conteúdo salvo "
+"fica disponível imediatamente aos leitores do catálogo."
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_media_preview.xml:0
+#, python-format
+msgid "Save to preview this file."
+msgstr "Salve para visualizar a prévia deste arquivo."
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#, python-format
+msgid "Search"
+msgstr "Pesquisar"
+
+#. module: marketing_center_catalog
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_item_search
+msgid "Search Content"
+msgstr "Buscar conteúdo"
+
+#. module: marketing_center_catalog
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_subject_search
+msgid "Search Subjects"
+msgstr "Buscar fichas"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#, python-format
+msgid "Search catalog"
+msgstr "Pesquisar no catálogo"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#, python-format
+msgid "Search products"
+msgstr "Pesquisar produtos"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#, python-format
+msgid "Search subjects, content or product references…"
+msgstr "Buscar fichas, conteúdo ou referências de produtos…"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#, python-format
+msgid "Select"
+msgstr "Selecionar"
+
+#. module: marketing_center_catalog
+#. odoo-python
+#: code:addons/marketing_center_catalog/models/catalog_subject.py:0
+#, python-format
+msgid "Select a valid catalog subject."
+msgstr "Selecione uma ficha válida do catálogo."
+
+#. module: marketing_center_catalog
+#. odoo-python
+#: code:addons/marketing_center_catalog/models/catalog_item.py:0
+#, python-format
+msgid "Select valid product variants."
+msgstr "Selecione variantes de produto válidas."
+
+#. module: marketing_center_catalog
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_item_search
+msgid "Selected Products"
+msgstr "Produtos selecionados"
+
+#. module: marketing_center_catalog
+#. odoo-python
+#: code:addons/marketing_center_catalog/models/catalog_item.py:0
+#, python-format
+msgid "Selected products must belong to the catalog company or be shared."
+msgstr ""
+"Os produtos selecionados devem pertencer à empresa do catálogo ou ser "
+"compartilhados."
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_item__sequence
+msgid "Sequence"
+msgstr "Sequência"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields.selection,name:marketing_center_catalog.selection__marketing_center_catalog_subject__kind__solution
+msgid "Solution / Product"
+msgstr "Solução / Produto"
+
+#. module: marketing_center_catalog
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_subject_search
+msgid "Solutions / Products"
+msgstr "Soluções / Produtos"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_item__subject_id
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_item_search
+msgid "Subject"
+msgstr "Ficha"
+
+#. module: marketing_center_catalog
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_subject_kanban
+msgid "Subject image"
+msgstr "Imagem da ficha"
+
+#. module: marketing_center_catalog
+#. odoo-python
+#: code:addons/marketing_center_catalog/models/catalog_item.py:0
+#, python-format
+msgid "Subject: %(subject)s; only: %(products)s"
+msgstr "Ficha: %(subject)s; somente: %(products)s"
+
+#. module: marketing_center_catalog
+#: model:ir.ui.menu,name:marketing_center_catalog.menu_catalog_subjects
+msgid "Subjects"
+msgstr "Fichas"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_item__body
+#: model:ir.model.fields.selection,name:marketing_center_catalog.selection__marketing_center_catalog_item__kind__text
+#: model:ir.model.fields.selection,name:marketing_center_catalog.selection__marketing_center_catalog_item__preview_kind__text
+msgid "Text"
+msgstr "Texto"
+
+#. module: marketing_center_catalog
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_item_search
+msgid "Texts"
+msgstr "Textos"
+
+#. module: marketing_center_catalog
+#. odoo-python
+#: code:addons/marketing_center_catalog/models/catalog_item.py:0
+#, python-format
+msgid "The catalog company must be an active company."
+msgstr "A empresa do catálogo deve estar entre as empresas ativas."
+
+#. module: marketing_center_catalog
+#. odoo-python
+#: code:addons/marketing_center_catalog/models/catalog_subject.py:0
+#, python-format
+msgid "This subject is unavailable in the selected company."
+msgstr "Esta ficha não está disponível na empresa selecionada."
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_item__name
+msgid "Title"
+msgstr "Título"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#, python-format
+msgid "Try another search or remove a product filter."
+msgstr "Tente outra busca ou remova um filtro de produto."
+
+#. module: marketing_center_catalog
+#. odoo-python
+#: code:addons/marketing_center_catalog/models/catalog_item.py:0
+#, python-format
+msgid "Upload a file and provide its filename."
+msgstr "Envie um arquivo e informe seu nome."
+
+#. module: marketing_center_catalog
+#. odoo-python
+#: code:addons/marketing_center_catalog/models/catalog_item.py:0
+#, python-format
+msgid "Use a complete http:// or https:// link."
+msgstr "Use um link completo com http:// ou https://."
+
+#. module: marketing_center_catalog
+#. odoo-python
+#: code:addons/marketing_center_catalog/models/catalog_item.py:0
+#, python-format
+msgid "Use a search text of at most 500 characters."
+msgstr "Use um texto de busca com até 500 caracteres."
+
+#. module: marketing_center_catalog
+#. odoo-python
+#: code:addons/marketing_center_catalog/models/catalog_item.py:0
+#, python-format
+msgid "Use a valid catalog page (1 to 100 records)."
+msgstr "Use uma página válida do catálogo (1 a 100 registros)."
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_media_preview.xml:0
+#: model:ir.model.fields.selection,name:marketing_center_catalog.selection__marketing_center_catalog_item__material_type__video
+#: model:ir.model.fields.selection,name:marketing_center_catalog.selection__marketing_center_catalog_item__preview_kind__video
+#, python-format
+msgid "Video"
+msgstr "Vídeo"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_browser.xml:0
+#, python-format
+msgid "View"
+msgstr "Visualizar"
+
+#. module: marketing_center_catalog
+#: model:ir.model.fields,field_description:marketing_center_catalog.field_marketing_center_catalog_item__visibility
+msgid "Visibility"
+msgstr "Visibilidade"
+
+#. module: marketing_center_catalog
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_item_form
+msgid "https://..."
+msgstr "https://..."
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_x2many.xml:0
+#, python-format
+msgid "Content view"
+msgstr "Visualização do conteúdo"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_x2many.xml:0
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_x2many.xml:0
+#, python-format
+msgid "Kanban"
+msgstr "Kanban"
+
+#. module: marketing_center_catalog
+#. odoo-javascript
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_x2many.xml:0
+#: code:addons/marketing_center_catalog/static/src/xml/catalog_x2many.xml:0
+#, python-format
+msgid "List"
+msgstr "Lista"
+
+#. module: marketing_center_catalog
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_subject_form
+msgid "Frequently Asked Questions"
+msgstr "Perguntas frequentes"
+
+#. module: marketing_center_catalog
+#: model_terms:ir.ui.view,arch_db:marketing_center_catalog.view_catalog_subject_form
+msgid "Structured Information"
+msgstr "Informações estruturadas"
