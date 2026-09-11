@@ -4,6 +4,7 @@
         id="menu_marketing_center_root"
         name="Marketing Center"
         sequence="55"
+        web_icon="marketing_center_base,static/description/icon.png"
         groups="marketing_center_base.group_marketing_center_viewer"
     />
     <menuitem

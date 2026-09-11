@@ -1,0 +1,157 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="70" height="70" viewBox="0 0 70 70" role="img" aria-labelledby="title">
+  <title id="title">Marketing Center — Megafone</title>
+  <defs>
+    <path id="tile" d="M4 0h61c4 0 5 1 5 5v60c0 4-1 5-5 5H4c-3 0-4-1-4-5V5c0-4 1-5 4-5Z"/>
+    <clipPath id="clip"><use href="#tile"/></clipPath>
+    <g id="glyph" fill="currentColor"><path d="M25 28.5 47 18.5v31L25 39.5H17a3 3 0 0 1-3-3v-5a3 3 0 0 1 3-3Z"/>
+        <path d="M23 42h9l-3.5 12h-8Z"/>
+        <path d="m53 24 5-3m-4 13h6m-7 10 5 3" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/></g>
+  </defs>
+  <g clip-path="url(#clip)">
+    <path d="M0 0h70v70H0Z" fill="#92718B"/>
+    <g color="#17212A" opacity=".27"><use href="#glyph" transform="translate(-0.5 0.5)"/>
+<use href="#glyph" transform="translate(-1 1)"/>
+<use href="#glyph" transform="translate(-1.5 1.5)"/>
+<use href="#glyph" transform="translate(-2 2)"/>
+<use href="#glyph" transform="translate(-2.5 2.5)"/>
+<use href="#glyph" transform="translate(-3 3)"/>
+<use href="#glyph" transform="translate(-3.5 3.5)"/>
+<use href="#glyph" transform="translate(-4 4)"/>
+<use href="#glyph" transform="translate(-4.5 4.5)"/>
+<use href="#glyph" transform="translate(-5 5)"/>
+<use href="#glyph" transform="translate(-5.5 5.5)"/>
+<use href="#glyph" transform="translate(-6 6)"/>
+<use href="#glyph" transform="translate(-6.5 6.5)"/>
+<use href="#glyph" transform="translate(-7 7)"/>
+<use href="#glyph" transform="translate(-7.5 7.5)"/>
+<use href="#glyph" transform="translate(-8 8)"/>
+<use href="#glyph" transform="translate(-8.5 8.5)"/>
+<use href="#glyph" transform="translate(-9 9)"/>
+<use href="#glyph" transform="translate(-9.5 9.5)"/>
+<use href="#glyph" transform="translate(-10 10)"/>
+<use href="#glyph" transform="translate(-10.5 10.5)"/>
+<use href="#glyph" transform="translate(-11 11)"/>
+<use href="#glyph" transform="translate(-11.5 11.5)"/>
+<use href="#glyph" transform="translate(-12 12)"/>
+<use href="#glyph" transform="translate(-12.5 12.5)"/>
+<use href="#glyph" transform="translate(-13 13)"/>
+<use href="#glyph" transform="translate(-13.5 13.5)"/>
+<use href="#glyph" transform="translate(-14 14)"/>
+<use href="#glyph" transform="translate(-14.5 14.5)"/>
+<use href="#glyph" transform="translate(-15 15)"/>
+<use href="#glyph" transform="translate(-15.5 15.5)"/>
+<use href="#glyph" transform="translate(-16 16)"/>
+<use href="#glyph" transform="translate(-16.5 16.5)"/>
+<use href="#glyph" transform="translate(-17 17)"/>
+<use href="#glyph" transform="translate(-17.5 17.5)"/>
+<use href="#glyph" transform="translate(-18 18)"/>
+<use href="#glyph" transform="translate(-18.5 18.5)"/>
+<use href="#glyph" transform="translate(-19 19)"/>
+<use href="#glyph" transform="translate(-19.5 19.5)"/>
+<use href="#glyph" transform="translate(-20 20)"/>
+<use href="#glyph" transform="translate(-20.5 20.5)"/>
+<use href="#glyph" transform="translate(-21 21)"/>
+<use href="#glyph" transform="translate(-21.5 21.5)"/>
+<use href="#glyph" transform="translate(-22 22)"/>
+<use href="#glyph" transform="translate(-22.5 22.5)"/>
+<use href="#glyph" transform="translate(-23 23)"/>
+<use href="#glyph" transform="translate(-23.5 23.5)"/>
+<use href="#glyph" transform="translate(-24 24)"/>
+<use href="#glyph" transform="translate(-24.5 24.5)"/>
+<use href="#glyph" transform="translate(-25 25)"/>
+<use href="#glyph" transform="translate(-25.5 25.5)"/>
+<use href="#glyph" transform="translate(-26 26)"/>
+<use href="#glyph" transform="translate(-26.5 26.5)"/>
+<use href="#glyph" transform="translate(-27 27)"/>
+<use href="#glyph" transform="translate(-27.5 27.5)"/>
+<use href="#glyph" transform="translate(-28 28)"/>
+<use href="#glyph" transform="translate(-28.5 28.5)"/>
+<use href="#glyph" transform="translate(-29 29)"/>
+<use href="#glyph" transform="translate(-29.5 29.5)"/>
+<use href="#glyph" transform="translate(-30 30)"/>
+<use href="#glyph" transform="translate(-30.5 30.5)"/>
+<use href="#glyph" transform="translate(-31 31)"/>
+<use href="#glyph" transform="translate(-31.5 31.5)"/>
+<use href="#glyph" transform="translate(-32 32)"/>
+<use href="#glyph" transform="translate(-32.5 32.5)"/>
+<use href="#glyph" transform="translate(-33 33)"/>
+<use href="#glyph" transform="translate(-33.5 33.5)"/>
+<use href="#glyph" transform="translate(-34 34)"/>
+<use href="#glyph" transform="translate(-34.5 34.5)"/>
+<use href="#glyph" transform="translate(-35 35)"/>
+<use href="#glyph" transform="translate(-35.5 35.5)"/>
+<use href="#glyph" transform="translate(-36 36)"/>
+<use href="#glyph" transform="translate(-36.5 36.5)"/>
+<use href="#glyph" transform="translate(-37 37)"/>
+<use href="#glyph" transform="translate(-37.5 37.5)"/>
+<use href="#glyph" transform="translate(-38 38)"/>
+<use href="#glyph" transform="translate(-38.5 38.5)"/>
+<use href="#glyph" transform="translate(-39 39)"/>
+<use href="#glyph" transform="translate(-39.5 39.5)"/>
+<use href="#glyph" transform="translate(-40 40)"/>
+<use href="#glyph" transform="translate(-40.5 40.5)"/>
+<use href="#glyph" transform="translate(-41 41)"/>
+<use href="#glyph" transform="translate(-41.5 41.5)"/>
+<use href="#glyph" transform="translate(-42 42)"/>
+<use href="#glyph" transform="translate(-42.5 42.5)"/>
+<use href="#glyph" transform="translate(-43 43)"/>
+<use href="#glyph" transform="translate(-43.5 43.5)"/>
+<use href="#glyph" transform="translate(-44 44)"/>
+<use href="#glyph" transform="translate(-44.5 44.5)"/>
+<use href="#glyph" transform="translate(-45 45)"/>
+<use href="#glyph" transform="translate(-45.5 45.5)"/>
+<use href="#glyph" transform="translate(-46 46)"/>
+<use href="#glyph" transform="translate(-46.5 46.5)"/>
+<use href="#glyph" transform="translate(-47 47)"/>
+<use href="#glyph" transform="translate(-47.5 47.5)"/>
+<use href="#glyph" transform="translate(-48 48)"/>
+<use href="#glyph" transform="translate(-48.5 48.5)"/>
+<use href="#glyph" transform="translate(-49 49)"/>
+<use href="#glyph" transform="translate(-49.5 49.5)"/>
+<use href="#glyph" transform="translate(-50 50)"/>
+<use href="#glyph" transform="translate(-50.5 50.5)"/>
+<use href="#glyph" transform="translate(-51 51)"/>
+<use href="#glyph" transform="translate(-51.5 51.5)"/>
+<use href="#glyph" transform="translate(-52 52)"/>
+<use href="#glyph" transform="translate(-52.5 52.5)"/>
+<use href="#glyph" transform="translate(-53 53)"/>
+<use href="#glyph" transform="translate(-53.5 53.5)"/>
+<use href="#glyph" transform="translate(-54 54)"/>
+<use href="#glyph" transform="translate(-54.5 54.5)"/>
+<use href="#glyph" transform="translate(-55 55)"/>
+<use href="#glyph" transform="translate(-55.5 55.5)"/>
+<use href="#glyph" transform="translate(-56 56)"/>
+<use href="#glyph" transform="translate(-56.5 56.5)"/>
+<use href="#glyph" transform="translate(-57 57)"/>
+<use href="#glyph" transform="translate(-57.5 57.5)"/>
+<use href="#glyph" transform="translate(-58 58)"/>
+<use href="#glyph" transform="translate(-58.5 58.5)"/>
+<use href="#glyph" transform="translate(-59 59)"/>
+<use href="#glyph" transform="translate(-59.5 59.5)"/>
+<use href="#glyph" transform="translate(-60 60)"/>
+<use href="#glyph" transform="translate(-60.5 60.5)"/>
+<use href="#glyph" transform="translate(-61 61)"/>
+<use href="#glyph" transform="translate(-61.5 61.5)"/>
+<use href="#glyph" transform="translate(-62 62)"/>
+<use href="#glyph" transform="translate(-62.5 62.5)"/>
+<use href="#glyph" transform="translate(-63 63)"/>
+<use href="#glyph" transform="translate(-63.5 63.5)"/>
+<use href="#glyph" transform="translate(-64 64)"/>
+<use href="#glyph" transform="translate(-64.5 64.5)"/>
+<use href="#glyph" transform="translate(-65 65)"/>
+<use href="#glyph" transform="translate(-65.5 65.5)"/>
+<use href="#glyph" transform="translate(-66 66)"/>
+<use href="#glyph" transform="translate(-66.5 66.5)"/>
+<use href="#glyph" transform="translate(-67 67)"/>
+<use href="#glyph" transform="translate(-67.5 67.5)"/>
+<use href="#glyph" transform="translate(-68 68)"/>
+<use href="#glyph" transform="translate(-68.5 68.5)"/>
+<use href="#glyph" transform="translate(-69 69)"/>
+<use href="#glyph" transform="translate(-69.5 69.5)"/>
+<use href="#glyph" transform="translate(-70 70)"/></g>
+    <path d="M4 1h61c2.667 0 4.333.667 5 2V0H0v3c.667-1.333 2-2 4-2Z" fill="#fff" opacity=".32"/>
+    <path d="M4 69h61c2.667 0 4.333-1 5-3v4H0v-4c.667 2 2 3 4 3Z" fill="#000" opacity=".3"/>
+    <use href="#glyph" color="#000" opacity=".25" transform="translate(0 1.5)"/>
+    <use href="#glyph" color="#fff"/>
+  </g>
+</svg>
