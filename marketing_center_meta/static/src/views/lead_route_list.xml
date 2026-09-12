@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+    <t
+        t-name="marketing_center_meta.LeadRouteList.Buttons"
+        t-inherit="web.ListView.Buttons"
+        t-inherit-mode="primary"
+        owl="1"
+    >
+        <xpath expr="//div[hasclass('o_list_buttons')]" position="inside">
+            <button
+                t-if="props.showButtons and activeActions.create"
+                type="button"
+                class="btn btn-secondary ms-2 o_meta_discover_forms"
+                t-on-click="onDiscoverForms"
+            >
+                <i class="fa fa-search me-1" aria-hidden="true" />
+                Descobrir formulários na Meta
+            </button>
+        </xpath>
+    </t>
+</templates>

@@ -9,6 +9,8 @@ from . import (
     test_lead_ads,
     test_lead_ads_adapter,
     test_lead_ads_concurrency,
+    test_lead_history,
+    test_lead_discovery,
     test_meta_profile,
     test_meta_service,
     test_webhook_access,

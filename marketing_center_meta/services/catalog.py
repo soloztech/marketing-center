@@ -330,7 +330,7 @@ def _external_entity(account_ref, spec, row, observed_at):
             "group": "adsets",
         }[spec.parent_entity_type]
         parent_external_ref = _entity_ref(account_ref, parent_segment, parent_id)
-    name = _bounded_text(row.get("name"), "object name", 1024, required=False)
+    name = _object_name(row.get("name"))
     if not name:
         name = "Meta %s %s" % (spec.entity_type, external_id)
     attributes = _attributes(account_ref, spec, row)
@@ -493,6 +493,14 @@ def _bounded_text(value, label, limit, required=True):
     if any(ord(character) < 32 for character in value):
         raise MetaApiError("Meta %s is invalid" % label)
     return value
+
+
+def _object_name(value):
+    # Meta may derive creative names from multiline ad text. Flatten display
+    # whitespace only; identifiers and other control characters remain strict.
+    if isinstance(value, str):
+        value = re.sub(r"[\t\r\n]+", " ", value)
+    return _bounded_text(value, "object name", 1024, required=False)
 
 
 def _optional_enum(value, label, required=False):

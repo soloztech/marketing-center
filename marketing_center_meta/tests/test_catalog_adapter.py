@@ -156,6 +156,39 @@ class TestMetaCatalogAdapter(SavepointCase):
         self.assertNotIn("object_story_spec", fields)
         self.assertNotIn("thumbnail_url", fields)
 
+    def test_multiline_creative_names_do_not_abort_a_catalog_page(self):
+        page, _request = self._fetch(
+            "creative",
+            {
+                "data": [
+                    {"id": "40", "name": "First line\n\nSecond line"},
+                    {"id": "41", "name": "Other\r\nline\twith tab"},
+                    {"id": "42", "name": "Already  valid name"},
+                ]
+            },
+        )
+        self.assertEqual(
+            [item.name for item in page.items],
+            ["First line Second line", "Other line with tab", "Already  valid name"],
+        )
+        self.assertEqual(
+            [item.external_ref for item in page.items],
+            ["act_123/creatives/40", "act_123/creatives/41", "act_123/creatives/42"],
+        )
+
+    def test_name_normalization_preserves_bounds_and_identifier_validation(self):
+        for row in (
+            {"id": "40", "name": "Bad\x00name"},
+            {"id": "40", "name": "Bad\x1bname"},
+            {"id": "40", "name": "x" * 1025},
+            {"id": "40", "name": 123},
+            {"id": "4\n0", "name": "Valid name"},
+            {"id": "40", "video_id": "5\n0", "name": "Valid name"},
+        ):
+            with self.subTest(row=row):
+                with self.assertRaises(MetaApiError):
+                    self._fetch("creative", {"data": [row]})
+
     def test_single_run_cursor_orders_every_stage(self):
         terminal_campaign, _request = self._fetch("campaign", {"data": []})
         campaign_page = orchestrate_meta_catalog_page(

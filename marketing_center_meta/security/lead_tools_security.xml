@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="rule_meta_lead_history_company" model="ir.rule">
+        <field name="name">Meta lead history: company scope</field>
+        <field name="model_id" ref="model_marketing_center_meta_lead_history" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_meta_lead_discovery_company" model="ir.rule">
+        <field name="name">Meta lead discovery: company scope</field>
+        <field name="model_id" ref="model_marketing_center_meta_lead_discovery" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_meta_lead_discovery_line_company" model="ir.rule">
+        <field name="name">Meta lead discovery lines: company scope</field>
+        <field name="model_id" ref="model_marketing_center_meta_lead_discovery_line" />
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+</odoo>

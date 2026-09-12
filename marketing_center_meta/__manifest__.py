@@ -1,7 +1,7 @@
 {
     "name": "Marketing Center - Meta",
     "summary": "Read-only Meta Marketing API connector for Marketing Center",
-    "version": "16.0.1.0.1",
+    "version": "16.0.1.1.1",
     "category": "Marketing",
     "author": "Soloz Technologies",
     "website": "https://github.com/soloztech/marketing-center",
@@ -14,6 +14,7 @@
     ],
     "data": [
         "security/marketing_center_meta_security.xml",
+        "security/lead_tools_security.xml",
         "security/ir.model.access.csv",
         "data/queue_job.xml",
         "data/sync_cron.xml",
@@ -21,8 +22,15 @@
         "views/meta_profile_views.xml",
         "views/marketing_connection_views.xml",
         "views/marketing_source_views.xml",
+        "views/lead_tools_views.xml",
         "views/lead_ads_views.xml",
     ],
+    "assets": {
+        "web.assets_backend": [
+            "marketing_center_meta/static/src/views/lead_route_list.esm.js",
+            "marketing_center_meta/static/src/views/lead_route_list.xml",
+        ],
+    },
     "external_dependencies": {"python": ["requests"]},
     "installable": True,
     "application": False,
