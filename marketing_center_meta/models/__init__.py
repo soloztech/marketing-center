@@ -1,14 +1,17 @@
-# Register extensions after the profile model exists.
+# isort: skip_file
+# Model extensions must register after their base classes.
 from . import (
-    ad_preview,
     attribution_resolution_service,
     catalog_sync,
     connection,
-    credential_health,
     insights_sync,
     lead_ads,
-    lead_discovery,
     lead_history,
+    lead_discovery,
     meta_profile,
     meta_service,
 )
+
+# Register extensions after the profile model exists.
+from . import credential_health
+from . import ad_preview
