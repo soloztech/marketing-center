@@ -400,6 +400,10 @@ class TestMetaLeadFormDiscovery(SavepointCase):
             wizard.action_discover()
             self.assertTrue(adapter.call_args.args[0].env.su)
         self.assertEqual(len(wizard.line_ids), 2)
+        route = self._existing()
+        action = route.with_user(admin).action_open_discovery()
+        self.assertEqual(action["res_model"], wizard._name)
+        self.assertEqual(action["context"]["default_source_id"], self.source.id)
 
     def test_company_page_profile_and_source_app_scope_are_enforced(self):
         other_company = self.env["res.company"].create(
@@ -492,32 +496,82 @@ class TestMetaLeadFormDiscovery(SavepointCase):
         self.assertEqual(action["context"]["default_initial_sync_period"], "new")
 
     def test_defaults_fill_only_a_unique_active_combination_and_preserve_context(self):
+        # Upgrade tests can run beside seeded operational routes. An isolated
+        # company makes absence/uniqueness assertions independent of that data.
+        company = self.env["res.company"].create({"name": "Isolated form defaults"})
+        wizard_model = self.Wizard.with_company(company)
+        local_env = wizard_model.env
+        app, profile = create_meta_profile(
+            local_env,
+            name="Isolated defaults",
+            external_app_id=str(uuid.uuid4().int),
+            app_secret_ref="ODOO_META_DEFAULTS_APP",
+            access_token_ref="ODOO_META_DEFAULTS_LEADS",
+            reader_kind="lead_reader",
+        )
+        endpoint = local_env["meta.webhook.endpoint"].create(
+            {
+                "name": "Isolated defaults endpoint",
+                "app_id": app.id,
+                "credential_backend": "environment",
+                "verify_token_ref": "ODOO_META_DEFAULTS_VERIFY",
+            }
+        )
+        page = local_env["meta.webhook.page"].create(
+            {
+                "name": "Isolated defaults Page",
+                "endpoint_id": endpoint.id,
+                "external_page_id": str(uuid.uuid4().int),
+                "credential_backend": "environment",
+                "access_token_ref": "ODOO_META_DEFAULTS_PAGE",
+            }
+        )
+        source = local_env["marketing.center.source"].create(
+            {
+                "name": "Isolated defaults source",
+                "service": "meta.ads",
+                "external_account_ref": "act_%s" % uuid.uuid4().int,
+                "state": "active",
+            }
+        )
+        route_values = {
+            "name": "Isolated defaults route",
+            "company_id": company.id,
+            "webhook_page_id": page.id,
+            "lead_profile_id": profile.id,
+            "source_id": source.id,
+        }
+        route_model = local_env["marketing.center.meta.lead.route"]
         fields_list = ["company_id", "webhook_page_id", "lead_profile_id", "source_id"]
-        empty = self.Wizard.default_get(fields_list)
+        empty = wizard_model.default_get(fields_list)
         self.assertFalse(empty.get("webhook_page_id"))
-        self._existing()
-        self._existing(external_form_id="300000000000003")
-        values = self.Wizard.default_get(fields_list)
-        self.assertEqual(values["webhook_page_id"], self.page.id)
-        self.assertEqual(values["lead_profile_id"], self.profile.id)
-        self.assertEqual(values["source_id"], self.source.id)
-        explicit = self.Wizard.with_context(default_source_id=False).default_get(
+        route_model.create(dict(route_values, external_form_id="300000000000001"))
+        route_model.create(dict(route_values, external_form_id="300000000000003"))
+        values = wizard_model.default_get(fields_list)
+        self.assertEqual(values["webhook_page_id"], page.id)
+        self.assertEqual(values["lead_profile_id"], profile.id)
+        self.assertEqual(values["source_id"], source.id)
+        explicit = wizard_model.with_context(default_source_id=False).default_get(
             fields_list
         )
         self.assertFalse(explicit.get("source_id"))
-        other_profile = self.env["marketing.center.meta.profile"].create(
+        other_profile = local_env["marketing.center.meta.profile"].create(
             {
                 "name": "Another lead reader",
-                "meta_app_id": self.app.id,
+                "meta_app_id": app.id,
                 "reader_kind": "lead_reader",
                 "credential_backend": "environment",
                 "access_token_ref": "ODOO_META_DISCOVERY_ANOTHER_LEADS",
             }
         )
-        self._existing(
-            external_form_id="300000000000004", lead_profile_id=other_profile.id
+        route_model.create(
+            dict(
+                route_values,
+                external_form_id="300000000000004",
+                lead_profile_id=other_profile.id,
+            )
         )
-        ambiguous = self.Wizard.default_get(fields_list)
+        ambiguous = wizard_model.default_get(fields_list)
         self.assertFalse(ambiguous.get("webhook_page_id"))
         self.assertFalse(ambiguous.get("lead_profile_id"))
         self.assertFalse(ambiguous.get("source_id"))

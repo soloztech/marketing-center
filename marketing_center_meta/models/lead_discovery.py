@@ -293,11 +293,14 @@ class MarketingCenterMetaLeadDiscovery(models.TransientModel):
 
     def _action(self):
         self.ensure_one()
-        action = self.env.ref(
-            "marketing_center_meta.action_meta_lead_discovery"
-        ).read()[0]
-        action.update({"res_id": self.id, "target": "new"})
-        return action
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Descobrir formulários na Meta"),
+            "res_model": self._name,
+            "view_mode": "form",
+            "res_id": self.id,
+            "target": "new",
+        }
 
     def action_discover(self):
         self.ensure_one()
@@ -524,19 +527,17 @@ class MarketingCenterMetaLeadRouteDiscovery(models.Model):
         self._check_admin()
         self.check_access_rights("read")
         self.check_access_rule("read")
-        action = self.env.ref(
-            "marketing_center_meta.action_meta_lead_discovery"
-        ).read()[0]
-        action.update(
-            {
-                "target": "new",
-                "context": {
-                    "default_company_id": self.company_id.id,
-                    "default_webhook_page_id": self.webhook_page_id.id,
-                    "default_lead_profile_id": self.lead_profile_id.id,
-                    "default_source_id": self.source_id.id,
-                    "default_initial_sync_period": "new",
-                },
-            }
-        )
-        return action
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Descobrir formulários na Meta"),
+            "res_model": "marketing.center.meta.lead.discovery",
+            "view_mode": "form",
+            "target": "new",
+            "context": {
+                "default_company_id": self.company_id.id,
+                "default_webhook_page_id": self.webhook_page_id.id,
+                "default_lead_profile_id": self.lead_profile_id.id,
+                "default_source_id": self.source_id.id,
+                "default_initial_sync_period": "new",
+            },
+        }
