@@ -9,7 +9,6 @@ from odoo.osv import expression
 from odoo.tools import html2plaintext, html_sanitize, is_html_empty
 from odoo.tools.mimetypes import guess_mimetype
 
-
 SECTION_KINDS = {
     "information": ("text",),
     "materials": ("file", "link"),

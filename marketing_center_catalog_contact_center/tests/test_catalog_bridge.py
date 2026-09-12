@@ -1,8 +1,8 @@
 import base64
+import uuid
 from io import BytesIO
 
 from PIL import Image
-import uuid
 
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tests import HttpCase, TransactionCase, tagged
