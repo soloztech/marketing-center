@@ -70,7 +70,10 @@ class MarketingCenterDashboardOverview(models.Model):
     timezone = fields.Char(
         string="Reporting timezone",
         readonly=True,
-        help="Company facts use UTC calendar days. Source rows use the source's reporting timezone.",
+        help=(
+            "Company facts use UTC calendar days. "
+            "Source rows use the source's reporting timezone."
+        ),
     )
     currency_id = fields.Many2one("res.currency", readonly=True)
     metric_origin = fields.Selection(
@@ -171,7 +174,10 @@ class MarketingCenterDashboardOverview(models.Model):
         string="Won transitions",
         readonly=True,
         group_operator=False,
-        help="Counts transitions to won, not distinct opportunities or a cohort conversion rate.",
+        help=(
+            "Counts transitions to won, not distinct opportunities "
+            "or a cohort conversion rate."
+        ),
     )
     lost_count = fields.Integer(
         string="Lost/archive transitions",
@@ -186,7 +192,10 @@ class MarketingCenterDashboardOverview(models.Model):
         string="Invoice posting occurrences",
         readonly=True,
         group_operator=False,
-        help="Historical posting occurrences, including repostings. This is not net revenue or a count of currently posted documents.",
+        help=(
+            "Historical posting occurrences, including repostings. "
+            "This is not net revenue or a count of currently posted documents."
+        ),
     )
     credit_note_posted_count = fields.Integer(
         string="Credit-note posting occurrences",

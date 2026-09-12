@@ -128,12 +128,16 @@
                                     <strong><field
                                             name="conversation_started_count"
                                         /></strong>
-                                    <span class="text-muted"> conversations started</span>
+                                    <span
+                                        class="text-muted"
+                                    > conversations started</span>
                                     <span class="mx-1">·</span>
                                     <strong><field
                                             name="conversation_first_response_count"
                                         /></strong>
-                                    <span class="text-muted"> with a first response</span>
+                                    <span
+                                        class="text-muted"
+                                    > with a first response</span>
                                 </div>
                                 <div
                                     class="mt-1"
@@ -154,7 +158,9 @@
                                     <span class="text-muted"> leads</span>
                                     <span class="mx-1">·</span>
                                     <strong><field name="qualified_count" /></strong>
-                                    <span class="text-muted"> qualification transitions</span>
+                                    <span
+                                        class="text-muted"
+                                    > qualification transitions</span>
                                     <span class="mx-1">·</span>
                                     <strong><field name="won_count" /></strong>
                                     <span class="text-muted"> won transitions</span>
@@ -179,19 +185,21 @@
                                     <strong><field
                                             name="invoice_posted_count"
                                         /></strong>
-                                    <span class="text-muted"> invoice posting occurrences</span>
+                                    <span
+                                        class="text-muted"
+                                    > invoice posting occurrences</span>
                                     <span class="mx-1">·</span>
                                     <strong><field
                                             name="credit_note_posted_count"
                                         /></strong>
-                                    <span class="text-muted"> credit-note posting occurrences</span>
+                                    <span
+                                        class="text-muted"
+                                    > credit-note posting occurrences</span>
                                     <span class="mx-1">·</span>
                                     <strong><field
                                             name="payment_allocated_count"
                                         /></strong>
-                                    <span
-                                        class="text-muted"
-                                    > payment allocations</span>
+                                    <span class="text-muted"> payment allocations</span>
                                 </div>
                                 <div class="mt-3 small text-muted">
                                     Operational correlation and counts; no value has been credited to a campaign.
@@ -255,9 +263,7 @@
                                     <t
                                         t-if="record.freshness_state.raw_value === 'delayed'"
                                     >
-                                        <span
-                                            class="badge badge-warning"
-                                        >Delayed</span>
+                                        <span class="badge badge-warning">Delayed</span>
                                     </t>
                                     <t
                                         t-if="record.freshness_state.raw_value === 'partial'"
@@ -269,9 +275,7 @@
                                     <t
                                         t-if="record.freshness_state.raw_value === 'stale'"
                                     >
-                                        <span
-                                            class="badge badge-danger"
-                                        >Stale</span>
+                                        <span class="badge badge-danger">Stale</span>
                                     </t>
                                     <t
                                         t-if="record.freshness_state.raw_value === 'no_data'"

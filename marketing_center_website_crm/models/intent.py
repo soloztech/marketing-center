@@ -320,7 +320,8 @@ class MarketingWebsiteCrmIntent(models.Model):
             if not endpoint._privacy_policy_configured():
                 raise ValidationError(
                     _(
-                        "Configure the documented endpoint policy first; capture can remain disabled."
+                        "Configure the documented endpoint policy first; "
+                        "capture can remain disabled."
                     )
                 )
             self.env.cr.execute(

@@ -341,6 +341,7 @@ class MarketingWebIngressClickValue(models.Model):
                     "erased_at": now,
                 }
             )
+        return None
 
     def unlink(self):  # pylint: disable=method-required-super
         raise AccessError(_("Protected click identifiers cannot be deleted."))

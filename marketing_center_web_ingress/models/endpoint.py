@@ -304,7 +304,8 @@ class MarketingWebIngressEndpoint(models.Model):
                 raise ValidationError(
                     _(
                         "Configure a purpose, policy and notice versions, documented "
-                        "non-consent basis, justification and retention before enabling capture."
+                        "non-consent basis, justification and retention "
+                        "before enabling capture."
                     )
                 )
 

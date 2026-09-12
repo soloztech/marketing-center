@@ -5,11 +5,17 @@
         <field name="parent_id" ref="queue_job.channel_root" />
     </record>
 
-    <record id="queue_job_function_answered_episode_backfill" model="queue.job.function">
+    <record
+        id="queue_job_function_answered_episode_backfill"
+        model="queue.job.function"
+    >
         <field name="model_id" ref="model_marketing_contact_center_response" />
         <field name="method">_job_backfill_answered_events</field>
         <field name="channel_id" ref="queue_job_channel_marketing_contact_center" />
-        <field name="retry_pattern" eval="{1: 10, 2: 30, 3: 60, 4: 120, 5: 300, 6: 600, 7: 1200}" />
+        <field
+            name="retry_pattern"
+            eval="{1: 10, 2: 30, 3: 60, 4: 120, 5: 300, 6: 600, 7: 1200}"
+        />
     </record>
 
     <record

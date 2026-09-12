@@ -386,7 +386,8 @@ class TestMarketingWebsiteCrm(SavepointCase):
             [now + datetime.timedelta(hours=1), event.id],
         )
         self.env.cr.execute(
-            "UPDATE marketing_attribution_identifier SET erased_at = %s WHERE touchpoint_id = %s",
+            "UPDATE marketing_attribution_identifier "
+            "SET erased_at = %s WHERE touchpoint_id = %s",
             [now, event.touchpoint_id.id],
         )
         self.assertFalse(self.service._session_touchpoints(intent))

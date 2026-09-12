@@ -69,11 +69,17 @@
           </group>
           <group string="Legacy retention assignment">
             <field name="legacy_retention_count" />
-            <button name="action_preview_legacy_retention" type="object"
-                    string="Review legacy events and proposed deadlines" />
-            <button name="action_apply_legacy_retention" type="object"
-                    string="Apply policy to next 100 legacy events"
-                    confirm="Use the configured duration from each event's original observation date? Expired values will be erased by cleanup. Review proposed deadlines first. Existing deadlines are never extended." />
+            <button
+                            name="action_preview_legacy_retention"
+                            type="object"
+                            string="Review legacy events and proposed deadlines"
+                        />
+            <button
+                            name="action_apply_legacy_retention"
+                            type="object"
+                            string="Apply policy to next 100 legacy events"
+                            confirm="Use the configured duration from each event's original observation date? Expired values will be erased by cleanup. Review proposed deadlines first. Existing deadlines are never extended."
+                        />
           </group>
           <notebook>
             <page string="Accepted events">

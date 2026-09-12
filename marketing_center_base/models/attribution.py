@@ -183,7 +183,7 @@ class MarketingAttributionTouchpoint(models.Model):
     def _erase_private_values(self, *, token, now):
         _check_erasure_scope(self, token)
         for company_id, canonical_key in sorted(
-            set((item.company_id.id, item.canonical_key) for item in self)
+            {(item.company_id.id, item.canonical_key) for item in self}
         ):
             acquire_advisory_xact_lock(
                 self.env.cr,
@@ -213,6 +213,7 @@ class MarketingAttributionTouchpoint(models.Model):
                     "extensions_json": {},
                 }
             )
+        return None
 
 
 class MarketingAttributionIdentifier(models.Model):
@@ -270,6 +271,7 @@ class MarketingAttributionIdentifier(models.Model):
                     "erased_at": now,
                 }
             )
+        return None
 
     def _assign_retention_deadline(self, *, token, deadline):
         _check_erasure_scope(self, token)
@@ -278,6 +280,7 @@ class MarketingAttributionIdentifier(models.Model):
         )
         if pending:
             super(ImmutableAttributionMixin, pending).write({"retain_until": deadline})
+        return None
 
 
 class MarketingAttributionEvidence(models.Model):
