@@ -155,25 +155,41 @@ class MarketingCenterMetaLeadDiscovery(models.TransientModel):
 
     def write(self, values):
         _check_admin(self)
+        values = dict(values)
         if not _internal(self):
             if (_RESULT_FIELDS - {"line_ids"}).intersection(values):
                 raise AccessError(
                     _("O resultado da descoberta é preenchido pelo sistema.")
                 )
-            allowed_lines = set(self.mapped("line_ids").ids)
+            if "line_ids" in values:
+                self.ensure_one()
+            allowed_lines = set(self.line_ids.ids)
+            updates = []
             for command in values.get("line_ids", []):
                 if (
                     not isinstance(command, (tuple, list))
                     or len(command) != 3
-                    or command[0] != 1
                     or command[1] not in allowed_lines
+                ):
+                    raise AccessError(
+                        _("Somente a seleção dos formulários pode ser alterada.")
+                    )
+                # The web client also sends LINK for unchanged existing rows.
+                # Ignore only links already owned by this wizard: forwarding
+                # them would unnecessarily invoke the protected inverse field.
+                if command[0] == 4 and command[2] in (0, False):
+                    continue
+                if (
+                    command[0] != 1
                     or not isinstance(command[2], dict)
                     or set(command[2]) != {"selected"}
                 ):
                     raise AccessError(
                         _("Somente a seleção dos formulários pode ser alterada.")
                     )
-        values = dict(values)
+                updates.append(command)
+            if "line_ids" in values:
+                values["line_ids"] = updates
         if not _internal(self) and _SCOPE_FIELDS.intersection(values):
             values.update(
                 {

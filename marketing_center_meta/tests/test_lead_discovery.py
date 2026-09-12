@@ -287,8 +287,20 @@ class TestMetaLeadFormDiscovery(SavepointCase):
             )
         )
         line = wizard.line_ids.filtered(lambda row: row.form_status == "ACTIVE")
-        # Match the x2many update sent by the editable Odoo tree, not just line.write.
-        wizard.write({"line_ids": [Command.update(line.id, {"selected": True})]})
+        # The browser sends LINK for untouched rows alongside selected updates.
+        before_lines = wizard.line_ids
+        wizard.write(
+            {
+                "line_ids": [
+                    [1, row.id, {"selected": True}]
+                    if row == line
+                    else [4, row.id, False]
+                    for row in before_lines
+                ]
+            }
+        )
+        self.assertEqual(wizard.line_ids, before_lines)
+        self.assertEqual(wizard.line_ids.filtered("selected"), line)
         with patch(_ADAPTER) as adapter, trap_jobs():
             adapter.return_value.discover_lead_forms.return_value = self._forms()
             wizard.action_configure()
@@ -304,6 +316,76 @@ class TestMetaLeadFormDiscovery(SavepointCase):
         self.assertFalse(
             self.Route.search([("external_form_id", "=", "300000000000002")])
         )
+
+    def test_browser_mixed_links_and_multiple_selections_keep_preview_and_period(self):
+        forms = self._forms() + (
+            MetaLeadForm("300000000000003", "Outro formulário", "ACTIVE", 0, None),
+        )
+        wizard = self._discover(forms=forms)
+        before = wizard.line_ids.read(
+            ["external_form_id", "discovery_id", "disposition", "form_status"]
+        )
+        selected = wizard.line_ids.filtered(lambda row: row.form_status == "ACTIVE")
+        wizard.write(
+            {
+                "initial_sync_period": "30",
+                "line_ids": [
+                    [1, row.id, {"selected": True}]
+                    if row in selected
+                    else [4, row.id, False]
+                    for row in wizard.line_ids
+                ],
+            }
+        )
+        self.assertEqual(wizard.initial_sync_period, "30")
+        self.assertEqual(wizard.state, "preview")
+        self.assertEqual(wizard.line_ids.filtered("selected"), selected)
+        self.assertEqual(
+            wizard.line_ids.read(
+                ["external_form_id", "discovery_id", "disposition", "form_status"]
+            ),
+            before,
+        )
+        with patch(_ADAPTER) as adapter, trap_jobs():
+            adapter.return_value.discover_lead_forms.return_value = forms
+            wizard.action_configure()
+        routes = selected.mapped("route_id")
+        self.assertEqual(len(routes), 2)
+        self.assertTrue(all(routes.mapped("reconcile_job_uuid")))
+        self.assertEqual(len(set(routes.mapped("reconcile_job_uuid"))), 2)
+        self.assertEqual(set(selected.mapped("route_id.initial_sync_period")), {"30"})
+        if "crm_auto_create_lead" in self.Route._fields:
+            self.assertFalse(any(selected.mapped("route_id.crm_auto_create_lead")))
+
+    def test_links_cannot_move_foreign_rows_or_mutate_preview_membership(self):
+        wizard = self._discover()
+        other = self._discover()
+        before = wizard.line_ids
+        foreign = other.line_ids[0]
+        for command in [
+            [4, foreign.id, False],
+            Command.unlink(before[0].id),
+            Command.delete(before[0].id),
+            Command.clear(),
+            Command.set(before.ids),
+            Command.update(before[0].id, {"name": "Forged"}),
+        ]:
+            with self.subTest(command=command), self.assertRaises(AccessError):
+                wizard.write({"line_ids": [command]})
+        with self.assertRaises(ValueError):
+            (wizard | other).write({"line_ids": [[4, foreign.id, False]]})
+        with self.assertRaises(AccessError):
+            wizard.write(
+                {
+                    "line_ids": [
+                        Command.update(before[0].id, {"selected": True}),
+                        [4, foreign.id, False],
+                    ]
+                }
+            )
+        self.assertFalse(any(wizard.line_ids.mapped("selected")))
+        self.assertEqual(wizard.line_ids, before)
+        self.assertEqual(foreign.discovery_id, other)
 
     def test_historical_selection_is_explicit_and_enqueues_only_new_route(self):
         wizard = self._discover(
