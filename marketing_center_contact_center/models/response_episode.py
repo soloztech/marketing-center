@@ -1,6 +1,7 @@
 import datetime
 import hashlib
 import uuid
+from dataclasses import dataclass
 
 from psycopg2 import OperationalError
 
@@ -20,7 +21,10 @@ from ..services.retry import (
     retry_database_error,
     retry_transient_database,
 )
-from ..services.tokens import MARKETING_CONTACT_CENTER_EPISODE_WRITE_TOKEN
+from ..services.tokens import (
+    MARKETING_CONTACT_CENTER_EPISODE_WRITE_TOKEN,
+    MARKETING_CONTACT_CENTER_RETENTION_TOKEN,
+)
 
 _CONFIRMED_DELIVERY_STATES = ("sent", "delivered", "read")
 _POLICY_VERSION = 1
@@ -38,9 +42,52 @@ def _sha256(value):
     return hashlib.sha256(str(value or "").encode("utf-8")).hexdigest()
 
 
+@dataclass(frozen=True)
+class ResponseSourceEvidence:
+    """Content-free identity used after the original chat message expires."""
+
+    id: int
+    public_ref: str
+    create_date: object
+    binding: object
+    expired_at: object = False
+    delivery_res_id: int = 0
+
+
+def _retention_internal(recordset):
+    return (
+        recordset.env.context.get("marketing_contact_center_retention_token")
+        is MARKETING_CONTACT_CENTER_RETENTION_TOKEN
+    )
+
+
 class ImmutableMarketingContactCenterEpisodeMixin(models.AbstractModel):
     _name = "marketing.contact.center.episode.immutable.mixin"
     _description = "Immutable Marketing Contact Center Response Evidence"
+
+    source_message_res_id = fields.Integer(index=True, readonly=True, copy=False)
+    source_message_ref = fields.Char(size=71, readonly=True, copy=False)
+    source_created_at = fields.Datetime(readonly=True, copy=False)
+    source_expired_at = fields.Datetime(readonly=True, copy=False)
+    source_delivery_res_id = fields.Integer(readonly=True, copy=False)
+
+    def _source_message_field(self):
+        return (
+            "start_message_binding_id"
+            if self._name == "marketing.contact.center.response.episode"
+            else "message_binding_id"
+        )
+
+    def _snapshot_values(self, message, delivery_id=False):
+        message.ensure_one()
+        return {
+            "source_message_res_id": message.id,
+            "source_message_ref": self.env[
+                "marketing.contact.center.lifecycle.service"
+            ]._message_public_ref(message),
+            "source_created_at": message.create_date,
+            "source_delivery_res_id": delivery_id or 0,
+        }
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -48,10 +95,62 @@ class ImmutableMarketingContactCenterEpisodeMixin(models.AbstractModel):
             raise AccessError(
                 _("Contact Center response episodes are created only by the bridge.")
             )
-        return super().create(vals_list)
+        prepared = []
+        for original in vals_list:
+            values = dict(original)
+            message_id = values.get(self._source_message_field())
+            if message_id:
+                message = self.env["contact.center.message.binding"].browse(message_id)
+                values.update(
+                    self._snapshot_values(message, values.get("delivery_event_id"))
+                )
+            prepared.append(values)
+        return super().create(prepared)
 
-    def write(self, values):  # pylint: disable=method-required-super
-        raise AccessError(_("Contact Center response episodes cannot be edited."))
+    def write(self, values):
+        # This token is an in-process capability, never a serializable RPC flag.
+        if not _retention_internal(self):
+            raise AccessError(_("Contact Center response episodes cannot be edited."))
+        allowed = {
+            self._source_message_field(),
+            "delivery_event_id",
+            "source_expired_at",
+            "source_message_res_id",
+            "source_message_ref",
+            "source_created_at",
+            "source_delivery_res_id",
+        }
+        if set(values) - allowed:
+            raise AccessError(_("Retention cannot rewrite response measurements."))
+        for record in self:
+            for key in (
+                "source_message_res_id",
+                "source_message_ref",
+                "source_created_at",
+                "source_delivery_res_id",
+            ):
+                if key in values and record[key] and record[key] != values[key]:
+                    raise ValidationError(
+                        _("The retained response source is immutable.")
+                    )
+            for key in (self._source_message_field(), "delivery_event_id"):
+                if key in values and values[key]:
+                    raise AccessError(_("Retention may only detach source links."))
+        return super().write(values)
+
+    @api.constrains("source_message_res_id", "source_message_ref", "source_expired_at")
+    def _check_retained_source(self):
+        for record in self:
+            if record.source_message_res_id <= 0:
+                raise ValidationError(_("A durable response source ID is required."))
+            if not record[record._source_message_field()] and not (
+                record.source_expired_at
+                and record.source_message_ref
+                and record.source_created_at
+            ):
+                raise ValidationError(
+                    _("Detached response evidence needs a complete source snapshot.")
+                )
 
     def unlink(self):
         if (
@@ -84,7 +183,7 @@ class MarketingContactCenterResponseSignal(models.Model):
     )
     message_binding_id = fields.Many2one(
         "contact.center.message.binding",
-        required=True,
+        required=False,
         index=True,
         ondelete="restrict",
         check_company=True,
@@ -114,7 +213,7 @@ class MarketingContactCenterResponseSignal(models.Model):
     _sql_constraints = [
         (
             "message_unique",
-            "unique(message_binding_id)",
+            "unique(source_message_res_id)",
             "The Contact Center message already has a response signal.",
         ),
     ]
@@ -124,9 +223,9 @@ class MarketingContactCenterResponseSignal(models.Model):
         self.env.cr.execute(
             """
             CREATE INDEX IF NOT EXISTS
-                marketing_cc_response_signal_timeline_idx
+                marketing_cc_response_signal_source_timeline_idx
             ON marketing_contact_center_response_signal
-                (channel_binding_id, observed_at, message_binding_id, id)
+                (channel_binding_id, observed_at, source_message_res_id, id)
             """
         )
         self.env.cr.execute(
@@ -149,6 +248,10 @@ class MarketingContactCenterResponseSignal(models.Model):
         for signal in self:
             message = signal.message_binding_id
             delivery = signal.delivery_event_id
+            if not message:
+                if signal.channel_binding_id.company_id != signal.company_id:
+                    raise ValidationError(_("The retained signal changed company."))
+                continue
             common_invalid = (
                 message.company_id != signal.company_id
                 or message.channel_binding_id != signal.channel_binding_id
@@ -212,6 +315,9 @@ class MarketingContactCenterResponseCursor(models.Model):
         check_company=True,
         readonly=True,
     )
+    last_message_res_id = fields.Integer(readonly=True)
+    backfill_cutoff_message_res_id = fields.Integer(readonly=True)
+    backfill_after_message_res_id = fields.Integer(readonly=True)
     last_sequence = fields.Integer(required=True, default=0, readonly=True)
     pending_episode_id = fields.Many2one(
         "marketing.contact.center.response.episode",
@@ -260,11 +366,26 @@ class MarketingContactCenterResponseCursor(models.Model):
         ),
     ]
 
+    def _frontier_values(self, values):
+        values = dict(values)
+        if not _retention_internal(self):
+            for link, number in (
+                ("last_message_binding_id", "last_message_res_id"),
+                (
+                    "backfill_cutoff_message_binding_id",
+                    "backfill_cutoff_message_res_id",
+                ),
+                ("backfill_after_message_binding_id", "backfill_after_message_res_id"),
+            ):
+                if link in values and number not in values:
+                    values[number] = values[link] or 0
+        return values
+
     @api.model_create_multi
     def create(self, vals_list):
         if not _internal(self):
             raise AccessError(_("Contact Center response cursors are internal."))
-        return super().create(vals_list)
+        return super().create([self._frontier_values(values) for values in vals_list])
 
     def write(self, values):
         if not _internal(self):
@@ -278,10 +399,13 @@ class MarketingContactCenterResponseCursor(models.Model):
             "backfill_state",
             "backfill_cutoff_message_binding_id",
             "backfill_after_message_binding_id",
+            "last_message_res_id",
+            "backfill_cutoff_message_res_id",
+            "backfill_after_message_res_id",
         }
         if set(values) - mutable:
             raise AccessError(_("Contact Center response cursor scope is immutable."))
-        return super().write(values)
+        return super().write(self._frontier_values(values))
 
     def unlink(self):
         if (
@@ -341,13 +465,16 @@ class MarketingContactCenterResponseCursor(models.Model):
         "backfill_state",
         "backfill_cutoff_message_binding_id",
         "backfill_after_message_binding_id",
+        "last_message_res_id",
+        "backfill_cutoff_message_res_id",
+        "backfill_after_message_res_id",
     )
     def _check_frontiers(self):
         for cursor in self:
             processing_frontier = (
                 bool(cursor.last_signal_id),
                 bool(cursor.last_observed_at),
-                bool(cursor.last_message_binding_id),
+                bool(cursor.last_message_res_id),
             )
             if len(set(processing_frontier)) != 1:
                 raise ValidationError(
@@ -359,13 +486,13 @@ class MarketingContactCenterResponseCursor(models.Model):
                     "materializing",
                     "processing",
                 }
-                and not cursor.backfill_cutoff_message_binding_id
+                and not cursor.backfill_cutoff_message_res_id
             ):
                 raise ValidationError(_("The response backfill cutoff is missing."))
-            if cursor.backfill_after_message_binding_id and (
-                not cursor.backfill_cutoff_message_binding_id
-                or cursor.backfill_after_message_binding_id.id
-                > cursor.backfill_cutoff_message_binding_id.id
+            if cursor.backfill_after_message_res_id and (
+                not cursor.backfill_cutoff_message_res_id
+                or cursor.backfill_after_message_res_id
+                > cursor.backfill_cutoff_message_res_id
             ):
                 raise ValidationError(
                     _("The response backfill frontier exceeds its cutoff.")
@@ -397,7 +524,7 @@ class MarketingContactCenterResponseEpisode(models.Model):
     sequence = fields.Integer(required=True, readonly=True)
     start_message_binding_id = fields.Many2one(
         "contact.center.message.binding",
-        required=True,
+        required=False,
         index=True,
         ondelete="restrict",
         check_company=True,
@@ -434,7 +561,7 @@ class MarketingContactCenterResponseEpisode(models.Model):
         ),
         (
             "start_message_unique",
-            "unique(start_message_binding_id)",
+            "unique(source_message_res_id)",
             "The inbound message already starts a response episode.",
         ),
         (
@@ -453,6 +580,13 @@ class MarketingContactCenterResponseEpisode(models.Model):
     def _check_scope(self):
         for episode in self:
             start = episode.start_message_binding_id
+            if not start:
+                if (
+                    episode.channel_binding_id.company_id != episode.company_id
+                    or episode.started_event_id.company_id != episode.company_id
+                ):
+                    raise ValidationError(_("The retained episode changed company."))
+                continue
             if (
                 episode.channel_binding_id.company_id != episode.company_id
                 or start.company_id != episode.company_id
@@ -492,7 +626,7 @@ class MarketingContactCenterResponse(models.Model):
     )
     message_binding_id = fields.Many2one(
         "contact.center.message.binding",
-        required=True,
+        required=False,
         index=True,
         ondelete="restrict",
         check_company=True,
@@ -569,7 +703,7 @@ class MarketingContactCenterResponse(models.Model):
         ),
         (
             "message_unique",
-            "unique(message_binding_id)",
+            "unique(source_message_res_id)",
             "The message already closes a response episode.",
         ),
         (
@@ -600,6 +734,16 @@ class MarketingContactCenterResponse(models.Model):
         for response in self:
             message = response.message_binding_id
             delivery = response.delivery_event_id
+            if not message:
+                if (
+                    response.episode_id.company_id != response.company_id
+                    or response.response_event_id.company_id != response.company_id
+                    or response.responded_at < response.episode_id.started_at
+                ):
+                    raise ValidationError(
+                        _("The retained response conflicts with its episode.")
+                    )
+                continue
             if (
                 response.episode_id.company_id != response.company_id
                 or message.company_id != response.company_id
@@ -940,7 +1084,7 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
             )
             if cursor.backfill_state in {"processing", "done"}:
                 observed_floor = cursor.last_observed_at
-                message_floor_id = cursor.last_message_binding_id.id
+                message_floor_id = cursor.last_message_res_id
             else:
                 message_floor_id = 0
         values = []
@@ -1048,7 +1192,7 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
         params = [binding.id]
         if after_order:
             filters.append(
-                "(signal.observed_at, signal.message_binding_id, signal.id) "
+                "(signal.observed_at, signal.source_message_res_id, signal.id) "
                 "> (%s, %s, %s)"
             )
             params.extend(after_order)
@@ -1056,7 +1200,7 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
         self.env.cr.execute(
             """
             SELECT signal.id,
-                   signal.message_binding_id,
+                   signal.source_message_res_id,
                    signal.signal_kind,
                    signal.response_origin,
                    signal.occurred_at,
@@ -1065,7 +1209,7 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
               FROM marketing_contact_center_response_signal AS signal
              WHERE __WHERE_FILTER__
              ORDER BY signal.observed_at ASC,
-                      signal.message_binding_id ASC,
+                      signal.source_message_res_id ASC,
                       signal.id ASC
              LIMIT %s
             """.replace(
@@ -1098,6 +1242,22 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
 
     @api.model
     def _write_cursor(self, cursor, values):
+        values = dict(values)
+        for link, number in (
+            ("last_message_binding_id", "last_message_res_id"),
+            ("backfill_cutoff_message_binding_id", "backfill_cutoff_message_res_id"),
+            ("backfill_after_message_binding_id", "backfill_after_message_res_id"),
+        ):
+            if link in values:
+                source_id = values[link] or 0
+                values[number] = source_id
+                values[link] = (
+                    self.env["contact.center.message.binding"]
+                    .browse(source_id)
+                    .exists()
+                    .id
+                    or False
+                )
         return cursor.with_context(
             marketing_contact_center_episode_write_token=(
                 MARKETING_CONTACT_CENTER_EPISODE_WRITE_TOKEN
@@ -1106,9 +1266,39 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
 
     @api.model
     def _message_ref(self, message_binding):
+        if isinstance(message_binding, ResponseSourceEvidence):
+            return message_binding.public_ref
         return self.env[
             "marketing.contact.center.lifecycle.service"
         ]._message_public_ref(message_binding)
+
+    @api.model
+    def _live_source(self, source):
+        return source.binding if isinstance(source, ResponseSourceEvidence) else source
+
+    @api.model
+    def _source_creation_values(self, source):
+        if not isinstance(source, ResponseSourceEvidence):
+            return {}
+        return {
+            "source_message_res_id": source.id,
+            "source_message_ref": source.public_ref,
+            "source_created_at": source.create_date,
+            "source_expired_at": source.expired_at,
+            "source_delivery_res_id": source.delivery_res_id,
+        }
+
+    @api.model
+    def _source_evidence(self, signal):
+        live = signal.message_binding_id
+        return ResponseSourceEvidence(
+            id=signal.source_message_res_id,
+            public_ref=signal.source_message_ref or self._message_ref(live),
+            create_date=signal.source_created_at or live.create_date,
+            binding=live,
+            expired_at=signal.source_expired_at,
+            delivery_res_id=signal.source_delivery_res_id,
+        )
 
     @api.model
     def _ingest_event(self, binding, dto):
@@ -1220,7 +1410,7 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
     ):
         model = self.env["marketing.contact.center.response.episode"].sudo()
         episode = model.search(
-            [("start_message_binding_id", "=", message_binding.id)], limit=1
+            [("source_message_res_id", "=", message_binding.id)], limit=1
         )
         if episode:
             if (
@@ -1249,7 +1439,9 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
                     "company_id": binding.company_id.id,
                     "channel_binding_id": binding.id,
                     "sequence": sequence,
-                    "start_message_binding_id": message_binding.id,
+                    "start_message_binding_id": self._live_source(message_binding).id
+                    or False,
+                    **self._source_creation_values(message_binding),
                     "started_at": started_at,
                     "observed_at": observed_at,
                     "started_event_id": event.id,
@@ -1302,7 +1494,9 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
                     "public_ref": str(uuid.uuid4()),
                     "company_id": binding.company_id.id,
                     "episode_id": episode.id,
-                    "message_binding_id": message_binding.id,
+                    "message_binding_id": self._live_source(message_binding).id
+                    or False,
+                    **self._source_creation_values(message_binding),
                     "delivery_event_id": delivery_event.id or False,
                     "response_origin": response_origin,
                     "responded_at": responded_at,
@@ -1383,8 +1577,8 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
     def _materialize_backfill_page(self, binding, cursor, page_size):
         message_ids = self._source_message_ids(
             binding,
-            after_message_id=cursor.backfill_after_message_binding_id.id,
-            upper_message_id=cursor.backfill_cutoff_message_binding_id.id,
+            after_message_id=cursor.backfill_after_message_res_id,
+            upper_message_id=cursor.backfill_cutoff_message_res_id,
             limit=page_size,
         )
         rows = self._signal_candidate_rows(
@@ -1413,7 +1607,7 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
         if cursor.last_observed_at:
             after_order = (
                 cursor.last_observed_at,
-                cursor.last_message_binding_id.id,
+                cursor.last_message_res_id,
                 cursor.last_signal_id.id,
             )
         rows = self._timeline(
@@ -1425,15 +1619,18 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
         sequence = cursor.last_sequence
         last_signal_id = cursor.last_signal_id.id or 0
         last_observed_at = cursor.last_observed_at
-        last_message_id = cursor.last_message_binding_id.id or 0
+        last_message_id = cursor.last_message_res_id or 0
         for row in rows:
             signal_id, message_id, signal_kind, response_origin = row[:4]
             occurred_at = fields.Datetime.to_datetime(row[4])
             observed_at = fields.Datetime.to_datetime(row[5] or row[4])
             delivery_id = row[6]
-            message = (
-                self.env["contact.center.message.binding"].sudo().browse(message_id)
+            signal = (
+                self.env["marketing.contact.center.response.signal"]
+                .sudo()
+                .browse(signal_id)
             )
+            message = self._source_evidence(signal)
             if signal_kind == "inbound":
                 if not pending:
                     sequence += 1
@@ -1446,7 +1643,7 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
                     )
             elif (
                 pending
-                and message.id > pending.start_message_binding_id.id
+                and message.id > pending.source_message_res_id
                 and occurred_at >= pending.started_at
             ):
                 delivery = (
@@ -1489,7 +1686,7 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
             "%s:%s:%s:%s"
             % (
                 cursor.backfill_state,
-                cursor.backfill_after_message_binding_id.id or 0,
+                cursor.backfill_after_message_res_id or 0,
                 cursor.last_signal_id.id or 0,
                 cursor.last_sequence,
             )

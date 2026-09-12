@@ -9,6 +9,7 @@
                 <field name="sequence" />
                 <field name="channel_binding_id" />
                 <field name="start_message_binding_id" />
+                <field name="source_expired_at" optional="hide" />
                 <field name="response_id" />
                 <field name="company_id" />
             </tree>
@@ -27,6 +28,8 @@
                         <field name="channel_binding_id" />
                         <field name="sequence" />
                         <field name="start_message_binding_id" />
+                        <field name="source_expired_at" />
+                        <field name="source_message_ref" />
                         <field name="started_at" />
                         <field name="observed_at" />
                         <field name="started_event_id" />

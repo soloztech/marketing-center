@@ -9,7 +9,7 @@ from odoo.tests.common import SavepointCase
 from odoo.addons.queue_job.tests.common import trap_jobs
 
 
-class TestMarketingContactCenterLifecycleBridge(SavepointCase):
+class MarketingLifecycleCase(SavepointCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -164,6 +164,8 @@ class TestMarketingContactCenterLifecycleBridge(SavepointCase):
                 return results
         self.fail("Response episode reconciliation did not reach its durable frontier")
 
+
+class TestMarketingContactCenterLifecycleBridge(MarketingLifecycleCase):
     def test_external_projection_enqueues_and_replay_is_idempotent(self):
         channel, channel_binding = self._conversation()
         with trap_jobs() as trap:

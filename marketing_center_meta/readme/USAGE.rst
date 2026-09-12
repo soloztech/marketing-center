@@ -1,5 +1,5 @@
 Formulários da Meta
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 Em ``Marketing Center / Configuration / Meta Lead Ads Routes``, o botão
 ``Descobrir formulários na Meta`` consulta os formulários da página escolhida.
@@ -21,7 +21,7 @@ seus anúncios estejam em veiculação. A descoberta consulta a lista quando o
 botão é acionado; não cadastra formulários futuros sem seleção do usuário.
 
 Sincronizar histórico
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
 
 Abra um formulário configurado e clique em ``Sincronizar histórico``. Escolha
 sete, trinta ou noventa dias, ou uma data inicial dentro dos últimos noventa dias.
