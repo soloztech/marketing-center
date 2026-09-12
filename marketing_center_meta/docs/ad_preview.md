@@ -19,9 +19,11 @@ existing Meta app/profile configuration; this feature introduces no credentials.
 
 One Graph v26.0 GET reads the ad and its expanded creative. Both returned account
 identities must match the authorized catalog source. Source, connection, profile,
-app and entity revisions are checked again after the response. Authorization
-locks are acquired only after HTTP, allowing a concurrent revocation to reject
-the result under the database transaction isolation contract.
+app and entity revisions are checked again after the response. A private
+fingerprint travels only in memory alongside the copy. The final authorization
+hook acquires nonblocking locks after both Graph and thumbnail HTTP have finished;
+concurrent revocations discard the response or request a sanitized transaction
+retry. No authorization lock is held while either remote call is running.
 
 The result contains only available `title` (256 characters), `body` (2000),
 `public_url`, `thumbnail_url` and `media_type`. Ad and creative management names
@@ -37,6 +39,14 @@ The existing Graph helper applies timeouts, disables redirects and bounds the
 response to 128 KiB. Optional lookup failures return no enrichment without
 logging provider exceptions, URLs or tokens. The service neither posts content
 nor changes catalog entities or credential health.
+
+An exact attribution link or a newly resolved catalog ad wakes an incomplete
+preview once per link/catalog revision. Repeated syncs reuse the same wake key,
+and no additional recurring job is introduced. An administrator can explicitly
+retry up to 100 incomplete previews per action after correcting reader access.
+Active jobs are deduplicated, expired/deleted previews are excluded, and an old
+consumed thumbnail locator without an attachment may be replaced by a fresh
+authorized lookup. Received ad copy is preserved.
 
 Field definitions follow the official Meta Business SDK:
 

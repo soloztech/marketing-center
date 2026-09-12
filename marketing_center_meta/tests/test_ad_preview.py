@@ -1,6 +1,10 @@
 import datetime
+import hashlib
+import json
 from types import SimpleNamespace
 from unittest.mock import patch
+
+from psycopg2.errors import SerializationFailure
 
 from odoo.tests import tagged
 from odoo.tests.common import SavepointCase
@@ -259,6 +263,9 @@ class TestMetaAdPreviewService(SavepointCase):
         ).write(
             {
                 "effective_capabilities_json": {"read_entities": False},
+                "effective_capabilities_hash": hashlib.sha256(
+                    b'{"read_entities":false}'
+                ).hexdigest(),
             }
         )
         self.assertEqual(self.service._fetch_ad_preview(self.entity), {})
@@ -290,3 +297,22 @@ class TestMetaAdPreviewService(SavepointCase):
         ).with_company(company)
         self.assertEqual(service._fetch_ad_preview(self.entity), {})
         self.adapter.assert_not_called()
+
+    def test_authorization_snapshot_is_memory_only_and_checked_at_final_stage(self):
+        result = self.service._fetch_ad_preview(self.entity)
+        self.assertTrue(result.fingerprint)
+        self.assertEqual(json.loads(json.dumps(result)), {"title": "Public ad title"})
+        self.assertTrue(
+            self.service._validate_ad_preview(self.entity, result.fingerprint)
+        )
+        self.source.write({"read_enabled": False})
+        self.assertFalse(
+            self.service._validate_ad_preview(self.entity, result.fingerprint)
+        )
+
+    def test_database_errors_are_not_swallowed_as_empty_enrichment(self):
+        self.adapter.return_value.fetch_ad_preview.side_effect = SerializationFailure(
+            "scope changed"
+        )
+        with self.assertRaises(SerializationFailure):
+            self.service._fetch_ad_preview(self.entity)

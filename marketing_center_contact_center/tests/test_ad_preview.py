@@ -110,9 +110,7 @@ class TestContactCenterAdPreviewBridge(SavepointCase):
             self.env["marketing.contact.center.attribution.service"]._sync_touchpoint(
                 source
             )
-        return self.env["contact.center.attribution.preview"].new(
-            {"touchpoint_id": source.id}
-        )
+        return self.env["contact.center.attribution.preview"]._capture(source, {})
 
     def test_exact_bridge_and_unique_ad_catalog_resolution_enrich(self):
         entity = self._entity(self._catalog_source("123"))
@@ -170,3 +168,28 @@ class TestContactCenterAdPreviewBridge(SavepointCase):
 
         self.fetch.side_effect = revoke
         self.assertEqual(preview._marketing_preview_values(), {})
+
+    def test_exact_link_sync_wakes_existing_preview_without_http(self):
+        self._entity(self._catalog_source("123"))
+        point = self._touchpoint()
+        preview = self._preview(point, sync=False)
+        with patch.object(
+            type(preview), "_wake_marketing_enrichment", return_value=True
+        ) as wake:
+            self.env["marketing.contact.center.attribution.service"]._sync_touchpoint(
+                point
+            )
+        wake.assert_called_once()
+        self.assertEqual(len(wake.call_args.args[0]), 64)
+        self.fetch.assert_not_called()
+
+    def test_later_unique_catalog_resolution_wakes_previously_unresolved_preview(self):
+        point = self._touchpoint()
+        preview = self._preview(point)
+        source = self._catalog_source("123")
+        with patch.object(
+            type(preview), "_wake_marketing_enrichment", return_value=True
+        ) as wake:
+            self._entity(source)
+        wake.assert_called()
+        self.fetch.assert_not_called()

@@ -1,5 +1,7 @@
 """Optional point lookup with the same authorization fences as catalog reads."""
 
+from psycopg2 import Error as DatabaseError
+
 from odoo import api, fields, models
 
 from ..services.adapter import (
@@ -7,6 +9,14 @@ from ..services.adapter import (
     META_ADS_SERVICE,
     MetaMarketingReadAdapter,
 )
+
+
+class AuthorizedMetaPreview(dict):
+    """Transient scope snapshot; dictionary serialization includes copy only."""
+
+    def __init__(self, values, fingerprint):
+        super().__init__(values)
+        self.fingerprint = fingerprint
 
 
 class MarketingCenterMetaAdPreviewService(models.AbstractModel):
@@ -110,20 +120,32 @@ class MarketingCenterMetaAdPreviewService(models.AbstractModel):
             values = MetaMarketingReadAdapter(
                 profile, expected_app_revision=app.revision
             ).fetch_ad_preview(source.external_account_ref, entity.external_ref)
+        except DatabaseError:
+            raise
         except Exception:
             # This optional read must not leak SDK/HTTP exception text, prepared
             # URLs or credentials to the operational job. No profile is changed.
             return {}
-        # No authorization lock is held during HTTP. With REPEATABLE READ these
-        # locks either confirm the snapshot or raise a database serialization
-        # error instead of accepting a response after a concurrent revocation.
         for record in (source, connection, profile, app, entity):
-            self.env.cr.execute(
-                'SELECT id FROM "%s" WHERE id = %%s FOR SHARE' % record._table,
-                [record.id],
-            )
             record.invalidate_recordset()
         current = self._preview_scope(entity)
         if not current or self._preview_fingerprint(current) != expected:
             return {}
-        return values
+        return AuthorizedMetaPreview(values, expected)
+
+    @api.model
+    def _validate_ad_preview(self, entity, fingerprint):
+        """Run only after Graph AND thumbnail HTTP have completed."""
+        scope = self._preview_scope(entity)
+        if not scope or self._preview_fingerprint(scope) != fingerprint:
+            return False
+        for record in scope:
+            self.env.cr.execute(
+                'SELECT id FROM "%s" WHERE id = %%s FOR SHARE NOWAIT' % record._table,
+                [record.id],
+            )
+            if not self.env.cr.fetchone():
+                return False
+            record.invalidate_recordset()
+        current = self._preview_scope(entity)
+        return bool(current and self._preview_fingerprint(current) == fingerprint)
