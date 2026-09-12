@@ -48,7 +48,7 @@ jobs:
     name: ${{ matrix.name }}
     env:
       PIP_CONSTRAINT: ${{ github.workspace }}/constraints.txt
-      PEER_REF: ${{ inputs.peer_ref || '5203d61f1715311e8339e1ce268e4a312a6bba49' }}
+      PEER_REF: ${{ inputs.peer_ref || 'fc6a76f207a11f1080ae845982b3c13c9c444ca6' }}
     strategy:
       fail-fast: false
       matrix:

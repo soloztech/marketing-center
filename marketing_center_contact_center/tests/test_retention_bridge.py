@@ -359,3 +359,68 @@ class TestMarketingRetentionBridge(MarketingLifecycleCase):
         self.assertEqual(result["message_count"], 1)
         self.assertFalse(source.exists())
         self.assertTrue(recent.exists())
+
+    def test_company_a_cron_prepares_company_b_group_inside_its_own_scope(self):
+        self._source()
+        self._settle()
+        original_facts = self._facts()
+        company_a = self.env.company
+        company_b = self.env["res.company"].create({"name": "Retention second company"})
+        scoped = (
+            self.env["res.company"]
+            .sudo()
+            .with_context(allowed_company_ids=[company_b.id])
+            .with_company(company_b)
+            .env
+        )
+        account = scoped["contact.center.account"].create(
+            {
+                "name": "Retention other company inbox",
+                "company_id": company_b.id,
+                "platform": "whatsapp",
+            }
+        )
+        account.with_context(**_service_context()).write(
+            {
+                "retention_enabled": True,
+                "retention_days": 7,
+            }
+        )
+        channel = scoped["mail.channel"]._contact_center_create_channel(
+            account=account,
+            identity=scoped["contact.center.identity"],
+            conversation_type="group",
+            partner_ids=[],
+            guest_ids=[],
+        )
+        binding = scoped["contact.center.channel.binding"].create(
+            {
+                "channel_id": channel.id,
+                "account_id": account.id,
+                "conversation_type": "group",
+                "conversation_ref": "%s@g.us" % uuid.uuid4().int,
+            }
+        )
+        source = self._message_binding(
+            binding,
+            direction="inbound",
+            origin="provider",
+            date="2026-09-01 10:00:00",
+            delivery_state="delivered",
+            skip_enqueue=True,
+        )
+        cron = (
+            self.retention.sudo()
+            .with_context(allowed_company_ids=[company_a.id])
+            .with_company(company_a)
+        )
+        result = cron._purge_binding(binding, now=self.now)
+        self.assertEqual(result["message_count"], 1)
+        self.assertFalse(source.exists())
+        signals = scoped["marketing.contact.center.response.signal"].search(
+            [("channel_binding_id", "=", binding.id)]
+        )
+        self.assertTrue(signals)
+        self.assertEqual(signals.company_id, company_b)
+        self.assertFalse(signals.message_binding_id)
+        self.assertEqual(self._facts(), original_facts)

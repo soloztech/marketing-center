@@ -19,11 +19,22 @@ class ContactCenterRetention(models.AbstractModel):
         )
         if result is False or not message_bindings:
             return result
-        service = self.env["marketing.contact.center.response.episode.service"].sudo()
+        company = binding.company_id
+        service = (
+            self.env["marketing.contact.center.response.episode.service"]
+            .sudo()
+            .with_context(allowed_company_ids=[company.id])
+            .with_company(company)
+        )
         # Match the existing projection lock order: episode, then lifecycle.
         # A busy advisory key aborts this batch for a fresh transaction.
         service._lock_channel(binding)
-        lifecycle = self.env["marketing.contact.center.lifecycle.service"].sudo()
+        lifecycle = (
+            self.env["marketing.contact.center.lifecycle.service"]
+            .sudo()
+            .with_context(allowed_company_ids=[company.id])
+            .with_company(company)
+        )
         for kind in ("conversation_started", "first_human_response"):
             lifecycle._sync_event(binding, kind)
         service._record_signals(message_bindings)
