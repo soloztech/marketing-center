@@ -1,10 +1,11 @@
 /** @odoo-module **/
 
-import {CatalogDialog} from "./catalog_dialog.esm";
+import {onWillDestroy, useChildSubEnv} from "@odoo/owl";
+import {CatalogPanel} from "./catalog_dialog.esm";
+import {ContactCenterApp} from "@contact_center_ui/js/contact_center_app.esm";
 import {MessageComposer} from "@contact_center_ui/js/message_composer.esm";
 import {_t} from "@web/core/l10n/translation";
 import {patch} from "@web/core/utils/patch";
-import {useOwnedDialogs} from "@web/core/utils/hooks";
 
 export function appendCatalogText(body, texts, maxLength) {
     const addition = texts
@@ -96,34 +97,84 @@ export async function addCatalogItems(
 patch(MessageComposer.prototype, "marketing_center_catalog_contact_center.composer", {
     setup() {
         this._super(...arguments);
-        this.addCatalogDialog = useOwnedDialogs();
+        if (this.env.contentCatalog) {
+            const unregister = this.env.contentCatalog.registerComposer(this);
+            onWillDestroy(unregister);
+        }
+    },
+});
+
+patch(ContactCenterApp, "marketing_center_catalog_contact_center.components", {
+    components: {...ContactCenterApp.components, CatalogPanel},
+});
+
+patch(ContactCenterApp.prototype, "marketing_center_catalog_contact_center.panel", {
+    setup() {
+        this._super(...arguments);
+        this.catalogComposer = null;
+        useChildSubEnv({
+            contentCatalog: {
+                registerComposer: (composer) => {
+                    this.catalogComposer = composer;
+                    return () => {
+                        if (this.catalogComposer === composer) {
+                            this.catalogComposer = null;
+                        }
+                    };
+                },
+            },
+        });
     },
 
-    get canOpenContentCatalog() {
+    get canViewCatalog() {
         return Boolean(
-            this.conversation &&
-                this.store.capabilities.content_catalog &&
-                !this.local.sendPlan &&
-                !this.local.actionBusy &&
-                !this.voiceCaptureActive &&
-                !this.sending
+            this.selectedConversation && this.store.capabilities.content_catalog
         );
     },
 
-    openContentCatalog() {
-        if (!this.canOpenContentCatalog) {
-            return;
+    get catalogPanelSelected() {
+        return this.canViewCatalog && this.ui.sidePanel === "catalog";
+    },
+
+    toggleCatalogPanel() {
+        if (this.canViewCatalog) {
+            this.toggleSidePanel("catalog");
+        }
+    },
+
+    closeCatalogPanel() {
+        this.store.state.detailsOpen = false;
+        const trigger = document.querySelector(
+            ".o_contact_center_ui .cc-catalog-toggle"
+        );
+        if (trigger) {
+            trigger.focus();
+        }
+    },
+
+    getCatalogDraft() {
+        const composer = this.catalogComposer;
+        if (!composer || !this.canViewCatalog) {
+            return null;
         }
         const context = {
-            source: this.draftSourceContext(),
-            generation: this.uploadGeneration,
+            source: composer.draftSourceContext(),
+            generation: composer.uploadGeneration,
         };
-        this.addCatalogDialog(CatalogDialog, {
-            store: this.store,
-            channelId: context.source.channelId,
-            canAdd: () => catalogContextCurrent(this, context),
+        const current = () =>
+            this.catalogComposer === composer &&
+            this.catalogPanelSelected &&
+            this.store.state.detailsOpen &&
+            catalogContextCurrent(composer, context);
+        return {
+            canAdd: current,
             onAdd: (payload, isAlive) =>
-                addCatalogItems(this, context, payload, isAlive),
-        });
+                addCatalogItems(
+                    composer,
+                    context,
+                    payload,
+                    () => isAlive() && current()
+                ),
+        };
     },
 });

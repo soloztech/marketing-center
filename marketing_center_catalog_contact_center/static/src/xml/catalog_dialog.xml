@@ -1,29 +1,64 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <templates xml:space="preserve">
     <t
-        t-name="marketing_center_catalog_contact_center.MessageComposer"
-        t-inherit="contact_center_ui.MessageComposer"
+        t-name="marketing_center_catalog_contact_center.ContactCenterApp"
+        t-inherit="contact_center_ui.ContactCenterApp"
         t-inherit-mode="extension"
         owl="1"
     >
-        <xpath expr="//div[hasclass('cc-composer__field')]" position="before">
+        <xpath
+            expr="//div[hasclass('cc-conversation-header__actions')]"
+            position="inside"
+        >
             <button
-                t-if="store.capabilities.content_catalog"
+                t-if="canViewCatalog"
                 type="button"
-                class="cc-attachment-button cc-catalog-button"
-                title="Open content catalog"
-                aria-label="Open content catalog"
-                t-att-disabled="!canOpenContentCatalog"
-                t-on-click="openContentCatalog"
+                class="cc-icon-button cc-catalog-toggle"
+                title="Catálogo de conteúdo"
+                aria-label="Catálogo de conteúdo"
+                aria-controls="cc-catalog-panel"
+                t-att-aria-expanded="catalogPanelSelected &amp;&amp; store.state.detailsOpen ? 'true' : 'false'"
+                t-att-aria-pressed="catalogPanelSelected &amp;&amp; store.state.detailsOpen ? 'true' : 'false'"
+                t-on-click="toggleCatalogPanel"
             >
                 <i class="fa fa-book" aria-hidden="true" />
-                <span class="sr-only">Content</span>
             </button>
         </xpath>
+        <xpath expr="//ContactPanel" position="after">
+            <CatalogPanel
+                t-if="catalogPanelSelected &amp;&amp; store.state.detailsOpen"
+                t-key="selectedConversation.channel_id"
+                store="store"
+                channelId="selectedConversation.channel_id"
+                getDraft.bind="getCatalogDraft"
+                close.bind="closeCatalogPanel"
+            />
+        </xpath>
     </t>
-    <t t-name="marketing_center_catalog_contact_center.CatalogDialog" owl="1">
-        <Dialog title="title" size="'xl'">
-            <div class="o_cc_catalog">
+    <t t-name="marketing_center_catalog_contact_center.CatalogPanel" owl="1">
+        <aside
+            id="cc-catalog-panel"
+            class="cc-contact-panel o_cc_catalog_panel"
+            aria-label="Catálogo de conteúdo"
+            t-att-aria-busy="state.busy ? 'true' : 'false'"
+        >
+            <header class="cc-contact-panel__header">
+                <span class="o_cc_catalog_panel__icon" aria-hidden="true"><i
+                        class="fa fa-book"
+                    /></span>
+                <div>
+                    <p class="cc-kicker">Conteúdo</p>
+                    <h2>Catálogo</h2>
+                </div>
+                <button
+                    type="button"
+                    class="cc-icon-button"
+                    title="Fechar catálogo"
+                    aria-label="Fechar catálogo"
+                    t-on-click="props.close"
+                ><i class="fa fa-times" aria-hidden="true" /></button>
+            </header>
+            <div class="cc-contact-panel__scroll o_cc_catalog_panel__body">
                 <div
                     t-if="state.error"
                     class="alert alert-warning"
@@ -39,32 +74,25 @@
                     selectedItems="state.selected"
                     selectionDisabled="state.busy"
                 />
-                <p
-                    t-if="!state.busy &amp;&amp; !props.canAdd()"
-                    class="text-muted mt-3"
-                >To add content, select a message draft in this conversation without another action in progress.</p>
             </div>
-            <t t-set-slot="footer">
+            <footer class="o_cc_catalog_panel__footer">
+                <p t-if="!state.busy &amp;&amp; !canAdd" class="text-muted mb-2">
+                    Para adicionar conteúdo, selecione um rascunho de mensagem nesta conversa sem outra ação em andamento. Reabra o catálogo se o contato mudou.
+                </p>
                 <button
                     type="button"
-                    class="btn btn-primary"
+                    class="cc-primary-button"
                     t-on-click="addToMessage"
-                    t-att-disabled="state.busy || !selectionCount || !props.canAdd()"
+                    t-att-disabled="state.busy || !selectionCount || !canAdd"
                 >
-                    <i
-                        t-if="state.busy"
-                        class="fa fa-spinner fa-spin me-1"
-                    />Add to message<t t-if="selectionCount"> (<t
+                    <i t-if="state.busy" class="fa fa-spinner fa-spin me-1" />
+                    Adicionar à mensagem<t t-if="selectionCount"> (<t
                             t-esc="selectionCount"
                         />)</t>
                 </button>
-                <button
-                    type="button"
-                    class="btn btn-secondary"
-                    t-on-click="props.close"
-                    t-att-disabled="state.busy"
-                >Close</button>
-            </t>
-        </Dialog>
+                <small
+                >Os itens serão preparados no rascunho para revisão antes do envio.</small>
+            </footer>
+        </aside>
     </t>
 </templates>

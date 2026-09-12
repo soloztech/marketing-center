@@ -1,36 +1,16 @@
 /** @odoo-module **/
 
-import {Component, onWillDestroy, useChildSubEnv, useState} from "@odoo/owl";
+import {Component, onWillDestroy, useState} from "@odoo/owl";
 import {CatalogBrowser} from "@marketing_center_catalog/js/catalog_browser";
-import {Dialog} from "@web/core/dialog/dialog";
 import {_t} from "@web/core/l10n/translation";
 
-export class CatalogDialog extends Component {
+export class CatalogPanel extends Component {
     setup() {
         this.state = useState({selected: {}, busy: false, error: ""});
-        const dialogData = useState(this.env.dialogData);
-        useChildSubEnv({
-            dialogData: {
-                get id() {
-                    return dialogData.id;
-                },
-                get isActive() {
-                    return dialogData.isActive;
-                },
-                scrollToOrigin: dialogData.scrollToOrigin,
-                close: () => this.closeWhenIdle(),
-            },
-        });
         this.alive = true;
         onWillDestroy(() => {
             this.alive = false;
         });
-    }
-
-    closeWhenIdle() {
-        if (!this.state.busy) {
-            this.props.close();
-        }
     }
 
     get title() {
@@ -45,6 +25,11 @@ export class CatalogDialog extends Component {
 
     get selectionCount() {
         return this.selectedIds.length;
+    }
+
+    get canAdd() {
+        const draft = this.props.getDraft();
+        return Boolean(draft && draft.canAdd());
     }
 
     loadSubjects(filters) {
@@ -76,7 +61,8 @@ export class CatalogDialog extends Component {
     }
 
     async addToMessage() {
-        if (this.state.busy || !this.selectionCount || !this.props.canAdd()) {
+        const draft = this.props.getDraft();
+        if (this.state.busy || !this.selectionCount || !draft || !draft.canAdd()) {
             return;
         }
         this.state.busy = true;
@@ -86,7 +72,7 @@ export class CatalogDialog extends Component {
                 this.props.channelId,
                 this.selectedIds,
             ]);
-            if (!this.alive || !this.props.canAdd()) {
+            if (!this.alive || !draft.canAdd()) {
                 if (this.alive) {
                     this.state.error = _t(
                         "The conversation or draft changed. Reopen the catalog to add content."
@@ -94,7 +80,7 @@ export class CatalogDialog extends Component {
                 }
                 return;
             }
-            const inserted = await this.props.onAdd(payload, () => this.alive);
+            const inserted = await draft.onAdd(payload, () => this.alive);
             if (!this.alive) {
                 return;
             }
@@ -125,12 +111,11 @@ export class CatalogDialog extends Component {
     }
 }
 
-CatalogDialog.template = "marketing_center_catalog_contact_center.CatalogDialog";
-CatalogDialog.components = {Dialog, CatalogBrowser};
-CatalogDialog.props = {
+CatalogPanel.template = "marketing_center_catalog_contact_center.CatalogPanel";
+CatalogPanel.components = {CatalogBrowser};
+CatalogPanel.props = {
     close: Function,
     store: Object,
     channelId: Number,
-    canAdd: Function,
-    onAdd: Function,
+    getDraft: Function,
 };

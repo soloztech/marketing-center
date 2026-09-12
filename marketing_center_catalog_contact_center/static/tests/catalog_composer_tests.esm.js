@@ -12,10 +12,10 @@ import {
     makeDeferred,
     mount,
     nextTick,
-    triggerHotkey,
 } from "@web/../tests/helpers/utils";
 
-import {CatalogDialog} from "@marketing_center_catalog_contact_center/js/catalog_dialog.esm";
+import {CatalogPanel} from "@marketing_center_catalog_contact_center/js/catalog_dialog.esm";
+import {ContactCenterApp} from "@contact_center_ui/js/contact_center_app.esm";
 import {hotkeyService} from "@web/core/hotkeys/hotkey_service";
 import {makeFakeDialogService} from "@web/../tests/helpers/mock_services";
 import {makeTestEnv} from "@web/../tests/helpers/mock_env";
@@ -193,7 +193,7 @@ QUnit.test("closing the owner stops the file sequence", async (assert) => {
     assert.strictEqual(calls, 1);
 });
 
-QUnit.module("Content Catalog composer bridge dialog", (hooks) => {
+QUnit.module("Content Catalog side panel", (hooks) => {
     hooks.beforeEach(() => {
         const services = registry.category("services");
         services.add("ui", uiService);
@@ -202,14 +202,13 @@ QUnit.module("Content Catalog composer bridge dialog", (hooks) => {
     });
 
     QUnit.test(
-        "shared browser keeps tab selections and blocks X and Escape while adding",
+        "shared browser keeps tab selections and prepares the draft in the sidebar",
         async (assert) => {
             const target = getFixture();
             const pending = makeDeferred();
             const env = await makeTestEnv();
             let closed = 0;
             const close = () => closed++;
-            env.dialogData = {id: 1, isActive: true, close, scrollToOrigin: () => true};
             const subject = {
                 id: 101,
                 name: "Company",
@@ -275,17 +274,17 @@ QUnit.module("Content Catalog composer bridge dialog", (hooks) => {
                     return pending;
                 },
             };
-            const dialog = await mount(CatalogDialog, target, {
+            const panel = await mount(CatalogPanel, target, {
                 env,
                 props: {
                     close,
                     store,
                     channelId: 17,
-                    canAdd: () => true,
-                    onAdd: async () => [1, 3],
+                    getDraft: () => ({canAdd: () => true, onAdd: async () => [1, 3]}),
                 },
             });
-            assert.containsOnce(target, ".o_cc_catalog");
+            assert.containsOnce(target, "aside.o_cc_catalog_panel");
+            assert.containsNone(target, ".modal");
             await click(
                 target,
                 ".o_catalog_subject_card[data-subject-id='101'] button.o_catalog_subject_open"
@@ -297,20 +296,14 @@ QUnit.module("Content Catalog composer bridge dialog", (hooks) => {
             await click(target, "button[data-section='materials']");
             await click(target.querySelector(selectors));
             assert.deepEqual(
-                dialog.selectedIds,
+                panel.selectedIds,
                 [1, 3],
                 "selections persist across tabs"
             );
-            await click(target.querySelector("footer .btn-primary"));
-            assert.ok(dialog.state.busy);
-            await click(target.querySelector("header .btn-close"));
-            triggerHotkey("escape");
-            await nextTick();
-            assert.strictEqual(
-                closed,
-                0,
-                "X and Escape cannot hide the active preparation"
-            );
+            await click(target.querySelector("footer .cc-primary-button"));
+            assert.ok(panel.state.busy);
+            assert.ok(target.querySelector("footer .cc-primary-button").disabled);
+            assert.strictEqual(closed, 0, "preparation stays visible until ready");
             pending.resolve({
                 channel_id: 17,
                 items: [{id: 1, text: "Answer", file: false}, file(3)],
@@ -319,7 +312,7 @@ QUnit.module("Content Catalog composer bridge dialog", (hooks) => {
             assert.strictEqual(
                 closed,
                 1,
-                "dialog closes after the selection reaches the draft"
+                "panel closes after the selection reaches the draft"
             );
         }
     );
@@ -340,13 +333,12 @@ QUnit.test(
             },
             props: {
                 channelId: 17,
-                canAdd: () => true,
+                getDraft: () => ({canAdd: () => true, onAdd: async () => [1, 2]}),
                 store: {call: async () => ({channel_id: 17, items: []})},
-                onAdd: async () => [1, 2],
                 close: () => assert.ok(false, "remaining selection keeps popup open"),
             },
         };
-        await CatalogDialog.prototype.addToMessage.call(wrapper);
+        await CatalogPanel.prototype.addToMessage.call(wrapper);
         assert.deepEqual(wrapper.selectedIds, [3]);
         assert.notStrictEqual(
             wrapper.state.selected,
@@ -354,5 +346,138 @@ QUnit.test(
             "new map updates the controlled browser props"
         );
         assert.notOk(wrapper.state.busy);
+    }
+);
+
+QUnit.test(
+    "catalog switches exclusively with other panels and respects access",
+    (assert) => {
+        const app = Object.create(ContactCenterApp.prototype);
+        app.ui = {sidePanel: "contact"};
+        app.store = {
+            capabilities: {content_catalog: true},
+            state: {detailsOpen: true},
+            selectedConversation: {channel_id: 17},
+            toggleDetails() {
+                this.state.detailsOpen = !this.state.detailsOpen;
+            },
+        };
+        app.toggleCatalogPanel();
+        assert.ok(app.catalogPanelSelected);
+        assert.notOk(app.contactPanelSelected);
+        assert.ok(app.store.state.detailsOpen);
+        app.toggleSidePanel("crm");
+        assert.notOk(app.catalogPanelSelected);
+        app.toggleCatalogPanel();
+        assert.ok(app.catalogPanelSelected);
+        app.toggleContactPanel();
+        assert.ok(app.contactPanelSelected);
+        assert.notOk(app.catalogPanelSelected);
+        assert.ok(app.store.state.detailsOpen);
+        app.toggleCatalogPanel();
+        app.toggleCatalogPanel();
+        assert.notOk(app.store.state.detailsOpen, "second click closes the catalog");
+        app.toggleCatalogPanel();
+        assert.ok(app.store.state.detailsOpen, "reopening selects the same panel");
+        app.store.capabilities.content_catalog = false;
+        assert.notOk(app.canViewCatalog);
+        assert.notOk(app.catalogPanelSelected);
+        app.toggleContactPanel();
+        app.toggleCatalogPanel();
+        assert.ok(app.contactPanelSelected, "missing capability cannot reopen catalog");
+    }
+);
+
+QUnit.test(
+    "catalog draft scope stops when its composer is replaced",
+    async (assert) => {
+        const {composer, sources} = fixture();
+        composer.draftSourceContext = () => ({channelId: 17, customerKey: "11:12"});
+        composer.uploadGeneration = 4;
+        const app = Object.create(ContactCenterApp.prototype);
+        app.catalogComposer = composer;
+        app.ui = {sidePanel: "catalog"};
+        app.store = {
+            capabilities: {content_catalog: true},
+            state: {detailsOpen: true},
+            selectedConversation: {channel_id: 17},
+        };
+        const draft = app.getCatalogDraft();
+        assert.ok(draft.canAdd());
+        app.store.state.detailsOpen = false;
+        assert.notOk(
+            draft.canAdd(),
+            "closing invalidates pending preparation before unmount"
+        );
+        app.store.state.detailsOpen = true;
+        app.catalogComposer = null;
+        assert.notOk(draft.canAdd());
+        assert.deepEqual(
+            await draft.onAdd({channel_id: 17, items: [file(2)]}, () => true),
+            []
+        );
+        assert.deepEqual(sources, [], "detached composer receives no file");
+        assert.strictEqual(
+            app.getCatalogDraft(),
+            null,
+            "read-only chat remains consultation only"
+        );
+    }
+);
+
+QUnit.test(
+    "closing or switching conversations cancels pending catalog handoff",
+    async (assert) => {
+        const target = getFixture();
+        const env = await makeTestEnv();
+        const pending = makeDeferred();
+        let added = 0;
+        let panel;
+        const calls = [];
+        const store = {
+            call: async (method, args) => {
+                calls.push([method, args[0]]);
+                return method === "prepare_catalog_content"
+                    ? pending
+                    : {subjects: [], has_more: false};
+            },
+        };
+        const mountPanel = (channelId) =>
+            mount(CatalogPanel, target, {
+                env,
+                props: {
+                    channelId,
+                    store,
+                    close: () => panel.__owl__.app.destroy(),
+                    getDraft: () => ({
+                        canAdd: () => true,
+                        onAdd: async () => {
+                            added++;
+                            return [1];
+                        },
+                    }),
+                },
+            });
+        panel = await mountPanel(17);
+        panel.state.selected = {1: {id: 1}};
+        await nextTick();
+        const adding = panel.addToMessage();
+        await nextTick();
+        await click(target, "header button");
+        pending.resolve({channel_id: 17, items: [file(1)]});
+        await adding;
+        assert.strictEqual(added, 0, "closed panel never hands content to the draft");
+        assert.containsNone(target, ".o_cc_catalog_panel");
+        panel = await mountPanel(18);
+        assert.deepEqual(
+            panel.selectedIds,
+            [],
+            "new conversation has no stale selection"
+        );
+        assert.deepEqual(calls, [
+            ["search_catalog_subjects", 17],
+            ["prepare_catalog_content", 17],
+            ["search_catalog_subjects", 18],
+        ]);
     }
 );
