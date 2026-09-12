@@ -418,14 +418,12 @@ class TestMetaLeadFormDiscovery(SavepointCase):
             reader_kind="lead_reader",
         )
         self.assertNotEqual(other_app, self.app)
-        for changes in (
-            {"company_id": other_company.id},
-            {"lead_profile_id": other_profile.id},
-            {"lead_profile_id": self.ads_profile.id},
+        for changes, expected_error in (
+            ({"company_id": other_company.id}, UserError),
+            ({"lead_profile_id": other_profile.id}, ValidationError),
+            ({"lead_profile_id": self.ads_profile.id}, ValidationError),
         ):
-            with self.env.cr.savepoint(), self.assertRaises(
-                (AccessError, ValidationError)
-            ):
+            with self.env.cr.savepoint(), self.assertRaises(expected_error):
                 self.Wizard.create(self._values(**changes))
         other_source = self.source.copy(
             {"external_account_ref": "act_%s" % uuid.uuid4().int}
