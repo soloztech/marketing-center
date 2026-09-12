@@ -1,3 +1,5 @@
+import datetime
+import re
 import secrets
 import uuid
 
@@ -87,6 +89,27 @@ class MarketingWebIngressEndpoint(models.Model):
             "The reverse proxy must still enforce the authoritative edge limit."
         ),
     )
+    capture_enabled = fields.Boolean(
+        default=False,
+        help="Enable optional attribution only under the documented policy below. "
+        "This is not evidence of visitor consent.",
+    )
+    capture_purpose = fields.Char()
+    privacy_policy_version = fields.Char()
+    privacy_notice_version = fields.Char()
+    privacy_legal_basis_code = fields.Char(
+        help="Documented non-consent legal basis. Consent-based capture is unavailable "
+        "until a trusted individual-decision producer is integrated.",
+    )
+    privacy_policy_justification = fields.Text()
+    identifier_retention_days = fields.Integer(
+        default=0,
+        help="Explicit policy duration; zero means not configured. No legal duration "
+        "is supplied by the application.",
+    )
+    privacy_policy_set_by = fields.Many2one("res.users", readonly=True)
+    privacy_policy_set_at = fields.Datetime(readonly=True)
+    legacy_retention_count = fields.Integer(compute="_compute_legacy_retention_count")
     event_ids = fields.One2many(
         "marketing.web.ingress.event", "endpoint_id", readonly=True
     )
@@ -139,9 +162,13 @@ class MarketingWebIngressEndpoint(models.Model):
                 "public_key",
                 "key_revision",
                 "config_revision",
+                "privacy_policy_set_by",
+                "privacy_policy_set_at",
             }.intersection(values):
                 raise AccessError(_("Web ingress identity is managed internally."))
             values.update(self._normalized_allowlists(values))
+            if self._privacy_policy_fields().intersection(values):
+                values.update(self._privacy_policy_audit_values())
             normalized.append(values)
         return super().create(normalized)
 
@@ -158,6 +185,8 @@ class MarketingWebIngressEndpoint(models.Model):
             "public_key",
             "key_revision",
             "config_revision",
+            "privacy_policy_set_by",
+            "privacy_policy_set_at",
         }
         if identity_fields.intersection(values) and not internal:
             raise AccessError(_("Web ingress identity is managed internally."))
@@ -177,7 +206,9 @@ class MarketingWebIngressEndpoint(models.Model):
             "max_body_bytes",
             "max_field_length",
             "rate_limit_per_minute",
-        }
+        } | self._privacy_policy_fields()
+        if not internal and self._privacy_policy_fields().intersection(values):
+            values.update(self._privacy_policy_audit_values())
         if not internal and security_fields.intersection(values):
             for endpoint in self.sorted("id"):
                 self.env.cr.execute(
@@ -195,6 +226,162 @@ class MarketingWebIngressEndpoint(models.Model):
                 ).write(item_values)
             return True
         return super().write(values)
+
+    @api.model
+    def _privacy_policy_fields(self):
+        return {
+            "capture_enabled",
+            "capture_purpose",
+            "privacy_policy_version",
+            "privacy_notice_version",
+            "privacy_legal_basis_code",
+            "privacy_policy_justification",
+            "identifier_retention_days",
+        }
+
+    @api.model
+    def _privacy_policy_audit_values(self):
+        if not self.env.user.has_group(
+            "marketing_center_base.group_marketing_center_admin"
+        ):
+            raise AccessError(
+                _("Only a Marketing Administrator can configure capture.")
+            )
+        return {
+            "privacy_policy_set_by": self.env.uid,
+            "privacy_policy_set_at": fields.Datetime.now(),
+        }
+
+    def _privacy_policy_configured(self):
+        self.ensure_one()
+        return bool(
+            self.capture_purpose
+            and (self.privacy_policy_version or "").strip()
+            and (self.privacy_notice_version or "").strip()
+            and self.privacy_legal_basis_code
+            and (self.privacy_policy_justification or "").strip()
+            and self.identifier_retention_days > 0
+            and self.privacy_legal_basis_code.lower() not in {"consent", "granted"}
+        )
+
+    def _capture_policy_allows(self):
+        self.ensure_one()
+        return self.capture_enabled and self._privacy_policy_configured()
+
+    @api.constrains(
+        "capture_enabled",
+        "capture_purpose",
+        "privacy_policy_version",
+        "privacy_notice_version",
+        "privacy_legal_basis_code",
+        "privacy_policy_justification",
+        "identifier_retention_days",
+    )
+    def _check_privacy_policy(self):
+        for endpoint in self:
+            if endpoint.identifier_retention_days < 0:
+                raise ValidationError(_("Retention days cannot be negative."))
+            if endpoint.identifier_retention_days:
+                endpoint._retention_deadline(fields.Datetime.now())
+            for value in (endpoint.capture_purpose, endpoint.privacy_legal_basis_code):
+                if value and not re.fullmatch(
+                    r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}", value
+                ):
+                    raise ValidationError(
+                        _("Use a bounded policy code without spaces.")
+                    )
+            if any(
+                len(value or "") > 128
+                for value in (
+                    endpoint.privacy_policy_version,
+                    endpoint.privacy_notice_version,
+                )
+            ):
+                raise ValidationError(
+                    _("Policy and notice versions are limited to 128 characters.")
+                )
+            if endpoint.capture_enabled and not endpoint._privacy_policy_configured():
+                raise ValidationError(
+                    _(
+                        "Configure a purpose, policy and notice versions, documented "
+                        "non-consent basis, justification and retention before enabling capture."
+                    )
+                )
+
+    def _retention_deadline(self, observed_at):
+        self.ensure_one()
+        try:
+            return fields.Datetime.to_datetime(observed_at) + datetime.timedelta(
+                days=self.identifier_retention_days
+            )
+        except OverflowError as error:
+            raise ValidationError(
+                _("The configured retention duration is too large.")
+            ) from error
+
+    def _compute_legacy_retention_count(self):
+        for endpoint in self:
+            endpoint.legacy_retention_count = self.env[
+                "marketing.web.ingress.event"
+            ].search_count(
+                [
+                    ("endpoint_id", "=", endpoint.id),
+                    ("retain_until", "=", False),
+                ]
+            )
+
+    def action_preview_legacy_retention(self):
+        self.ensure_one()
+        self.check_access_rights("write")
+        self.check_access_rule("write")
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Events without a retention policy"),
+            "res_model": "marketing.web.ingress.event",
+            "view_mode": "tree,form",
+            "domain": [("endpoint_id", "=", self.id), ("retain_until", "=", False)],
+        }
+
+    def action_apply_legacy_retention(self):
+        """Explicit operator action; never guess a duration for legacy evidence."""
+        self.ensure_one()
+        self.check_access_rights("write")
+        self.check_access_rule("write")
+        self._privacy_policy_audit_values()
+        if not self._privacy_policy_configured():
+            raise ValidationError(
+                _("Configure the documented policy first; capture can remain disabled.")
+            )
+        self.env.cr.execute(
+            "SELECT id FROM marketing_web_ingress_endpoint WHERE id = %s FOR SHARE",
+            [self.id],
+        )
+        self.invalidate_recordset(list(self._privacy_policy_fields()))
+        if not self._privacy_policy_configured():
+            raise ValidationError(_("The capture policy changed; review it again."))
+        events = self.env["marketing.web.ingress.event"].search(
+            [
+                ("endpoint_id", "=", self.id),
+                ("retain_until", "=", False),
+            ],
+            order="id",
+            limit=100,
+        )
+        for event in events:
+            event._assign_retention_policy(self, assigned_by=self.env.uid)
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "type": "success",
+                "sticky": True,
+                "message": _(
+                    "Retention assigned to %(count)s legacy events. Expired values are "
+                    "eligible for the next cleanup; review and repeat for remaining batches.",
+                    count=len(events),
+                ),
+            },
+        }
 
     @api.model
     def _normalized_allowlists(self, values):
@@ -278,9 +465,11 @@ class MarketingWebIngressEndpoint(models.Model):
                 "max_field_length",
                 "rate_limit_per_minute",
             ]
+            + list(self._privacy_policy_fields())
         )
         if (
             not self.active
+            or not self._capture_policy_allows()
             or not isinstance(candidate, str)
             or len(candidate) > 128
             or not isinstance(candidate_revision, str)

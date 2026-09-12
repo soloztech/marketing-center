@@ -22,3 +22,25 @@ account and campaign grains or provider breakdowns from being summed twice.
 Source cards follow the user's active source roster. Company lifecycle aggregates are
 available to Marketing Analysts, while the unresolved aggregate remains administrator
 only because unresolved touchpoints are not yet safe to associate with a roster.
+
+Metric definitions
+------------------
+
+Company rows use the current UTC calendar day and the previous 29 UTC days;
+source rows use each provider source's reporting timezone. The timezone is visible
+with the window. Stored instants are not rewritten to local wall-clock time.
+
+Qualified, won and lost counters measure transitions. Re-entering a won stage
+counts another transition; archiving follows native CRM loss semantics. These are
+not distinct-opportunity counts or cohort conversion rates.
+
+Financial counters measure posting/allocation occurrences, including repostings.
+They are not counts of currently posted documents or net revenue. Invoice/credit
+amounts, realized allocations and order amounts have different bases and may have
+different currencies; no cross-basis monetary total is displayed.
+
+Answered episodes count the dedicated, idempotent ``response_episode_answered``
+fact. Conversation-level ``first_human_response`` events only count conversations,
+even if two producers selected different response messages. The Contact Center
+bridge upgrade must finish its bounded legacy projection before historical episode
+totals are considered complete.

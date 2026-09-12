@@ -57,7 +57,9 @@ class MarketingWebsiteActionService(models.AbstractModel):
             "SELECT id FROM marketing_web_ingress_endpoint WHERE id = %s FOR SHARE",
             [endpoint.id],
         )
-        endpoint.invalidate_recordset(["active", "company_id"])
+        endpoint.invalidate_recordset(
+            ["active", "company_id"] + list(endpoint._privacy_policy_fields())
+        )
         binding.invalidate_recordset(
             ["active", "website_id", "company_id", "endpoint_id"]
         )
@@ -133,6 +135,7 @@ class MarketingWebsiteActionService(models.AbstractModel):
         if not (
             action.binding_id.endpoint_id == endpoint
             and endpoint.company_id == action.company_id
+            and endpoint._capture_policy_allows()
         ):
             raise AccessError(_("The Website action configuration is unavailable."))
         return endpoint

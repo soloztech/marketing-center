@@ -6,7 +6,7 @@ import pytz
 
 from odoo import Command, fields
 from odoo.exceptions import AccessError
-from odoo.tests.common import SavepointCase
+from odoo.tests.common import SavepointCase, tagged
 
 from odoo.addons.marketing_center_base.models.attribution_resolution import (
     ASSET_RESOLUTION_WRITE_TOKEN,
@@ -20,6 +20,7 @@ from odoo.addons.marketing_center_base.services.performance_dto import (
 )
 
 
+@tagged("post_install", "-at_install")
 class TestMarketingCenterDashboard(SavepointCase):
     @classmethod
     def setUpClass(cls):
@@ -333,6 +334,10 @@ class TestMarketingCenterDashboard(SavepointCase):
         for channel_id in (101, 101, 102):
             self._business_event("interaction_started", channel_id)
             self._business_event("first_human_response", channel_id)
+            self._business_event("response_episode_answered", channel_id)
+        # A conversation producer may identify another first-response message.
+        # It must not create an additional answered episode in this projection.
+        self._business_event("first_human_response", 101)
 
         summary = self._row("summary")
 
@@ -341,6 +346,19 @@ class TestMarketingCenterDashboard(SavepointCase):
         self.assertEqual(summary.conversation_first_response_count, 2)
         self.assertEqual(summary.response_episode_started_count, 3)
         self.assertEqual(summary.response_episode_answered_count, 3)
+
+    def test_summary_exposes_utc_and_transition_semantics(self):
+        summary = self._row("summary")
+        self.assertEqual(summary.timezone, "UTC")
+        self.assertEqual(
+            summary.window_start_date, self.today - datetime.timedelta(days=29)
+        )
+        self.assertEqual(summary.window_end_date, self.today)
+        self._business_event("won", 123)
+        self._business_event("won", 123)
+        summary.invalidate_recordset()
+        self.assertEqual(summary.won_count, 2)
+        self.assertIn("transition", summary._fields["won_count"].string.lower())
 
     def test_dashboard_never_double_counts_lower_performance_grains(self):
         for grain, external_ref in (
@@ -386,6 +404,34 @@ class TestMarketingCenterDashboard(SavepointCase):
 
         # One fixture from setUpClass plus only the event inside the local window.
         self.assertEqual(source_row.touchpoint_count, 2)
+
+    def test_portuguese_dashboard_translation_and_language_cache(self):
+        self.env["res.lang"]._activate_lang("pt_BR")
+        self.env["ir.module.module"].search(
+            [("name", "=", "marketing_center_dashboard")]
+        )._update_translations("pt_BR", overwrite=True)
+        summary = self._row("summary")
+        self.assertEqual(
+            summary.with_context(lang="en_US").display_name,
+            "Company overview — %s" % self.company.name,
+        )
+        self.assertEqual(
+            summary.with_context(lang="pt_BR").display_name,
+            "Visão da empresa — %s" % self.company.name,
+        )
+        translated = summary.with_context(lang="pt_BR").fields_get(
+            ["qualified_count", "timezone"]
+        )
+        self.assertEqual(
+            translated["qualified_count"]["string"], "Transições de qualificação"
+        )
+        self.assertEqual(
+            translated["timezone"]["string"], "Fuso horário dos relatórios"
+        )
+        action = self.env.ref(
+            "marketing_center_dashboard.action_marketing_dashboard_overview"
+        )
+        self.assertEqual(action.with_context(lang="pt_BR").name, "Visão gerencial")
 
     def test_roster_hides_other_sources_and_company_aggregate_rows(self):
         rows = (

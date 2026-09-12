@@ -11,6 +11,8 @@ from psycopg2.errors import SerializationFailure
 from odoo.tests.common import HttpCase
 from odoo.tools import mute_logger
 
+from odoo.addons.meta_api_base.services.credentials import MetaCredentialResolutionError
+
 from ..controllers import webhook as webhook_controller
 
 
@@ -269,3 +271,107 @@ class TestMetaWebhookController(HttpCase):
             .sudo()
             .search_count([("endpoint_id", "=", self.endpoint.id)])
         )
+
+    def _assert_rejected_without_delivery(self, response, status, reason):
+        self.assertEqual(response.status_code, status, response.text)
+        self.assertEqual(response.json(), {"error": reason})
+        self.assertEqual(response.headers["Cache-Control"], "no-store")
+        self.env.invalidate_all()
+        self.assertFalse(
+            self.env["meta.webhook.delivery"]
+            .sudo()
+            .search_count([("endpoint_id", "=", self.endpoint.id)])
+        )
+
+    def test_unknown_endpoint_returns_404(self):
+        body = self._body()
+        response = self.opener.post(
+            self.base_url() + "/meta/webhook/" + "z" * 43,
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                "X-Hub-Signature-256": self._signature(body),
+            },
+        )
+        self._assert_rejected_without_delivery(response, 404, "not_found")
+
+    def test_chunked_body_without_content_length_returns_411(self):
+        body = self._body()
+        response = self.opener.post(
+            self.base_url() + self.path,
+            data=iter([body]),
+            headers={
+                "Content-Type": "application/json",
+                "X-Hub-Signature-256": self._signature(body),
+            },
+        )
+        self._assert_rejected_without_delivery(response, 411, "length_required")
+
+    def test_oversized_signed_body_returns_413(self):
+        body = self._body()
+        with patch.object(webhook_controller, "MAX_WEBHOOK_BODY_BYTES", len(body) - 1):
+            response = self.opener.post(
+                self.base_url() + self.path,
+                data=body,
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Hub-Signature-256": self._signature(body),
+                },
+            )
+        self._assert_rejected_without_delivery(response, 413, "payload_too_large")
+
+    def test_non_json_body_returns_415(self):
+        body = self._body()
+        response = self.opener.post(
+            self.base_url() + self.path,
+            data=body,
+            headers={
+                "Content-Type": "text/plain",
+                "X-Hub-Signature-256": self._signature(body),
+            },
+        )
+        self._assert_rejected_without_delivery(response, 415, "unsupported_media_type")
+
+    def test_configuration_change_during_admission_returns_409(self):
+        body = self._body()
+        endpoint_class = type(self.endpoint)
+        original_locked_runtime = endpoint_class._locked_runtime
+        calls = []
+
+        def changed_configuration(endpoint, *args, **kwargs):
+            calls.append(kwargs)
+            if len(calls) == 2:
+                raise MetaCredentialResolutionError("Synthetic revision change")
+            return original_locked_runtime(endpoint, *args, **kwargs)
+
+        with patch.object(endpoint_class, "_locked_runtime", new=changed_configuration):
+            response = self.opener.post(
+                self.base_url() + self.path,
+                data=body,
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Hub-Signature-256": self._signature(body),
+                },
+            )
+        self.assertEqual(len(calls), 2)
+        self._assert_rejected_without_delivery(response, 409, "configuration_changed")
+
+    def test_consumer_failure_returns_503_and_rolls_back_delivery(self):
+        body = self._body()
+        private_message = "private-consumer-value@example.invalid"
+        with patch.object(
+            type(self.env["meta.webhook.dispatcher"]),
+            "_ingest_delivery",
+            side_effect=RuntimeError(private_message),
+        ), self.assertLogs(webhook_controller.__name__, level="WARNING") as logs:
+            response = self.opener.post(
+                self.base_url() + self.path,
+                data=body,
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Hub-Signature-256": self._signature(body),
+                },
+            )
+        self._assert_rejected_without_delivery(response, 503, "temporarily_unavailable")
+        self.assertNotIn(private_message, response.text)
+        self.assertNotIn(private_message, "\n".join(logs.output))

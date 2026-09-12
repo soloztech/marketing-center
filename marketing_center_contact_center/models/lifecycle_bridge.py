@@ -9,7 +9,12 @@ from odoo.addons.marketing_center_base.services import MarketingBusinessEventDTO
 from odoo.addons.marketing_center_base.services.serialization import (
     acquire_advisory_xact_lock,
 )
-from odoo.addons.queue_job.exception import RetryableJobError
+
+from ..services.retry import (
+    MAX_BRIDGE_RETRIES,
+    retry_database_error,
+    retry_transient_database,
+)
 
 _LIFECYCLE_TYPES = frozenset({"conversation_started", "first_human_response"})
 _CONFIRMED_DELIVERY_STATES = ("sent", "delivered", "read")
@@ -99,7 +104,7 @@ class ContactCenterChannelBinding(models.Model):
                 identity_key=binding._marketing_lifecycle_identity_key(
                     event_type, wake_scope=wake_scope
                 ),
-                max_retries=0,
+                max_retries=MAX_BRIDGE_RETRIES,
                 priority=42,
                 description="Marketing Contact Center lifecycle %s %s"
                 % (event_type, binding.channel_id.uuid),
@@ -108,6 +113,7 @@ class ContactCenterChannelBinding(models.Model):
             )
         return True
 
+    @retry_transient_database
     def _job_sync_marketing_lifecycle(self, event_type):
         self.ensure_one()
         service = self.env["marketing.contact.center.lifecycle.service"].sudo()
@@ -123,11 +129,12 @@ class ContactCenterChannelBinding(models.Model):
                 .with_company(binding.company_id)
                 ._sync_event(binding, event_type)
             )
-        except OperationalError:
-            raise RetryableJobError(
+        except OperationalError as error:
+            retry_database_error(
+                error,
                 "Marketing Contact Center lifecycle hit a concurrent database "
-                "operation"
-            ) from None
+                "operation",
+            )
         return True
 
 

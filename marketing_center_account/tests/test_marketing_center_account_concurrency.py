@@ -155,9 +155,9 @@ class TestMarketingCenterAccountConcurrency(TransactionCase):
             cr.execute(
                 "SELECT id FROM marketing_business_event "
                 "WHERE source_system = 'odoo.account' "
-                "AND source_model = 'account.partial.reconcile' "
-                "AND source_res_id = %s",
-                [fixture["partial_id"]],
+                "AND ((source_model = 'account.partial.reconcile' AND source_res_id = %s) "
+                "OR (source_model = 'account.move' AND source_res_id = %s))",
+                [fixture["partial_id"], fixture["invoice_id"]],
             )
             event_ids = [row[0] for row in cr.fetchall()]
             if event_ids:
@@ -203,7 +203,9 @@ class TestMarketingCenterAccountConcurrency(TransactionCase):
                 payment.unlink()
             invoice = env["account.move"].browse(fixture["invoice_id"]).exists()
             if invoice:
-                invoice.button_draft()
+                invoice.with_context(
+                    marketing_account_transition_guard=MARKETING_ACCOUNT_TRANSITION_GUARD
+                ).button_draft()
                 invoice.with_context(force_delete=True).unlink()
             env["res.partner"].browse(fixture["partner_id"]).exists().unlink()
             env["account.journal"].browse(fixture["journal_ids"]).exists().unlink()
@@ -299,5 +301,108 @@ class TestMarketingCenterAccountConcurrency(TransactionCase):
                 )
                 self.assertTrue(partial.marketing_account_event_claimed)
                 self.assertEqual(len(events), 1)
+        finally:
+            self._cleanup_committed_fixture(fixture)
+
+    def _project_invoice_concurrently(self, fixture, barrier, results, errors, mode):
+        try:
+            for attempt in range(3):
+                with self.registry.cursor() as cr:
+                    cr.execute("SET LOCAL lock_timeout = '5s'")
+                    cr.execute("SET LOCAL statement_timeout = '10s'")
+                    env = api.Environment(cr, SUPERUSER_ID, {})
+                    invoice = env["account.move"].browse(fixture["invoice_id"])
+                    if attempt == 0:
+                        # Both transactions start from the same posted snapshot.
+                        self.assertEqual(invoice.state, "posted")
+                        barrier.wait(timeout=self.WORKER_TIMEOUT_SECONDS)
+                    try:
+                        if mode == "draft":
+                            invoice.button_draft()
+                            event_id = False
+                        else:
+                            event_id = (
+                                env["marketing.account.service"]
+                                ._ensure_move_event(invoice)
+                                .id
+                            )
+                        cr.commit()  # pylint: disable=invalid-commit
+                        results.append((mode, event_id))
+                        return
+                    except SerializationFailure:
+                        cr.rollback()
+            raise AssertionError(
+                "Invoice projection exhausted its transaction retries."
+            )
+        except Exception as error:
+            errors.append(error)
+
+    def _run_invoice_race(self, fixture, modes):
+        barrier = threading.Barrier(2)
+        results, errors = [], []
+        workers = [
+            threading.Thread(
+                target=self._project_invoice_concurrently,
+                args=(fixture, barrier, results, errors, mode),
+                name="marketing-invoice-%s-%s" % (mode, index),
+                daemon=True,
+            )
+            for index, mode in enumerate(modes)
+        ]
+        for worker in workers:
+            worker.start()
+        for worker in workers:
+            worker.join(self.WORKER_TIMEOUT_SECONDS)
+        if any(worker.is_alive() for worker in workers):
+            barrier.abort()
+            for worker in workers:
+                worker.join(self.WORKER_TIMEOUT_SECONDS)
+            self.fail("Concurrent invoice workers did not finish.")
+        if errors:
+            raise errors[0]
+        self.assertEqual(len(results), 2)
+        return results
+
+    def test_concurrent_invoice_backfill_has_one_active_posting(self):
+        fixture = self._setup_committed_partial()
+        try:
+            results = self._run_invoice_race(fixture, ("backfill", "backfill"))
+            self.assertEqual(len({event_id for _mode, event_id in results}), 1)
+            with self.registry.cursor() as cr:
+                env = api.Environment(cr, SUPERUSER_ID, {})
+                events = env["marketing.business.event"].search(
+                    [
+                        ("source_system", "=", "odoo.account"),
+                        ("source_model", "=", "account.move"),
+                        ("source_res_id", "=", fixture["invoice_id"]),
+                    ]
+                )
+                self.assertEqual(len(events), 1)
+                self.assertEqual(events.amount_signed_micros, 100_000_000)
+        finally:
+            self._cleanup_committed_fixture(fixture)
+
+    def test_concurrent_invoice_backfill_and_unposting_end_with_zero_balance(self):
+        fixture = self._setup_committed_partial()
+        try:
+            self._run_invoice_race(fixture, ("backfill", "draft"))
+            with self.registry.cursor() as cr:
+                env = api.Environment(cr, SUPERUSER_ID, {})
+                invoice = env["account.move"].browse(fixture["invoice_id"])
+                self.assertEqual(invoice.state, "draft")
+                events = env["marketing.business.event"].search(
+                    [
+                        ("source_system", "=", "odoo.account"),
+                        ("source_model", "=", "account.move"),
+                        ("source_res_id", "=", invoice.id),
+                    ]
+                )
+                self.assertEqual(len(events), 2)
+                self.assertEqual(sum(events.mapped("amount_signed_micros")), 0)
+                self.assertFalse(
+                    env["marketing.business.event.service"]._active_posting_events(
+                        events
+                    )
+                )
         finally:
             self._cleanup_committed_fixture(fixture)

@@ -1,9 +1,24 @@
+import hashlib
 import uuid
 
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError
 
+from ..services.serialization import acquire_advisory_xact_lock
 from ..services.tokens import MARKETING_ATTRIBUTION_WRITE_TOKEN
+
+# An in-process capability, never a serializable RPC/context permission.
+ATTRIBUTION_ERASURE_TOKEN = object()
+
+
+def _check_erasure_scope(records, token):
+    if token is not ATTRIBUTION_ERASURE_TOKEN:
+        raise AccessError(
+            _("Sensitive attribution values require the erasure service.")
+        )
+    if any(record.company_id not in records.env.companies for record in records):
+        raise AccessError(_("Sensitive attribution values belong to another company."))
+
 
 TOUCHPOINT_TYPES = [
     ("conversation_start", "Conversation start"),
@@ -118,6 +133,7 @@ class MarketingAttributionTouchpoint(models.Model):
     )
     privacy_decision_source = fields.Char(readonly=True)
     privacy_decided_at = fields.Datetime(readonly=True)
+    privacy_erased_at = fields.Datetime(index=True, readonly=True, copy=False)
     extensions_json = fields.Json(
         readonly=True,
         copy=False,
@@ -164,6 +180,40 @@ class MarketingAttributionTouchpoint(models.Model):
         ),
     ]
 
+    def _erase_private_values(self, *, token, now):
+        _check_erasure_scope(self, token)
+        for company_id, canonical_key in sorted(
+            set((item.company_id.id, item.canonical_key) for item in self)
+        ):
+            acquire_advisory_xact_lock(
+                self.env.cr,
+                "marketing_attribution:%s:%s" % (company_id, canonical_key),
+                "Concurrent attribution erasure requires a fresh snapshot",
+            )
+            versions = self.sudo().search(
+                [
+                    ("company_id", "=", company_id),
+                    ("canonical_key", "=", canonical_key),
+                    ("privacy_erased_at", "=", False),
+                ]
+            )
+            versions.identifier_ids._erase_private_values(token=token, now=now)
+            # Canonical/dedupe and policy metadata survive. Free-form acquisition
+            # data and correlatable identifiers do not survive their lifetime.
+            super(ImmutableAttributionMixin, versions).write(
+                {
+                    "privacy_erased_at": now,
+                    "landing_url": False,
+                    "referrer_url": False,
+                    "utm_source": False,
+                    "utm_medium": False,
+                    "utm_campaign": False,
+                    "utm_content": False,
+                    "utm_term": False,
+                    "extensions_json": {},
+                }
+            )
+
 
 class MarketingAttributionIdentifier(models.Model):
     _name = "marketing.attribution.identifier"
@@ -191,6 +241,7 @@ class MarketingAttributionIdentifier(models.Model):
     purpose = fields.Char(required=True, index=True, readonly=True)
     observed_at = fields.Datetime(required=True, index=True, readonly=True)
     retain_until = fields.Date(index=True, readonly=True)
+    erased_at = fields.Datetime(index=True, readonly=True, copy=False)
 
     _sql_constraints = [
         (
@@ -204,6 +255,29 @@ class MarketingAttributionIdentifier(models.Model):
             "The comparison hash must be a SHA-256 digest.",
         ),
     ]
+
+    def _erase_private_values(self, *, token, now):
+        _check_erasure_scope(self, token)
+        for identifier in self.filtered(lambda item: not item.erased_at):
+            # An unrelated opaque value keeps the existing unique/hash shape
+            # without retaining a digest that can correlate the original person.
+            tombstone = hashlib.sha256(uuid.uuid4().bytes).hexdigest()
+            super(ImmutableAttributionMixin, identifier).write(
+                {
+                    "comparison_hash": tombstone,
+                    "masked_value": False,
+                    "value_ref": False,
+                    "erased_at": now,
+                }
+            )
+
+    def _assign_retention_deadline(self, *, token, deadline):
+        _check_erasure_scope(self, token)
+        pending = self.filtered(
+            lambda item: not item.retain_until and not item.erased_at
+        )
+        if pending:
+            super(ImmutableAttributionMixin, pending).write({"retain_until": deadline})
 
 
 class MarketingAttributionEvidence(models.Model):

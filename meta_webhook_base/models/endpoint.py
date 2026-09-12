@@ -89,7 +89,9 @@ class MetaWebhookEndpoint(models.Model):
         copy=False,
         index=True,
     )
-    webhook_url = fields.Char(compute="_compute_webhook_url")
+    webhook_url = fields.Char(
+        compute="_compute_webhook_url", groups="base.group_system"
+    )
     page_ids = fields.One2many("meta.webhook.page", "endpoint_id", readonly=True)
     delivery_ids = fields.One2many(
         "meta.webhook.delivery", "endpoint_id", readonly=True

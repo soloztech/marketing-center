@@ -1,8 +1,10 @@
+import datetime
 import decimal
 import uuid
+from unittest.mock import patch
 
 from odoo import Command, fields
-from odoo.exceptions import AccessError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests.common import SavepointCase
 
 from odoo.addons.marketing_center_account.models.tokens import (
@@ -547,3 +549,269 @@ class TestMarketingCenterAccount(SavepointCase):
         )
         with self.assertRaises(AccessError):
             link.with_user(outsider).read(["id"])
+
+    def _posting_events(self, moves):
+        return self.env["marketing.business.event"].search(
+            [
+                ("company_id", "=", self.env.company.id),
+                ("source_system", "=", "odoo.account"),
+                ("source_model", "=", "account.move"),
+                ("source_res_id", "in", moves.ids),
+            ],
+            order="id",
+        )
+
+    def test_invoice_draft_repost_preserves_exact_history_and_current_value(self):
+        invoice = self._invoice(100)
+        invoice.action_post()
+        first = self._posting_events(invoice)
+        original_snapshot = first.snapshot_json
+        invoice.button_draft()
+        self.assertEqual(
+            sum(self._posting_events(invoice).mapped("amount_signed_micros")), 0
+        )
+        self.assertFalse(
+            self.env["marketing.account.service"]._ensure_move_event(invoice)
+        )
+        invoice.button_draft()
+        self.assertEqual(len(self._posting_events(invoice)), 2)
+        invoice.action_post()
+        self.assertEqual(
+            sum(self._posting_events(invoice).mapped("amount_signed_micros")),
+            100_000_000,
+        )
+        invoice.button_draft()
+        invoice.invoice_line_ids.write({"price_unit": 160})
+        invoice.action_post()
+        events = self._posting_events(invoice)
+        self.assertEqual(len(events), 5)
+        self.assertEqual(sum(events.mapped("amount_signed_micros")), 160_000_000)
+        active = self.env["marketing.business.event.service"]._active_posting_events(
+            events
+        )
+        self.assertEqual(len(active), 1)
+        self.assertEqual(active.amount_signed_micros, 160_000_000)
+        self.assertEqual(first.snapshot_json, original_snapshot)
+        self.assertEqual(
+            self.env["marketing.account.service"]._ensure_move_event(invoice), active
+        )
+
+    def test_full_credit_draft_repost_does_not_block_native_posting(self):
+        invoice = self._invoice(100)
+        invoice.action_post()
+        credit = self._invoice(100, move_type="out_refund", reversed_entry=invoice)
+        credit.action_post()
+        original_credit = self._posting_events(credit)
+        credit.button_draft()
+        reversal = self._posting_events(credit).filtered(
+            lambda event: event.event_type == "credit_note_posting_reversed"
+        )
+        self.assertEqual(reversal.reverses_event_id, original_credit)
+        self.assertEqual(reversal.root_event_id, self._posting_events(invoice))
+        self.assertEqual(reversal.amount_signed_micros, 100_000_000)
+        credit.action_post()
+        self.assertEqual(credit.state, "posted")
+        events = self._posting_events(invoice | credit)
+        self.assertEqual(sum(events.mapped("amount_signed_micros")), 0)
+        self.assertEqual(len(self._posting_events(credit)), 3)
+        credit.button_draft()
+        credit.invoice_line_ids.write({"price_unit": 30})
+        credit.action_post()
+        another = self._invoice(70, move_type="out_refund", reversed_entry=invoice)
+        another.action_post()
+        self.assertEqual(
+            sum(
+                self._posting_events(invoice | credit | another).mapped(
+                    "amount_signed_micros"
+                )
+            ),
+            0,
+        )
+        self.assertTrue(self._posting_events(another).reverses_event_id)
+
+    def test_invoice_repost_keeps_old_active_credits_and_native_excess_credit(self):
+        invoice = self._invoice(100)
+        invoice.action_post()
+        original_posting = self._posting_events(invoice)
+        first_credit = self._invoice(60, move_type="out_refund", reversed_entry=invoice)
+        first_credit.action_post()
+        invoice.button_draft()
+        invoice.invoice_line_ids.write({"price_unit": 80})
+        invoice.action_post()
+        self.assertEqual(
+            self._posting_events(first_credit).reverses_event_id, original_posting
+        )
+        second_credit = self._invoice(
+            30, move_type="out_refund", reversed_entry=invoice
+        )
+        second_credit.action_post()
+        event = self._posting_events(second_credit)
+        self.assertEqual(second_credit.state, "posted")
+        self.assertFalse(event.reverses_event_id)
+        self.assertEqual(
+            event.snapshot_json["extensions"]["account.credit_reversal_disposition"],
+            "exceeds_active_invoice_amount",
+        )
+        self.assertIn(
+            invoice,
+            event.account_move_link_ids.filtered(
+                lambda link: link.role == "reversed_invoice"
+            ).mapped("move_id"),
+        )
+        self.assertEqual(
+            sum(
+                self._posting_events(invoice | first_credit | second_credit).mapped(
+                    "amount_signed_micros"
+                )
+            ),
+            -10_000_000,
+        )
+        # Reversing an independent (uncapped) credit restores its exact amount.
+        second_credit.button_draft()
+        self.assertEqual(
+            sum(
+                self._posting_events(invoice | first_credit | second_credit).mapped(
+                    "amount_signed_micros"
+                )
+            ),
+            20_000_000,
+        )
+
+    def test_credit_against_draft_invoice_retains_fact_and_typed_relation(self):
+        invoice = self._invoice(100)
+        invoice.action_post()
+        invoice.button_draft()
+        credit = self._invoice(20, move_type="out_refund", reversed_entry=invoice)
+        credit.action_post()
+        event = self._posting_events(credit)
+        self.assertFalse(event.reverses_event_id)
+        self.assertEqual(
+            event.snapshot_json["extensions"]["account.credit_reversal_disposition"],
+            "target_not_posted",
+        )
+        self.assertEqual(
+            sum(self._posting_events(invoice | credit).mapped("amount_signed_micros")),
+            -20_000_000,
+        )
+
+    def test_direct_cancel_and_repeated_cancel_have_one_exact_counterevent(self):
+        invoice = self._invoice(40)
+        invoice.action_post()
+        invoice.button_cancel()
+        invoice.button_cancel()
+        events = self._posting_events(invoice)
+        self.assertEqual(invoice.state, "cancel")
+        self.assertEqual(len(events), 2)
+        self.assertEqual(sum(events.mapped("amount_signed_micros")), 0)
+        invoice.button_draft()
+        invoice.action_post()
+        self.assertEqual(
+            sum(self._posting_events(invoice).mapped("amount_signed_micros")),
+            40_000_000,
+        )
+
+    def test_backfill_then_unpost_and_repost_does_not_resurrect_old_occurrence(self):
+        invoice = self._invoice(55)
+        invoice.with_context(
+            marketing_account_transition_guard=MARKETING_ACCOUNT_TRANSITION_GUARD
+        ).action_post()
+        service = self.env["marketing.account.service"]
+        original = service._ensure_move_event(invoice)
+        self.assertEqual(original.evidence_level, "imported")
+        self.assertEqual(
+            original.snapshot_json["extensions"]["account.occurred_at_basis"],
+            "document_date",
+        )
+        invoice.button_draft()
+        invoice.action_post()
+        current = service._ensure_move_event(invoice)
+        self.assertNotEqual(current, original)
+        self.assertEqual(
+            current.snapshot_json["extensions"]["account.occurred_at_basis"],
+            "observed_transition",
+        )
+        self.assertEqual(len(self._posting_events(invoice)), 3)
+        self.assertEqual(
+            sum(self._posting_events(invoice).mapped("amount_signed_micros")),
+            55_000_000,
+        )
+
+    def test_period_flows_and_currency_scopes_include_exact_counterevents(self):
+        invoice = self._invoice(100)
+        with patch(
+            "odoo.fields.Datetime.now",
+            return_value=datetime.datetime(2026, 8, 31, 23, 59),
+        ):
+            invoice.action_post()
+        with patch(
+            "odoo.fields.Datetime.now", return_value=datetime.datetime(2026, 9, 1, 0, 1)
+        ):
+            invoice.button_draft()
+        invoice.currency_id = self.foreign_currency
+        with patch(
+            "odoo.fields.Datetime.now", return_value=datetime.datetime(2026, 9, 1, 0, 2)
+        ):
+            invoice.action_post()
+        events = self._posting_events(invoice)
+        september = events.filtered(
+            lambda event: event.occurred_at >= datetime.datetime(2026, 9, 1)
+        )
+        company_currency = september.filtered(
+            lambda event: event.currency_id == self.env.company.currency_id
+        )
+        foreign_currency = september.filtered(
+            lambda event: event.currency_id == self.foreign_currency
+        )
+        self.assertEqual(
+            sum(company_currency.mapped("amount_signed_micros")), -100_000_000
+        )
+        self.assertEqual(
+            sum(foreign_currency.mapped("amount_signed_micros")), 100_000_000
+        )
+        self.assertEqual(
+            sum(
+                events.filtered(
+                    lambda event: event.currency_id == self.env.company.currency_id
+                ).mapped("amount_signed_micros")
+            ),
+            0,
+        )
+
+    def test_credit_other_currency_is_independent_without_blocking_post(self):
+        invoice = self._invoice(100)
+        invoice.action_post()
+        credit = self._invoice(
+            25,
+            move_type="out_refund",
+            reversed_entry=invoice,
+            currency=self.foreign_currency,
+        )
+        credit.action_post()
+        event = self._posting_events(credit)
+        self.assertEqual(credit.state, "posted")
+        self.assertFalse(event.reverses_event_id)
+        self.assertEqual(event.currency_id, self.foreign_currency)
+        self.assertEqual(
+            event.snapshot_json["extensions"]["account.credit_reversal_disposition"],
+            "different_currency",
+        )
+        credit.button_draft()
+        self.assertEqual(
+            sum(self._posting_events(credit).mapped("amount_signed_micros")), 0
+        )
+
+    def test_native_unposting_rejection_leaves_the_posting_effective(self):
+        self.sales_journal.restrict_mode_hash_table = True
+        invoice = self._invoice(100)
+        invoice.action_post()
+        posting = self._posting_events(invoice)
+        with self.assertRaises(UserError), self.env.cr.savepoint():
+            invoice.button_draft()
+        self.assertEqual(invoice.state, "posted")
+        self.assertEqual(self._posting_events(invoice), posting)
+        self.assertEqual(
+            self.env["marketing.business.event.service"]._active_posting_events(
+                posting
+            ),
+            posting,
+        )

@@ -34,6 +34,13 @@ class TestMarketingWebsiteCrm(SavepointCase):
         cls.origin = "https://website-crm.example.test"
         cls.endpoint = cls.env["marketing.web.ingress.endpoint"].create(
             {
+                "capture_enabled": True,
+                "capture_purpose": "web_attribution",
+                "privacy_policy_version": "test-v1",
+                "privacy_notice_version": "test-v1",
+                "privacy_legal_basis_code": "documented_test_basis",
+                "privacy_policy_justification": "Synthetic test policy.",
+                "identifier_retention_days": 30,
                 "name": "Website CRM endpoint",
                 "company_id": cls.company.id,
                 "allowed_origins": cls.origin,
@@ -184,6 +191,226 @@ class TestMarketingWebsiteCrm(SavepointCase):
         return self.service._capture_native_form_intent(
             website, model_name, claim, origin, native_result
         ).correlation_id
+
+    def test_retention_event_erases_completed_intent_session_without_native_deletion(
+        self,
+    ):
+        claim = self._claim()
+        lead = self._lead("Retained native lead")
+        intent = self.service._capture_native_form_intent(
+            self.website,
+            "crm.lead",
+            claim,
+            self.origin,
+            self._native_result(claim, lead),
+        )
+        event = intent.correlation_id.event_id
+        correlation = intent.correlation_id
+        original_session = intent.session_ref
+        original_hash = intent.session_hash
+        original_attempts = intent.attempts
+        deadline = event.retain_until
+        with patch.object(fields.Datetime, "now", return_value=deadline):
+            self.assertEqual(
+                self.env["marketing.web.ingress.event"]._cron_expire_retained_values(),
+                1,
+            )
+            intent.invalidate_recordset()
+            self.assertTrue(intent.privacy_erased_at)
+            self.assertFalse(intent.session_ref)
+            self.assertFalse(intent.session_hash)
+            self.assertEqual(intent.state, "done")
+            self.assertEqual(intent.correlation_id, correlation)
+            self.assertTrue(lead.exists())
+            self.assertTrue(correlation.assertion_id.exists())
+            self.assertFalse(intent.next_session_reconcile_at)
+            self.assertEqual(intent.session_reconcile_state, "complete")
+            replay = self.service._get_or_create_intent(
+                self.website,
+                self.action,
+                lead,
+                intent.event_ref,
+                original_session,
+                self.origin,
+                intent.occurred_at,
+            )
+            self.assertEqual(replay, intent)
+            self.service._attempt_intent(intent)
+            intent.action_retry()
+            intent.action_retry_session()
+            self.assertFalse(self.service._recover_session_intent(intent, final=True))
+            self.assertFalse(self.service._session_touchpoints(intent))
+            self.assertEqual(intent.attempts, original_attempts)
+            self.assertFalse(intent.session_ref)
+            self.assertNotEqual(intent.session_hash, original_hash)
+            self.assertEqual(
+                self.env["marketing.website.crm.intent"]._cron_expire_session_values(),
+                0,
+            )
+
+    def test_retention_pending_intents_expire_without_ingress_event_and_resist_retry(
+        self,
+    ):
+        first = self._pending_intent("First pending retention")
+        second = self._pending_intent("Second pending retention")
+        deadline = max(first.retain_until, second.retain_until)
+        self.assertEqual(first.retention_policy_version, "test-v1")
+        self.assertEqual(first.retention_assigned_by, self.env.user)
+        self.assertEqual(
+            first.retain_until, first.occurred_at + datetime.timedelta(days=30)
+        )
+        other_company = self.env["res.company"].create(
+            {"name": "Other retention scope"}
+        )
+        with patch.object(fields.Datetime, "now", return_value=deadline):
+            Intent = self.env["marketing.website.crm.intent"]
+            self.assertEqual(
+                Intent.sudo()
+                .with_context(allowed_company_ids=[other_company.id])
+                ._cron_expire_session_values(),
+                0,
+            )
+            self.assertEqual(Intent._cron_expire_session_values(limit=1), 1)
+            self.assertEqual(Intent._cron_expire_session_values(limit=1), 1)
+            self.assertEqual(Intent._cron_expire_session_values(limit=1), 0)
+            for intent in first | second:
+                self.assertEqual(intent.state, "expired")
+                self.assertFalse(intent.session_ref)
+                self.assertFalse(intent.session_hash)
+                self.assertTrue(intent.lead_id.exists())
+                self.assertFalse(intent.correlation_id)
+                self.service._attempt_intent(intent)
+                intent.action_retry()
+                intent.action_retry_session()
+                intent._enqueue()
+                self.assertEqual(intent.attempts, 0)
+                self.assertFalse(intent.queue_job_uuid)
+            self.assertFalse(self.env["marketing.web.ingress.event"].search([]))
+        with self.assertRaises(ValidationError):
+            self.env["marketing.website.crm.intent"]._cron_expire_session_values(
+                limit=101
+            )
+
+    def test_retention_unscheduled_legacy_requires_explicit_policy_with_capture_disabled(
+        self,
+    ):
+        pending = self._pending_intent("Unscheduled pending")
+        claim = self._claim()
+        lead = self._lead("Unscheduled complete")
+        done = self.service._capture_native_form_intent(
+            self.website,
+            "crm.lead",
+            claim,
+            self.origin,
+            self._native_result(claim, lead),
+        )
+        intents = pending | done
+        sessions = intents.mapped("session_ref")
+        self.env.cr.execute(
+            "UPDATE marketing_website_crm_intent SET retain_until = NULL, "
+            "retention_policy_version = NULL, retention_assigned_by = NULL, "
+            "retention_assigned_at = NULL WHERE id IN %s",
+            [tuple(intents.ids)],
+        )
+        intents.invalidate_recordset()
+        self.endpoint.write({"capture_enabled": False})
+        now = max(intents.mapped("occurred_at")) + datetime.timedelta(days=40)
+        with patch.object(fields.Datetime, "now", return_value=now):
+            self.assertEqual(
+                self.env["marketing.website.crm.intent"]._cron_expire_session_values(),
+                0,
+            )
+            self.service._attempt_intent(pending)
+            self.assertFalse(self.service._recover_session_intent(done, final=True))
+            self.assertEqual(pending.state, "pending")
+            self.assertEqual(done.state, "done")
+            self.assertEqual(intents.mapped("session_ref"), sessions)
+            self.assertEqual(
+                pending.proposed_retain_until,
+                pending.occurred_at + datetime.timedelta(days=30),
+            )
+            intents.action_apply_retention_policy()
+            self.assertFalse(self.endpoint.capture_enabled)
+            self.assertEqual(pending.retention_assigned_by, self.env.user)
+            deadline = pending.retain_until
+            self.endpoint.write({"identifier_retention_days": 60})
+            intents.action_apply_retention_policy()
+            self.assertEqual(pending.retain_until, deadline)
+            self.assertEqual(
+                self.env["marketing.website.crm.intent"]._cron_expire_session_values(),
+                2,
+            )
+            self.assertEqual(pending.state, "expired")
+            self.assertEqual(done.state, "done")
+            self.assertTrue(done.correlation_id)
+            self.assertTrue(done.lead_id.exists())
+
+    def test_retention_session_candidates_exclude_expired_and_unscheduled_events(self):
+        self.endpoint.write({"identifier_retention_days": 1})
+        now = fields.Datetime.now()
+        landing_at = now - datetime.timedelta(hours=23, minutes=59)
+        claim = self._claim()
+        landing = self._ingest_entry(
+            claim["session_ref"],
+            occurred_at=landing_at,
+            observed_at=landing_at,
+        )
+        lead = self._lead("Session candidate retention")
+        intent = self.service._capture_native_form_intent(
+            self.website,
+            "crm.lead",
+            claim,
+            self.origin,
+            self._native_result(claim, lead),
+        )
+        event = self.env["marketing.web.ingress.event"].search(
+            [
+                ("public_ref", "=", landing.event_ref),
+            ]
+        )
+        self.assertIn(event.touchpoint_id, self.service._session_touchpoints(intent))
+        with patch.object(
+            fields.Datetime, "now", return_value=now + datetime.timedelta(minutes=2)
+        ):
+            self.assertTrue(intent._session_retention_available())
+            self.assertFalse(event.erased_at)
+            self.assertFalse(self.service._session_touchpoints(intent))
+        # Legacy deadlines are not inferred during correlation.
+        self.env.cr.execute(
+            "UPDATE marketing_web_ingress_event SET retain_until = NULL WHERE id = %s",
+            [event.id],
+        )
+        self.assertFalse(self.service._session_touchpoints(intent))
+        self.env.cr.execute(
+            "UPDATE marketing_web_ingress_event SET retain_until = %s WHERE id = %s",
+            [now + datetime.timedelta(hours=1), event.id],
+        )
+        self.env.cr.execute(
+            "UPDATE marketing_attribution_identifier SET erased_at = %s WHERE touchpoint_id = %s",
+            [now, event.touchpoint_id.id],
+        )
+        self.assertFalse(self.service._session_touchpoints(intent))
+
+    def test_retention_rejects_serializable_capabilities_and_foreign_company(self):
+        intent = self._pending_intent("Retention capability")
+        with self.assertRaises(AccessError):
+            intent._erase_session_values(token="internal", now=fields.Datetime.now())
+        with self.assertRaises(AccessError):
+            intent.sudo().with_context(
+                marketing_website_crm_retention_token=True
+            ).write({"session_ref": False})
+        with self.assertRaises(AccessError):
+            intent._internal_write({"retain_until": fields.Datetime.now()})
+        other_company = self.env["res.company"].create(
+            {"name": "Foreign retention action"}
+        )
+        foreign_admin = self._marketing_admin_restricted_to(other_company)
+        with self.assertRaises(AccessError):
+            intent.with_user(foreign_admin).with_context(
+                allowed_company_ids=[other_company.id]
+            ).action_apply_retention_policy()
+        self.assertFalse(intent.privacy_erased_at)
+        self.assertTrue(intent.session_ref)
 
     def test_controller_mro_keeps_native_website_crm_hooks(self):
         controller_mro = MarketingWebsiteCrmFormController.__mro__
@@ -1187,6 +1414,13 @@ class TestMarketingWebsiteCrmHttp(HttpCase):
         cls.origin = cls.base_url().rstrip("/")
         cls.endpoint = cls.env["marketing.web.ingress.endpoint"].create(
             {
+                "capture_enabled": True,
+                "capture_purpose": "web_attribution",
+                "privacy_policy_version": "test-v1",
+                "privacy_notice_version": "test-v1",
+                "privacy_legal_basis_code": "documented_test_basis",
+                "privacy_policy_justification": "Synthetic test policy.",
+                "identifier_retention_days": 30,
                 "name": "Website CRM HTTP endpoint",
                 "company_id": cls.website.company_id.id,
                 "allowed_origins": cls.origin,

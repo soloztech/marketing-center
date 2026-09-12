@@ -39,3 +39,22 @@ They materialize the bounded source snapshot first and chronologically drain eve
 queued or newly materialized signal above that floor before adopting the new seek
 cursor.  An upgrade therefore neither assumes that the old queue was empty nor
 replays episodes already proven consumed.
+
+Episode measurement and recovery
+--------------------------------
+
+``response_episode_answered`` is the stable measurement of one answered episode.
+It is separate from ``first_human_response`` at conversation grain. The older
+response pointer and all prior evidence remain unchanged. Two producers observing
+different first-response messages cannot inflate the answered-episode KPI.
+
+Upgrade to 16.0.1.0.2 queues bounded, idempotent projection of retained legacy
+responses. The dashboard is incomplete for that history until those jobs finish.
+Previously deleted response evidence cannot be reconstructed from an ambiguous
+conversation event and is not guessed. New episode measurement events survive
+conversation deletion under the existing business-ledger contract.
+
+New bridge jobs use eight attempts. Only classified transient database failures
+retry; persistent/unclassified failures remain visible in the native failed queue.
+Existing queued rows keep their persisted retry budget until reviewed explicitly.
+See ``docs/queue-and-credential-operations.md`` in the repository root.

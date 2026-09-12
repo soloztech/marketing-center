@@ -240,6 +240,7 @@ class MarketingCenterMetaProfile(models.Model):
                         "token_type": False,
                         "token_expires_at": False,
                         "data_access_expires_at": False,
+                        **profile._credential_health_reset_values(),
                     }
                 )
             super(MarketingCenterMetaProfile, profile).write(profile_values)
@@ -361,9 +362,21 @@ class MarketingCenterMetaProfile(models.Model):
         self.ensure_one()
         self.check_access_rights("write")
         self.check_access_rule("write")
+        return self._enqueue_validation()
+
+    def _validation_job_identity(self):
+        self.ensure_one()
+        return "marketing_meta:validate:%s:%s:%s" % (
+            self.public_ref,
+            self.profile_revision,
+            self.meta_app_id.revision,
+        )
+
+    def _enqueue_validation(self, eta=None):
+        self.ensure_one()
         self.with_delay(
-            identity_key="marketing_meta:validate:%s:%s:%s"
-            % (self.public_ref, self.profile_revision, self.meta_app_id.revision),
+            identity_key=self._validation_job_identity(),
+            eta=eta,
             max_retries=8,
             priority=20,
             description="Validate Meta reader profile %s" % self.public_ref,

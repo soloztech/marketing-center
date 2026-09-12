@@ -170,6 +170,16 @@ class MarketingBusinessEvent(models.Model):
             "('order_cancelled', 'payment_allocation_reversed')"
         )
 
+        # A separate index extends the contract on upgrades without replacing
+        # the existing Sales/payment invariant or touching historical evidence.
+        self.env.cr.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS "
+            "marketing_business_event_posting_reversal_uniq "
+            "ON marketing_business_event (reverses_event_id) "
+            "WHERE event_type IN "
+            "('invoice_posting_reversed', 'credit_note_posting_reversed')"
+        )
+
     @api.depends("has_amount", "amount_signed_micros")
     def _compute_amount_signed(self):
         for event in self:

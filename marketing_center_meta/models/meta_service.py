@@ -75,7 +75,7 @@ class MarketingCenterMetaService(models.AbstractModel):
                     if rate_limited
                     else "Meta read validation is temporarily unavailable"
                 ),
-                seconds=error.retry_after_seconds if rate_limited else None,
+                seconds=error.retry_after_seconds or None,
             ) from None
         except MetaApiPausedError as error:
             if not self._lock_current_profile(
@@ -156,7 +156,7 @@ class MarketingCenterMetaService(models.AbstractModel):
                     if rate_limited
                     else "Meta ad account discovery is temporarily unavailable"
                 ),
-                seconds=error.retry_after_seconds if rate_limited else None,
+                seconds=error.retry_after_seconds or None,
             ) from None
         except MetaApiPausedError as error:
             if not self._lock_current_profile(
@@ -314,6 +314,7 @@ class MarketingCenterMetaService(models.AbstractModel):
                     "Meta reader %s exhausted its transient retry budget."
                 )
                 % operation,
+                **profile._credential_health_failure_values(error),
             }
         )
         return "failed"
@@ -327,6 +328,7 @@ class MarketingCenterMetaService(models.AbstractModel):
             {
                 "health_state": "healthy",
                 "verified_at": now,
+                **profile._credential_health_success_values(now, validation),
                 "last_error_class": False,
                 "last_error_message": False,
                 "verified_scopes_json": list(validation.scopes),
@@ -350,6 +352,7 @@ class MarketingCenterMetaService(models.AbstractModel):
                 "verified_at": fields.Datetime.now(),
                 "last_error_class": error_class,
                 "last_error_message": error_message,
+                **profile._credential_health_failure_values(error),
             }
         )
         context = {

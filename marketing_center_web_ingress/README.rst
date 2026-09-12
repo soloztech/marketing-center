@@ -62,6 +62,21 @@ new rows cannot use that value.
 Privacy and durability
 ----------------------
 
+Optional capture is **blocked by default**, including after an upgrade of an
+unconfigured endpoint. A Marketing Administrator must explicitly configure a
+purpose code, policy and notice versions, documented non-consent basis and
+justification, and a positive identifier retention duration before enabling it.
+There is no default legal basis or retention duration. The actor/time and policy
+version are recorded. Disabling capture increments the configuration fence and
+blocks both browser POSTs and trusted Website action capture.
+
+This release has no trusted CMP/individual consent producer. Its configuration
+does not grant visitor consent, and consent-based optional capture must stay
+disabled until that producer exists. Browser ``granted`` remains rejected;
+ordinary Website events retain ``consent_state=unknown`` while carrying the
+administrator's separate policy/basis snapshot. A documented non-consent policy
+must be appropriate to the deployment; the software does not make that assessment.
+
 Click identifiers are hashed in ``marketing.attribution.identifier``. Their raw
 values are retained only in the ACL-protected
 ``marketing.web.ingress.click.value`` vault and connected to the ledger through
@@ -74,6 +89,30 @@ decision; their value must remain ``unknown``.  A non-unknown decision is
 accepted only from the internal server seam and is labelled ``server_internal``
 in the privacy snapshot.  This contract keeps a public capability from
 manufacturing the legal basis used by downstream activation.
+
+Each accepted event snapshots its retention deadline from observation time.
+An hourly cleanup processes at most 100 expired events per run. It erases raw
+click values, correlatable click/session/visitor hashes and identifier references,
+and the touchpoint's free-form URL/UTM/extension values. Unrelated opaque
+tombstones preserve row identity without preserving the original matching hash.
+Canonical keys, evidence digests and event dedupe remain so retries and revised
+replays cannot restore a retired occurrence. This is minimization, not a claim
+that the remaining technical evidence is legally anonymous.
+
+Pre-existing events without a deadline are visibly counted on the endpoint.
+``Review legacy events and proposed deadlines`` is a read-only preview.
+``Apply policy to next 100 legacy events`` is a separate explicit operator action:
+it uses each original observation date and records actor, time and policy version.
+The documented policy must be complete; optional capture can remain disabled
+while assigning deadlines and erasing legacy values.
+Expired legacy values become eligible for cleanup. No cron guesses a duration,
+and existing deadlines are never extended by a policy edit or repeated action.
+Rehearse assignment and erasure in a copy before production use.
+
+Erasure only covers this ingress and its attribution copies. It does not erase
+native CRM records, provider Lead Ads ledgers, backups or other integrations;
+those require their own retention and subject-request policy. The native form
+continues creating its record when optional marketing capture is blocked.
 
 Security boundary
 -----------------

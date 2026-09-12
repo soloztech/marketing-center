@@ -1,5 +1,6 @@
 import datetime
 import uuid
+from unittest.mock import patch
 
 from odoo import fields
 from odoo.exceptions import AccessError, ValidationError
@@ -181,7 +182,7 @@ class TestMarketingContactCenterLifecycleBridge(SavepointCase):
                     "identity_key": channel_binding._marketing_lifecycle_identity_key(
                         "conversation_started"
                     ),
-                    "max_retries": 0,
+                    "max_retries": 8,
                     "priority": 42,
                 },
             )
@@ -192,7 +193,7 @@ class TestMarketingContactCenterLifecycleBridge(SavepointCase):
                         "marketing_contact_center:response_episode:message:%s"
                         % source.id
                     ),
-                    "max_retries": 0,
+                    "max_retries": 8,
                     "priority": 41,
                 },
             )
@@ -263,7 +264,7 @@ class TestMarketingContactCenterLifecycleBridge(SavepointCase):
                     "identity_key": channel_binding._marketing_lifecycle_identity_key(
                         "first_human_response"
                     ),
-                    "max_retries": 0,
+                    "max_retries": 8,
                     "priority": 42,
                 },
             )
@@ -274,7 +275,7 @@ class TestMarketingContactCenterLifecycleBridge(SavepointCase):
                         "marketing_contact_center:response_episode:message:%s"
                         % response.id
                     ),
-                    "max_retries": 0,
+                    "max_retries": 8,
                     "priority": 41,
                 },
             )
@@ -655,6 +656,109 @@ class TestMarketingContactCenterLifecycleBridge(SavepointCase):
 
         self.assertEqual(projected.response_event_id, conversation_event)
         self.assertEqual(len(self._events(channel, "first_human_response")), 1)
+
+    def test_episode_measurement_is_independent_of_response_producer_order(self):
+        for lifecycle_first in (True, False):
+            with self.subTest(lifecycle_first=lifecycle_first):
+                channel, binding = self._conversation()
+                self._message_binding(
+                    binding,
+                    direction="inbound",
+                    origin="provider",
+                    date="2026-09-01 16:00:00",
+                    delivery_state="delivered",
+                    skip_enqueue=True,
+                )
+                external = self._message_binding(
+                    binding,
+                    direction="outbound",
+                    origin="external_device",
+                    date="2026-09-01 16:01:00",
+                    delivery_state="sent",
+                    skip_enqueue=True,
+                )
+                self._message_binding(
+                    binding,
+                    direction="outbound",
+                    origin="agent",
+                    date="2026-09-01 16:02:00",
+                    delivery_state="sent",
+                    skip_enqueue=True,
+                )
+                if lifecycle_first:
+                    self.service._sync_event(binding, "first_human_response")
+                self.episode_service._reconcile_channel(binding)
+                self.service._sync_event(binding, "first_human_response")
+                response = self.env["marketing.contact.center.response"].search(
+                    [("message_binding_id", "=", external.id)]
+                )
+                self.assertEqual(len(response), 1)
+                measured = self._events(channel, "response_episode_answered")
+                self.assertEqual(len(measured), 1)
+                self.assertEqual(measured.occurred_at, response.responded_at)
+                self.assertEqual(
+                    self.episode_service._ensure_answered_event(response), measured
+                )
+                self.assertEqual(
+                    len(self._events(channel, "response_episode_answered")), 1
+                )
+                self.assertEqual(
+                    len(self._events(channel, "first_human_response")),
+                    2 if lifecycle_first else 1,
+                )
+
+    def test_legacy_answers_backfill_is_bounded_and_preserves_original_evidence(self):
+        responses = self.env["marketing.contact.center.response"]
+        for minute in (10, 20):
+            channel, binding = self._conversation()
+            self._message_binding(
+                binding,
+                direction="inbound",
+                origin="provider",
+                date="2026-09-01 16:%s:00" % minute,
+                delivery_state="delivered",
+                skip_enqueue=True,
+            )
+            outbound = self._message_binding(
+                binding,
+                direction="outbound",
+                origin="agent",
+                date="2026-09-01 16:%s:00" % (minute + 1),
+                delivery_state="sent",
+                skip_enqueue=True,
+            )
+            # Emulate retained rows created before the dedicated episode fact.
+            with patch.object(type(self.episode_service), "_ensure_answered_event"):
+                self.episode_service._reconcile_channel(binding)
+            responses |= responses.search([("message_binding_id", "=", outbound.id)])
+            self.assertFalse(self._events(channel, "response_episode_answered"))
+        self.assertEqual(len(responses), 2)
+        original_events = responses.mapped("response_event_id")
+        after_id = responses[0].id - 1
+        with trap_jobs() as trap:
+            result = responses._job_backfill_answered_events(after_id, limit=1)
+            self.assertEqual(result, {"processed": 1, "last_id": responses[0].id})
+            trap.assert_jobs_count(1)
+            trap.assert_enqueued_job(
+                responses._job_backfill_answered_events,
+                args=(responses[0].id, 1),
+                properties={"max_retries": 8, "priority": 55},
+            )
+        with trap_jobs():
+            responses._job_backfill_answered_events(responses[0].id, limit=1)
+            responses._job_backfill_answered_events(after_id, limit=2)
+        for response in responses:
+            self.assertEqual(
+                len(
+                    self._events(
+                        response.episode_id.channel_binding_id.channel_id,
+                        "response_episode_answered",
+                    )
+                ),
+                1,
+            )
+        self.assertEqual(responses.mapped("response_event_id"), original_events)
+        self.assertTrue(original_events.exists())
 
     def test_response_episode_ledgers_are_immutable(self):
         _channel, channel_binding = self._conversation()
@@ -1049,7 +1153,7 @@ class TestMarketingContactCenterLifecycleBridge(SavepointCase):
                         "marketing_contact_center:response_episode:channel:%s:"
                         "page:durable-frontier" % channel_binding.id
                     ),
-                    "max_retries": 0,
+                    "max_retries": 8,
                     "priority": 43,
                 },
             )
@@ -1072,7 +1176,7 @@ class TestMarketingContactCenterLifecycleBridge(SavepointCase):
                         "marketing_contact_center:response_episode:channel:%s"
                         % channel_binding.id
                     ),
-                    "max_retries": 0,
+                    "max_retries": 8,
                     "priority": 43,
                 },
             )

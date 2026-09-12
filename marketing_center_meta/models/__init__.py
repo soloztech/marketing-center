@@ -7,3 +7,6 @@ from . import (
     meta_profile,
     meta_service,
 )
+
+# Register extensions after the profile model exists.
+from . import credential_health

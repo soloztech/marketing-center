@@ -1,13 +1,17 @@
 import json
 import pickle
+from datetime import timedelta
 from unittest.mock import patch
 
+from psycopg2 import OperationalError
 from psycopg2.errors import SerializationFailure
 
+from odoo import fields
 from odoo.exceptions import AccessError, ValidationError
 
 from odoo.addons.meta_api_base.services.credentials import MetaCredentialResolutionError
-from odoo.addons.queue_job.exception import RetryableJobError
+from odoo.addons.queue_job.exception import FailedJobError, RetryableJobError
+from odoo.addons.queue_job.job import Job
 from odoo.addons.queue_job.tests.common import trap_jobs
 
 from ..services.tokens import META_WEBHOOK_INTERNAL_TOKEN, META_WEBHOOK_RUNTIME_TOKEN
@@ -420,9 +424,10 @@ class TestMetaWebhookModels(MetaWebhookCase):
         error = SerializationFailure("synthetic concurrent update")
         with patch.object(
             type(delivery), "_fanout_once", side_effect=error
-        ), self.assertRaises(SerializationFailure) as caught:
+        ), self.assertRaises(RetryableJobError) as caught:
             internal._job_fanout()
-        self.assertIs(caught.exception, error)
+        self.assertNotIn(str(error), str(caught.exception))
+        self.assertIsNone(caught.exception.__context__)
         self.assertNotEqual(delivery.state, "dead")
 
     def test_dispatch_preserves_transaction_retry_at_the_attempt_ceiling(self):
@@ -450,10 +455,142 @@ class TestMetaWebhookModels(MetaWebhookCase):
             type(self.env["meta.webhook.dispatcher"]),
             "_dispatch_consumer",
             side_effect=error,
-        ), self.assertRaises(SerializationFailure) as caught:
+        ), self.assertRaises(RetryableJobError) as caught:
             internal._job_process()
-        self.assertIs(caught.exception, error)
+        self.assertNotIn(str(error), str(caught.exception))
+        self.assertIsNone(caught.exception.__context__)
         self.assertNotEqual(dispatch.state, "dead")
+
+    def _database_retry_records(self):
+        self.env["meta.webhook.subscription"].create(
+            {
+                "page_id": self.page.id,
+                "consumer_key": "marketing.lead_ads",
+                "object_type": "page",
+                "field_name": "leadgen",
+            }
+        )
+        delivery = self.create_delivery(self.leadgen_envelope())
+        delivery = delivery.sudo().with_context(
+            meta_webhook_internal=META_WEBHOOK_INTERNAL_TOKEN
+        )
+        with trap_jobs():
+            delivery._fanout_once()
+        dispatch = (
+            delivery.dispatch_ids.ensure_one()
+            .sudo()
+            .with_context(meta_webhook_internal=META_WEBHOOK_INTERNAL_TOKEN)
+        )
+        delivery.write({"state": "pending", "attempts": 0})
+        dispatch.write({"state": "pending", "attempts": 0})
+        return delivery, dispatch
+
+    def test_database_failure_budget_covers_processing_and_initial_lock(self):
+        delivery, dispatch = self._database_retry_records()
+        cases = (
+            (delivery, "_job_fanout", type(delivery), "_fanout_once"),
+            (delivery, "_job_fanout", type(delivery), "_lock_for_fanout"),
+            (
+                dispatch,
+                "_job_process",
+                type(self.env["meta.webhook.dispatcher"]),
+                "_dispatch_consumer",
+            ),
+            (dispatch, "_job_process", type(dispatch), "_lock_for_processing"),
+        )
+        for record, entrypoint, target, method in cases:
+            with self.subTest(model=record._name, failure=method):
+                job = Job(getattr(record, entrypoint), max_retries=8)
+                record.write({"queue_job_uuid": job.uuid, "attempts": 0})
+                job.store()
+                job.retry = 6
+                with patch.object(
+                    target, method, side_effect=SerializationFailure("private SQL")
+                ) as failure:
+                    with self.assertRaises(RetryableJobError) as retry:
+                        job.perform()
+                    self.assertEqual(job.retry, 7)
+                    self.assertNotIn("private SQL", str(retry.exception))
+                    with self.assertRaises(FailedJobError):
+                        job.perform()
+                    self.assertEqual(job.retry, 8)
+                    self.assertEqual(failure.call_count, 2)
+                # A rolled-back DB transaction does not consume application
+                # delivery attempts or falsely classify the consumer as dead.
+                self.assertEqual(record.attempts, 0)
+                self.assertEqual(record.state, "pending")
+
+                permanent = Job(getattr(record, entrypoint), max_retries=8)
+                record.write({"queue_job_uuid": permanent.uuid})
+                with patch.object(
+                    target, method, side_effect=OperationalError("unclassified")
+                ), self.assertRaises(OperationalError):
+                    permanent.perform()
+                self.assertEqual(permanent.retry, 1)
+
+    def test_failed_queue_job_requires_explicit_requeue(self):
+        delivery, dispatch = self._database_retry_records()
+        for record, method in (
+            (delivery, "_job_fanout"),
+            (dispatch, "_job_process"),
+        ):
+            job = Job(
+                getattr(record, method),
+                max_retries=8,
+                identity_key=record._identity_key(),
+            )
+            job.retry = 8
+            job.set_failed()
+            job.store()
+            record.write({"queue_job_uuid": job.uuid})
+
+        with trap_jobs() as trap, patch.object(
+            fields.Datetime,
+            "now",
+            return_value=fields.Datetime.now() + timedelta(minutes=1),
+        ):
+            delivery._enqueue()
+            dispatch._enqueue()
+            recovered = delivery._cron_recover_orphaned_jobs(grace_seconds=0)
+            self.assertEqual(recovered, 0)
+            trap.assert_jobs_count(0)
+
+        with trap_jobs() as trap:
+            delivery.action_requeue()
+            dispatch.action_requeue()
+            trap.assert_jobs_count(2)
+            trap.assert_enqueued_job(
+                delivery._job_fanout, properties={"max_retries": 8}
+            )
+            trap.assert_enqueued_job(
+                dispatch._job_process, properties={"max_retries": 8}
+            )
+
+    def test_missing_and_cancelled_jobs_remain_recoverable(self):
+        delivery, dispatch = self._database_retry_records()
+        # Delivery lost its queue row; dispatch was cancelled before completion.
+        delivery.write({"queue_job_uuid": self.DELIVERY_JOB_UUID})
+        job = Job(
+            dispatch._job_process,
+            max_retries=8,
+            identity_key=dispatch._identity_key(),
+        )
+        job.set_cancelled()
+        job.store()
+        dispatch.write({"queue_job_uuid": job.uuid})
+        with trap_jobs() as trap, patch.object(
+            fields.Datetime,
+            "now",
+            return_value=fields.Datetime.now() + timedelta(minutes=1),
+        ):
+            self.assertEqual(delivery._cron_recover_orphaned_jobs(grace_seconds=0), 2)
+            trap.assert_jobs_count(2)
+            trap.assert_enqueued_job(
+                delivery._job_fanout, properties={"max_retries": 8}
+            )
+            trap.assert_enqueued_job(
+                dispatch._job_process, properties={"max_retries": 8}
+            )
 
     def test_consumer_retry_error_is_sanitized_and_bounded(self):
         self.env["meta.webhook.subscription"].create(

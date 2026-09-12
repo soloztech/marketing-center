@@ -14,8 +14,12 @@ from odoo.addons.marketing_center_base.services import MarketingBusinessEventDTO
 from odoo.addons.marketing_center_base.services.serialization import (
     acquire_advisory_xact_lock,
 )
-from odoo.addons.queue_job.exception import RetryableJobError
 
+from ..services.retry import (
+    MAX_BRIDGE_RETRIES,
+    retry_database_error,
+    retry_transient_database,
+)
 from ..services.tokens import MARKETING_CONTACT_CENTER_EPISODE_WRITE_TOKEN
 
 _CONFIRMED_DELIVERY_STATES = ("sent", "delivered", "read")
@@ -520,6 +524,38 @@ class MarketingContactCenterResponse(models.Model):
     )
     policy_version = fields.Integer(required=True, readonly=True)
 
+    @api.model
+    def _enqueue_answered_backfill(self, after_id=0, limit=200):
+        """Project legacy episode responses without rewriting their evidence."""
+        after_id = max(int(after_id or 0), 0)
+        limit = min(max(int(limit), 1), 1000)
+        return self.with_delay(
+            identity_key="marketing:answered:%s:%s" % (self.env.company.id, after_id),
+            max_retries=MAX_BRIDGE_RETRIES,
+            priority=55,
+            description="Marketing answered-episode projection after %s" % after_id,
+        )._job_backfill_answered_events(after_id, limit)
+
+    @api.model
+    @retry_transient_database
+    def _job_backfill_answered_events(self, after_id=0, limit=200):
+        after_id = max(int(after_id or 0), 0)
+        limit = min(max(int(limit), 1), 1000)
+        responses = self.sudo().search(
+            [("company_id", "=", self.env.company.id), ("id", ">", after_id)],
+            order="id",
+            limit=limit,
+        )
+        service = self.env["marketing.contact.center.response.episode.service"]
+        for response in responses:
+            service._ensure_answered_event(response)
+        if len(responses) == limit:
+            self._enqueue_answered_backfill(responses[-1].id, limit)
+        return {
+            "processed": len(responses),
+            "last_id": responses[-1].id if responses else after_id,
+        }
+
     _sql_constraints = [
         (
             "public_ref_unique",
@@ -628,12 +664,13 @@ class ContactCenterMessageBinding(models.Model):
                     "marketing_contact_center:response_episode:message:%s"
                     % message_binding.id
                 ),
-                max_retries=0,
+                max_retries=MAX_BRIDGE_RETRIES,
                 priority=41,
                 description="Marketing response episode signal %s" % message_binding.id,
             )._job_sync_marketing_response_episode()
         return True
 
+    @retry_transient_database
     def _job_sync_marketing_response_episode(self):
         self.ensure_one()
         message_binding = self.sudo().exists()
@@ -652,10 +689,10 @@ class ContactCenterMessageBinding(models.Model):
                 channel_binding._enqueue_marketing_response_episode_continuation(
                     result["continuation_token"]
                 )
-        except OperationalError:
-            raise RetryableJobError(
-                "Marketing response episode hit a concurrent database operation"
-            ) from None
+        except OperationalError as error:
+            retry_database_error(
+                error, "Marketing response episode hit a concurrent database operation"
+            )
         return True
 
 
@@ -670,7 +707,7 @@ class ContactCenterChannelBinding(models.Model):
             ).with_delay(
                 identity_key="marketing_contact_center:response_episode:channel:%s"
                 % binding.id,
-                max_retries=0,
+                max_retries=MAX_BRIDGE_RETRIES,
                 priority=priority,
                 description="Marketing response episode backfill %s" % binding.id,
             )._job_sync_marketing_response_episodes()
@@ -690,12 +727,13 @@ class ContactCenterChannelBinding(models.Model):
                     "marketing_contact_center:response_episode:channel:%s:page:%s"
                     % (binding.id, continuation_token)
                 ),
-                max_retries=0,
+                max_retries=MAX_BRIDGE_RETRIES,
                 priority=43,
                 description="Marketing response episode page %s" % binding.id,
             )._job_sync_marketing_response_episodes()
         return True
 
+    @retry_transient_database
     def _job_sync_marketing_response_episodes(self):
         self.ensure_one()
         service = self.env["marketing.contact.center.response.episode.service"].sudo()
@@ -716,11 +754,12 @@ class ContactCenterChannelBinding(models.Model):
                 binding._enqueue_marketing_response_episode_continuation(
                     result["continuation_token"]
                 )
-        except OperationalError:
-            raise RetryableJobError(
+        except OperationalError as error:
+            retry_database_error(
+                error,
                 "Marketing response episode backfill hit a concurrent database "
-                "operation"
-            ) from None
+                "operation",
+            )
         return True
 
 
@@ -1233,6 +1272,7 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
         model = self.env["marketing.contact.center.response"].sudo()
         response = model.search([("episode_id", "=", episode.id)], limit=1)
         if response:
+            self._ensure_answered_event(response)
             return response
         event = self._response_event(
             binding,
@@ -1250,7 +1290,7 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
                 self._message_ref(message_binding),
             )
         )
-        return (
+        response = (
             model.with_company(binding.company_id)
             .with_context(
                 marketing_contact_center_episode_write_token=(
@@ -1272,6 +1312,42 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
                     "policy_version": _POLICY_VERSION,
                 }
             )
+        )
+        self._ensure_answered_event(response)
+        return response
+
+    @api.model
+    def _ensure_answered_event(self, response):
+        """One episode measurement, independent of conversation event ordering.
+
+        The older first_human_response fact and response link remain immutable.
+        Replaying this projection uses the same episode identity and snapshot.
+        """
+        response.ensure_one()
+        episode = response.episode_id
+        binding = episode.channel_binding_id
+        event_key = "contact.center:episode:%s:answered" % episode.public_ref
+        return self._ingest_event(
+            binding,
+            MarketingBusinessEventDTO(
+                event_class="lifecycle",
+                event_type="response_episode_answered",
+                source_system="contact_center",
+                source_model="mail.channel",
+                source_res_id=binding.channel_id.id,
+                source_occurrence_ref=event_key,
+                source_evidence_ref="contact.center.response:%s" % response.public_ref,
+                business_event_key=event_key,
+                occurred_at=response.responded_at,
+                observed_at=response.observed_at,
+                evidence_level="first_party",
+                extensions={
+                    "contact_center.episode_ref": episode.public_ref,
+                    "contact_center.episode_sequence": episode.sequence,
+                    "contact_center.response_origin": response.response_origin,
+                    "contact_center.lifecycle_version": 3,
+                },
+            ),
         )
 
     @api.model

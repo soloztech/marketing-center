@@ -209,9 +209,13 @@ class TestMarketingCenterSaleAccount(SavepointCase):
 
         invoice.action_post()
         events = self._invoice_event(invoice).sorted("id")
-        self.assertEqual(len(events), 2)
+        self.assertEqual(len(events), 3)
         self.assertFalse(events[0].sale_order_link_ids)
-        self.assertEqual(events[1].sale_order_link_ids.order_id, order)
+        self.assertFalse(events[1].sale_order_link_ids)
+        self.assertEqual(events[1].event_type, "invoice_posting_reversed")
+        self.assertEqual(events[1].reverses_event_id, events[0])
+        self.assertEqual(events[2].sale_order_link_ids.order_id, order)
+        self.assertEqual(sum(events.mapped("amount_signed_micros")), 40_000_000)
 
     def test_repost_freezes_each_occurrence_typed_causality(self):
         first_order = self._order(30)
@@ -228,9 +232,13 @@ class TestMarketingCenterSaleAccount(SavepointCase):
         invoice.action_post()
         events = self._invoice_event(invoice).sorted("id")
 
-        self.assertEqual(len(events), 2)
+        self.assertEqual(len(events), 3)
         self.assertEqual(events[0].sale_order_link_ids.order_id, first_order)
-        self.assertEqual(events[1].sale_order_link_ids.order_id, second_order)
+        self.assertEqual(events[1].sale_order_link_ids.order_id, first_order)
+        self.assertEqual(events[1].event_type, "invoice_posting_reversed")
+        self.assertEqual(events[1].reverses_event_id, events[0])
+        self.assertEqual(events[2].sale_order_link_ids.order_id, second_order)
+        self.assertEqual(sum(events.mapped("amount_signed_micros")), 30_000_000)
         self.assertEqual(
             set(invoice.marketing_account_sale_link_ids.order_id.ids),
             {first_order.id, second_order.id},
@@ -469,3 +477,113 @@ class TestMarketingCenterSaleAccount(SavepointCase):
             link.with_user(outsider).read(["id"])
         with self.assertRaises(AccessError):
             projection.with_user(outsider).read(["id"])
+
+    def test_unposting_copies_original_causal_graph_after_source_lines_changed(self):
+        first_lead = self.env["crm.lead"].create(
+            {"name": "Original invoice cause", "company_id": self.env.company.id}
+        )
+        second_lead = self.env["crm.lead"].create(
+            {"name": "Later invoice cause", "company_id": self.env.company.id}
+        )
+        first_order = self._order(30, lead=first_lead)
+        second_order = self._order(30, lead=second_lead)
+        invoice = first_order._create_invoices()
+        invoice.action_post()
+        original = self._invoice_event(invoice)
+        invoice.invoice_line_ids.write(
+            {"sale_line_ids": [Command.set(second_order.order_line.ids)]}
+        )
+        invoice.button_draft()
+        reversal = self._invoice_event(invoice).filtered(
+            lambda event: event.event_type == "invoice_posting_reversed"
+        )
+        self.assertEqual(reversal.sale_order_link_ids.order_id, first_order)
+        self.assertEqual(reversal.crm_link_ids.lead_id, first_lead)
+        self.assertEqual(reversal.reverses_event_id, original)
+        invoice.action_post()
+        latest = self._invoice_event(invoice).sorted("id")[-1]
+        self.assertEqual(latest.sale_order_link_ids.order_id, second_order)
+        self.assertEqual(latest.crm_link_ids.lead_id, second_lead)
+
+    def test_unposting_and_causality_edit_in_one_write_keep_original_graph(self):
+        first_order = self._order(40)
+        second_order = self._order(40)
+        invoice = first_order._create_invoices()
+        invoice.action_post()
+        invoice.write(
+            {
+                "state": "draft",
+                "invoice_line_ids": [
+                    Command.update(
+                        invoice.invoice_line_ids[:1].id,
+                        {"sale_line_ids": [Command.set(second_order.order_line.ids)]},
+                    )
+                ],
+            }
+        )
+        reversal = self._invoice_event(invoice).filtered(
+            lambda event: event.event_type == "invoice_posting_reversed"
+        )
+        self.assertEqual(reversal.sale_order_link_ids.order_id, first_order)
+
+    def test_later_order_crm_evidence_converges_on_posting_and_counterevent(self):
+        original_lead = self.env["crm.lead"].create(
+            {"name": "Original cause", "company_id": self.env.company.id}
+        )
+        later_lead = self.env["crm.lead"].create(
+            {"name": "Later evidence", "company_id": self.env.company.id}
+        )
+        order = self._order(70, lead=original_lead)
+        invoice = order._create_invoices()
+        invoice.action_post()
+        original = self._invoice_event(invoice)
+        invoice.button_draft()
+        counterevent = self._invoice_event(invoice).filtered(
+            lambda event: event.event_type == "invoice_posting_reversed"
+        )
+        self.env["marketing.sale.service"]._link_order_lead(order, later_lead)
+        # Append-only convergence must preserve the same net revenue per lead.
+        self.assertEqual(
+            set(original.crm_link_ids.lead_id.ids), {original_lead.id, later_lead.id}
+        )
+        self.assertEqual(
+            set(counterevent.crm_link_ids.lead_id.ids),
+            {original_lead.id, later_lead.id},
+        )
+        self.env["marketing.sale.service"]._link_event_order(counterevent, order)
+        for lead in original_lead | later_lead:
+            lead_events = (original | counterevent).filtered(
+                lambda event: lead in event.crm_link_ids.lead_id
+            )
+            self.assertEqual(sum(lead_events.mapped("amount_signed_micros")), 0)
+
+    def test_later_order_lead_keeps_reversed_revenue_net_zero(self):
+        order = self._order(100)
+        invoice = order._create_invoices()
+        invoice.action_post()
+        invoice.button_draft()
+        revenue_events = self._invoice_event(invoice)
+        self.assertEqual(len(revenue_events), 2)
+        self.assertEqual(sum(revenue_events.mapped("amount_signed_micros")), 0)
+
+        later_lead = self.env["crm.lead"].create(
+            {"name": "Lead after invoice reset", "company_id": self.env.company.id}
+        )
+        order.write({"opportunity_id": later_lead.id})
+        lead_revenue = (
+            self.env["marketing.business.event.crm.link"]
+            .search(
+                [
+                    ("lead_id", "=", later_lead.id),
+                    ("event_id", "in", revenue_events.ids),
+                ]
+            )
+            .mapped("event_id")
+        )
+        self.assertTrue(lead_revenue, "The later lead must receive revenue evidence")
+        self.assertEqual(
+            sum(lead_revenue.mapped("amount_signed_micros")),
+            0,
+            "A fully reversed posting must not invent revenue for a later lead",
+        )
+        self.assertEqual(set(lead_revenue.ids), set(revenue_events.ids))

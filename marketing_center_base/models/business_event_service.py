@@ -2,6 +2,7 @@ from odoo import _, api, models
 from odoo.exceptions import AccessError, ValidationError
 
 from ..services.business_event_dto import (
+    POSTING_REVERSAL_EVENT_PAIRS,
     REQUIRED_REVERSAL_EVENT_PAIRS,
     REVERSAL_EVENT_PAIRS,
     BusinessEventDTOValidationError,
@@ -136,10 +137,26 @@ class MarketingBusinessEventService(models.AbstractModel):
 
     @api.model
     def _reversal_lock_key(self, company_id, dto):
+        target_key = dto.reverses_business_event_key
+        if dto.event_type == "credit_note_posting_reversed":
+            credit = (
+                self.env["marketing.business.event"]
+                .sudo()
+                .search(
+                    [
+                        ("company_id", "=", company_id),
+                        ("source_system", "=", dto.source_system),
+                        ("business_event_key", "=", target_key),
+                    ],
+                    limit=1,
+                )
+            )
+            if credit.reverses_event_id:
+                target_key = credit.reverses_event_id.business_event_key
         return "marketing_business_event_reversal:%s:%s:%s" % (
             company_id,
             dto.source_system,
-            dto.reverses_business_event_key,
+            target_key,
         )
 
     @api.model
@@ -160,7 +177,10 @@ class MarketingBusinessEventService(models.AbstractModel):
         )
         if not event:
             raise ValidationError(_("The reversed business event does not exist."))
-        if event.reverses_event_id:
+        if event.reverses_event_id and not (
+            dto.event_type == "credit_note_posting_reversed"
+            and event.event_type == "credit_note_posted"
+        ):
             raise ValidationError(_("A reversal cannot reverse another reversal."))
         if event.event_class != dto.event_class:
             raise ValidationError(_("A reversal must preserve the event class."))
@@ -183,19 +203,9 @@ class MarketingBusinessEventService(models.AbstractModel):
         elif observed_micros * original_micros > 0:
             raise ValidationError(_("A credit must oppose the original amount."))
         elif dto.event_type == "credit_note_posted":
-            existing_credits = (
-                self.env["marketing.business.event"]
-                .sudo()
-                .search(
-                    [
-                        ("reverses_event_id", "=", event.id),
-                        ("event_type", "=", "credit_note_posted"),
-                    ]
-                )
-            )
-            credited_micros = (
-                sum(existing_credits.mapped("amount_signed_micros")) + observed_micros
-            )
+            if not self._active_posting_events(event):
+                raise ValidationError(_("A credit requires an active invoice posting."))
+            credited_micros = self._active_credit_amount_micros(event) + observed_micros
             if abs(credited_micros) > abs(original_micros):
                 raise ValidationError(
                     _(
@@ -208,7 +218,10 @@ class MarketingBusinessEventService(models.AbstractModel):
                 self.env["marketing.business.event"]
                 .sudo()
                 .search(
-                    [("reverses_event_id", "=", event.id)],
+                    [
+                        ("reverses_event_id", "=", event.id),
+                        ("event_type", "=", dto.event_type),
+                    ],
                     limit=1,
                 )
             )
@@ -217,6 +230,44 @@ class MarketingBusinessEventService(models.AbstractModel):
                     _("The business event already has its required reversal.")
                 )
         return event
+
+    @api.model
+    def _active_posting_events(self, events):
+        """Return postings not cancelled by their exact append-only counterevent.
+
+        This is a current-state projection. Period flows instead sum postings
+        and counterevents inside that period, grouped by currency and basis.
+        """
+        postings = events.filtered(
+            lambda event: event.event_type in POSTING_REVERSAL_EVENT_PAIRS.values()
+        )
+        cancelled = (
+            self.env["marketing.business.event"]
+            .sudo()
+            .search(
+                [
+                    ("reverses_event_id", "in", postings.ids),
+                    ("event_type", "in", tuple(POSTING_REVERSAL_EVENT_PAIRS)),
+                ]
+            )
+            .mapped("reverses_event_id")
+        )
+        return postings - cancelled
+
+    @api.model
+    def _active_credit_amount_micros(self, invoice):
+        """Exact credit total against this immutable invoice posting only."""
+        credits = (
+            self.env["marketing.business.event"]
+            .sudo()
+            .search(
+                [
+                    ("reverses_event_id", "=", invoice.id),
+                    ("event_type", "=", "credit_note_posted"),
+                ]
+            )
+        )
+        return sum(self._active_posting_events(credits).mapped("amount_signed_micros"))
 
     @api.model
     def _observe(self, event, dto, disposition):

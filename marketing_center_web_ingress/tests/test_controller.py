@@ -17,6 +17,13 @@ class TestMarketingWebIngressController(HttpCase):
         super().setUpClass()
         cls.endpoint = cls.env["marketing.web.ingress.endpoint"].create(
             {
+                "capture_enabled": True,
+                "capture_purpose": "web_attribution",
+                "privacy_policy_version": "test-v1",
+                "privacy_notice_version": "test-v1",
+                "privacy_legal_basis_code": "documented_test_basis",
+                "privacy_policy_justification": "Synthetic test policy.",
+                "identifier_retention_days": 30,
                 "name": "HTTP ingress",
                 "company_id": cls.env.company.id,
                 "allowed_origins": "https://www.soloz.example",
@@ -297,4 +304,20 @@ class TestMarketingWebIngressController(HttpCase):
         self.env.invalidate_all()
         self.assertFalse(
             self.env["marketing.web.ingress.event"].sudo().search_count([])
+        )
+
+    def test_policy_disable_rejects_public_post_before_storing_values(self):
+        self.endpoint.write({"capture_enabled": False})
+        response = self.opener.post(
+            self.base_url() + self.path,
+            data=self._body("blocked-capture-000001"),
+            headers=self._headers(),
+        )
+        self.assertEqual(response.status_code, 404, response.text)
+        self.env.invalidate_all()
+        self.assertFalse(
+            self.env["marketing.web.ingress.event"].sudo().search_count([])
+        )
+        self.assertFalse(
+            self.env["marketing.web.ingress.click.value"].sudo().search_count([])
         )

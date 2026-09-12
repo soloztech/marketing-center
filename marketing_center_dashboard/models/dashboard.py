@@ -25,6 +25,20 @@ class MarketingCenterDashboardOverview(models.Model):
     _check_company_auto = True
 
     name = fields.Char(readonly=True)
+
+    @api.depends("name", "row_kind", "company_id.name")
+    @api.depends_context("lang")
+    def _compute_display_name(self):
+        for row in self:
+            if row.row_kind == "summary":
+                row.display_name = _(
+                    "Company overview — %(company)s", company=row.company_id.name
+                )
+            elif row.row_kind == "unresolved":
+                row.display_name = _("No unique source")
+            else:
+                row.display_name = row.name
+
     row_kind = fields.Selection(
         [
             ("summary", "Company facts (no causal credit)"),
@@ -53,7 +67,11 @@ class MarketingCenterDashboardOverview(models.Model):
         readonly=True,
     )
     service = fields.Char(readonly=True)
-    timezone = fields.Char(readonly=True)
+    timezone = fields.Char(
+        string="Reporting timezone",
+        readonly=True,
+        help="Company facts use UTC calendar days. Source rows use the source's reporting timezone.",
+    )
     currency_id = fields.Many2one("res.currency", readonly=True)
     metric_origin = fields.Selection(
         [("platform_reported", "Platform reported")], readonly=True
@@ -143,14 +161,39 @@ class MarketingCenterDashboardOverview(models.Model):
         ),
     )
     lead_created_count = fields.Integer(readonly=True, group_operator=False)
-    qualified_count = fields.Integer(readonly=True, group_operator=False)
-    won_count = fields.Integer(readonly=True, group_operator=False)
-    lost_count = fields.Integer(readonly=True, group_operator=False)
+    qualified_count = fields.Integer(
+        string="Qualification transitions",
+        readonly=True,
+        group_operator=False,
+        help="Counts transitions, including repeated qualification of the same opportunity.",
+    )
+    won_count = fields.Integer(
+        string="Won transitions",
+        readonly=True,
+        group_operator=False,
+        help="Counts transitions to won, not distinct opportunities or a cohort conversion rate.",
+    )
+    lost_count = fields.Integer(
+        string="Lost/archive transitions",
+        readonly=True,
+        group_operator=False,
+        help="Includes archiving a lead, following the native CRM loss semantics.",
+    )
     proposal_sent_count = fields.Integer(readonly=True, group_operator=False)
     order_confirmed_count = fields.Integer(readonly=True, group_operator=False)
     order_cancelled_count = fields.Integer(readonly=True, group_operator=False)
-    invoice_posted_count = fields.Integer(readonly=True, group_operator=False)
-    credit_note_posted_count = fields.Integer(readonly=True, group_operator=False)
+    invoice_posted_count = fields.Integer(
+        string="Invoice posting occurrences",
+        readonly=True,
+        group_operator=False,
+        help="Historical posting occurrences, including repostings. This is not net revenue or a count of currently posted documents.",
+    )
+    credit_note_posted_count = fields.Integer(
+        string="Credit-note posting occurrences",
+        readonly=True,
+        group_operator=False,
+        help="Historical credit-note posting occurrences, including repostings.",
+    )
     payment_allocated_count = fields.Integer(readonly=True, group_operator=False)
     payment_allocation_reversed_count = fields.Integer(
         readonly=True, group_operator=False
@@ -417,7 +460,8 @@ class MarketingCenterDashboardOverview(models.Model):
                         AS conversation_first_response_count,
                     COUNT(*) FILTER (WHERE event_type = 'interaction_started')
                         AS response_episode_started_count,
-                    COUNT(*) FILTER (WHERE event_type = 'first_human_response')
+                    COUNT(DISTINCT (source_system, business_event_key))
+                        FILTER (WHERE event_type = 'response_episode_answered')
                         AS response_episode_answered_count,
                     COUNT(*) FILTER (WHERE event_type = 'lead_created')
                         AS lead_created_count,
@@ -572,7 +616,7 @@ class MarketingCenterDashboardOverview(models.Model):
             summary_rows AS (
                 SELECT
                     -(company.id * 2)::integer AS id,
-                    ('Panorama ' || company.name)::varchar AS name,
+                    ('Company overview ' || company.name)::varchar AS name,
                     'summary'::varchar AS row_kind,
                     0 AS row_rank,
                     company.id AS company_id,
@@ -646,7 +690,7 @@ class MarketingCenterDashboardOverview(models.Model):
             unresolved_rows AS (
                 SELECT
                     -(company.id * 2 + 1)::integer AS id,
-                    'Não atribuível — sem fonte única'::varchar AS name,
+                    'No unique source'::varchar AS name,
                     'unresolved'::varchar AS row_kind,
                     10 AS row_rank,
                     company.id AS company_id,

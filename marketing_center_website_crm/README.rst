@@ -42,3 +42,32 @@ correlations and assertions to null. Completed evidence remains append-only;
 pending work becomes terminal instead of recreating or guessing a target.
 Session revocation continues to use the intent's immutable lead identity after a
 native CRM merge, so the authority can still invalidate survivor projections.
+
+Session identifier retention
+----------------------------
+
+Every new form intent snapshots the explicitly configured endpoint retention
+policy and a deadline from the original form time. This applies even when
+processing fails and no ingress event has been created. An hourly cleanup erases
+at most 100 due intents per run; processing, retries and session reconciliation
+also enforce the deadline before using the session. Expiring the corresponding
+ingress event erases the intent's session copy in the same transaction.
+Session matching also excludes landing events without an explicit future
+deadline and erased identifiers, even before scheduled cleanup runs.
+
+Erasure clears both the session UUID and its comparison hash, disables queued
+processing/reconciliation, and leaves a first-wins event tombstone. A completed
+intent retains its historical correlation; a pending intent becomes terminal.
+Neither replay nor manual retry restores identifiers. The native CRM lead and
+previous attribution assertions are preserved; this is identifier minimization,
+not deletion of the native CRM record or anonymization of the historical graph.
+
+Legacy intents without a deadline are visible in the intent list with an empty
+``Retain Until`` and a read-only ``Proposed Retain Until``. They do not acquire an
+inferred duration and cannot perform new correlation until an operator explicitly
+applies a documented endpoint policy using ``Apply policy to legacy intent``.
+Capture can remain disabled. The action uses the original form date, records the
+actor and policy version, accepts at most 100 selected intents through the model
+service, and never extends an existing deadline. Review the proposed deadline
+before applying it; already expired sessions are eligible for cleanup. Existing
+completed evidence remains unchanged while awaiting that decision.

@@ -23,8 +23,11 @@ BUSINESS_EVENT_TYPES = frozenset(
     {
         "conversation_started",
         "credit_note_posted",
+        "credit_note_posting_reversed",
         "first_human_response",
+        "response_episode_answered",
         "invoice_posted",
+        "invoice_posting_reversed",
         "interaction_started",
         "lead_created",
         "lead_stage_changed",
@@ -43,6 +46,7 @@ BUSINESS_EVENT_TYPES_BY_CLASS = {
         {
             "conversation_started",
             "first_human_response",
+            "response_episode_answered",
             "interaction_started",
             "lead_created",
             "lead_stage_changed",
@@ -55,7 +59,9 @@ BUSINESS_EVENT_TYPES_BY_CLASS = {
     "revenue": frozenset(
         {
             "invoice_posted",
+            "invoice_posting_reversed",
             "credit_note_posted",
+            "credit_note_posting_reversed",
             "order_cancelled",
             "order_confirmed",
             "payment_allocated",
@@ -63,7 +69,12 @@ BUSINESS_EVENT_TYPES_BY_CLASS = {
         }
     ),
 }
+POSTING_REVERSAL_EVENT_PAIRS = {
+    "invoice_posting_reversed": "invoice_posted",
+    "credit_note_posting_reversed": "credit_note_posted",
+}
 REQUIRED_REVERSAL_EVENT_PAIRS = {
+    **POSTING_REVERSAL_EVENT_PAIRS,
     "order_cancelled": "order_confirmed",
     "payment_allocation_reversed": "payment_allocated",
 }
@@ -77,10 +88,20 @@ _EXTENSION_KEY_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*(?:\.[a-z0-9][a-z0-9_-]*)+$
 _MAX_ABS_AMOUNT = decimal.Decimal("999999999999999.999999")
 _AMOUNT_QUANTUM = decimal.Decimal("0.000001")
 _POSITIVE_REVENUE_TYPES = frozenset(
-    {"invoice_posted", "order_confirmed", "payment_allocated"}
+    {
+        "invoice_posted",
+        "credit_note_posting_reversed",
+        "order_confirmed",
+        "payment_allocated",
+    }
 )
 _NEGATIVE_REVENUE_TYPES = frozenset(
-    {"credit_note_posted", "order_cancelled", "payment_allocation_reversed"}
+    {
+        "credit_note_posted",
+        "invoice_posting_reversed",
+        "order_cancelled",
+        "payment_allocation_reversed",
+    }
 )
 
 

@@ -1,8 +1,12 @@
 import datetime
 import uuid
 
+from psycopg2.errors import SerializationFailure
+
+from odoo import SUPERUSER_ID, api
 from odoo.exceptions import AccessError, ValidationError
-from odoo.tests.common import SavepointCase
+from odoo.tests import tagged
+from odoo.tests.common import SavepointCase, TransactionCase
 
 from ..services.business_event_dto import MarketingBusinessEventDTO
 
@@ -267,3 +271,204 @@ class TestMarketingBusinessEventService(SavepointCase):
         event = self.env["marketing.business.event"].browse(cancelled_result.event_id)
         self.assertEqual(event.amount_signed_micros, 0)
         self.assertEqual(event.reverses_event_id.id, original_result.event_id)
+
+    def test_credit_unposting_releases_budget_and_preserves_invoice_root(self):
+        invoice_dto = self._dto(
+            event_class="revenue",
+            event_type="invoice_posted",
+            source_res_id=801,
+            amount_signed="100",
+            currency="BRL",
+        )
+        invoice_result = self.service._ingest_event(self.env.company, invoice_dto)
+        invoice = self.env["marketing.business.event"].browse(invoice_result.event_id)
+        credit_dto = self._dto(
+            event_class="revenue",
+            event_type="credit_note_posted",
+            source_res_id=802,
+            amount_signed="-100",
+            currency="BRL",
+            reverses_business_event_key=invoice_dto.business_event_key,
+        )
+        credit_result = self.service._ingest_event(self.env.company, credit_dto)
+        credit = self.env["marketing.business.event"].browse(credit_result.event_id)
+        counter_dto = self._dto(
+            event_class="revenue",
+            event_type="credit_note_posting_reversed",
+            source_res_id=802,
+            amount_signed="100",
+            currency="BRL",
+            reverses_business_event_key=credit_dto.business_event_key,
+        )
+        counter_result = self.service._ingest_event(self.env.company, counter_dto)
+        counter = self.env["marketing.business.event"].browse(counter_result.event_id)
+        self.assertEqual(counter.reverses_event_id, credit)
+        self.assertEqual(counter.root_event_id, invoice)
+        self.assertEqual(self.service._active_credit_amount_micros(invoice), 0)
+        duplicate = self.service._ingest_event(self.env.company, counter_dto)
+        self.assertEqual(duplicate.event_id, counter.id)
+        self.assertEqual(duplicate.disposition, "duplicate")
+        with self.assertRaises(ValidationError):
+            self.service._ingest_event(
+                self.env.company,
+                self._dto(
+                    event_class="revenue",
+                    event_type="credit_note_posting_reversed",
+                    source_res_id=802,
+                    amount_signed="100",
+                    currency="BRL",
+                    reverses_business_event_key=credit_dto.business_event_key,
+                ),
+            )
+        repost = self.service._ingest_event(
+            self.env.company,
+            self._dto(
+                event_class="revenue",
+                event_type="credit_note_posted",
+                source_res_id=802,
+                amount_signed="-100",
+                currency="BRL",
+                reverses_business_event_key=invoice_dto.business_event_key,
+            ),
+        )
+        self.assertNotEqual(repost.event_id, credit.id)
+        self.assertEqual(
+            self.service._active_credit_amount_micros(invoice), -100_000_000
+        )
+        # An invoice can be unposted despite having a surviving credit. Its
+        # counterevent invalidates only that invoice posting, never the credit.
+        self.service._ingest_event(
+            self.env.company,
+            self._dto(
+                event_class="revenue",
+                event_type="invoice_posting_reversed",
+                source_res_id=801,
+                amount_signed="-100",
+                currency="BRL",
+                reverses_business_event_key=invoice_dto.business_event_key,
+            ),
+        )
+        self.assertFalse(self.service._active_posting_events(invoice))
+        self.assertEqual(
+            self.service._active_credit_amount_micros(invoice), -100_000_000
+        )
+
+    def test_posting_reversal_rejects_wrong_amount_type_and_source(self):
+        original = self._dto(
+            event_class="revenue",
+            event_type="invoice_posted",
+            source_res_id=901,
+            amount_signed="100",
+            currency="BRL",
+        )
+        self.service._ingest_event(self.env.company, original)
+        values = dict(
+            event_class="revenue",
+            event_type="invoice_posting_reversed",
+            source_res_id=901,
+            amount_signed="-100",
+            currency="BRL",
+            reverses_business_event_key=original.business_event_key,
+        )
+        for changes in (
+            {"amount_signed": "-99"},
+            {"currency": "USD"},
+            {"source_res_id": 902},
+            {"event_type": "credit_note_posting_reversed", "amount_signed": "100"},
+        ):
+            with self.subTest(changes=changes), self.assertRaises(
+                ValidationError
+            ), self.env.cr.savepoint():
+                self.service._ingest_event(
+                    self.env.company, self._dto(**{**values, **changes})
+                )
+
+
+@tagged("-at_install", "post_install")
+class TestMarketingBusinessEventPostingConcurrency(TransactionCase):
+    def test_credit_unposting_serializes_with_a_new_credit(self):
+        source = "test.posting.%s" % uuid.uuid4().hex
+        company_id = self.env.company.id
+
+        def dto(event_type, key, source_res_id, amount, reverses=""):
+            return MarketingBusinessEventDTO(
+                event_class="revenue",
+                event_type=event_type,
+                source_system=source,
+                source_model="account.move",
+                source_res_id=source_res_id,
+                source_occurrence_ref=key,
+                business_event_key=key,
+                occurred_at=datetime.datetime(2026, 9, 1),
+                evidence_level="first_party",
+                amount_signed=amount,
+                currency="BRL",
+                reverses_business_event_key=reverses,
+            )
+
+        try:
+            with self.registry.cursor() as cr:
+                env = api.Environment(cr, SUPERUSER_ID, {})
+                company = env["res.company"].browse(company_id)
+                service = env["marketing.business.event.service"]
+                service._ingest_event(
+                    company, dto("invoice_posted", "invoice", 1, "100")
+                )
+                service._ingest_event(
+                    company, dto("credit_note_posted", "credit", 2, "-100", "invoice")
+                )
+                cr.commit()  # pylint: disable=invalid-commit
+            with self.registry.cursor() as owner_cr, self.registry.cursor() as waiter_cr:
+                owner = api.Environment(owner_cr, SUPERUSER_ID, {})
+                waiter = api.Environment(waiter_cr, SUPERUSER_ID, {})
+                new_credit = dto(
+                    "credit_note_posted", "new-credit", 3, "-100", "invoice"
+                )
+                owner["marketing.business.event.service"]._ingest_event(
+                    owner["res.company"].browse(company_id),
+                    dto(
+                        "credit_note_posting_reversed",
+                        "credit-void",
+                        2,
+                        "100",
+                        "credit",
+                    ),
+                )
+                with self.assertRaises(SerializationFailure):
+                    waiter["marketing.business.event.service"]._ingest_event(
+                        waiter["res.company"].browse(company_id),
+                        new_credit,
+                    )
+                waiter_cr.rollback()
+                owner_cr.commit()  # pylint: disable=invalid-commit
+            with self.registry.cursor() as cr:
+                env = api.Environment(cr, SUPERUSER_ID, {})
+                service = env["marketing.business.event.service"]
+                result = service._ingest_event(
+                    env["res.company"].browse(company_id), new_credit
+                )
+                self.assertEqual(result.disposition, "accepted")
+                invoice = env["marketing.business.event"].search(
+                    [
+                        ("source_system", "=", source),
+                        ("business_event_key", "=", "invoice"),
+                    ]
+                )
+                self.assertEqual(
+                    service._active_credit_amount_micros(invoice), -100_000_000
+                )
+                # No commit: only the initial fixture and owner's counterevent
+                # need explicit cleanup below; the assertion transaction rolls back.
+        finally:
+            with self.registry.cursor() as cr:
+                cr.execute(
+                    "DELETE FROM marketing_business_event_observation "
+                    "WHERE event_id IN (SELECT id FROM marketing_business_event "
+                    "WHERE source_system = %s)",
+                    [source],
+                )
+                cr.execute(
+                    "DELETE FROM marketing_business_event WHERE source_system = %s",
+                    [source],
+                )
+                cr.commit()  # pylint: disable=invalid-commit

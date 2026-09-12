@@ -1,9 +1,16 @@
+import hashlib
 import uuid
 
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError
 
+from odoo.addons.marketing_center_base.models.attribution import (
+    ATTRIBUTION_ERASURE_TOKEN,
+)
+
 from ..services.tokens import WEB_INGRESS_INTERNAL_TOKEN
+
+_WEB_RETENTION_TOKEN = object()
 
 INGRESS_PROVENANCE_SELECTION = [
     ("browser_capability", "Browser capability"),
@@ -75,6 +82,22 @@ class MarketingWebIngressEvent(models.Model):
     click_value_ids = fields.One2many(
         "marketing.web.ingress.click.value", "event_id", readonly=True
     )
+    retain_until = fields.Datetime(index=True, readonly=True, copy=False)
+    retention_policy_version = fields.Char(readonly=True, copy=False)
+    retention_assigned_by = fields.Many2one("res.users", readonly=True, copy=False)
+    retention_assigned_at = fields.Datetime(readonly=True, copy=False)
+    erased_at = fields.Datetime(index=True, readonly=True, copy=False)
+    proposed_retain_until = fields.Datetime(compute="_compute_proposed_retain_until")
+
+    @api.depends("retain_until", "observed_at", "endpoint_id.identifier_retention_days")
+    def _compute_proposed_retain_until(self):
+        for event in self:
+            event.proposed_retain_until = (
+                event.endpoint_id._retention_deadline(event.observed_at)
+                if not event.retain_until
+                and event.endpoint_id.identifier_retention_days > 0
+                else False
+            )
 
     _sql_constraints = [
         (
@@ -138,6 +161,20 @@ class MarketingWebIngressEvent(models.Model):
 
     def write(self, values):
         if (
+            self.env.context.get("marketing_web_retention_token")
+            is _WEB_RETENTION_TOKEN
+        ):
+            if set(values) == {"erased_at"} and values["erased_at"]:
+                return super().write(values)
+            if set(values) == {
+                "retain_until",
+                "retention_policy_version",
+                "retention_assigned_by",
+                "retention_assigned_at",
+            } and all(not event.retain_until for event in self):
+                return super().write(values)
+            raise AccessError(_("Retention metadata can only be assigned once."))
+        if (
             self.env.context.get("marketing_web_ingress_internal")
             is not WEB_INGRESS_INTERNAL_TOKEN
         ):
@@ -151,6 +188,79 @@ class MarketingWebIngressEvent(models.Model):
         if any(event.state != "processing" for event in self):
             raise AccessError(_("A finalized web ingress event is immutable."))
         return super().write(values)
+
+    def _assign_retention_policy(self, endpoint, *, assigned_by):
+        self.ensure_one()
+        if self.endpoint_id != endpoint or self.company_id not in self.env.companies:
+            raise AccessError(
+                _("The retention policy belongs to another endpoint/company.")
+            )
+        if self.retain_until:
+            return
+        if not endpoint._privacy_policy_configured():
+            raise AccessError(_("An explicit retention policy is required."))
+        self.sudo().with_context(
+            marketing_web_retention_token=_WEB_RETENTION_TOKEN
+        ).write(
+            {
+                "retain_until": endpoint._retention_deadline(self.observed_at),
+                "retention_policy_version": endpoint.privacy_policy_version,
+                "retention_assigned_by": assigned_by,
+                "retention_assigned_at": fields.Datetime.now(),
+            }
+        )
+        self.touchpoint_id.sudo().identifier_ids._assign_retention_deadline(
+            token=ATTRIBUTION_ERASURE_TOKEN,
+            deadline=self.retain_until.date(),
+        )
+
+    @api.model
+    def _cron_expire_retained_values(self, limit=100):
+        """One bounded batch, with tombstones and per-company erasure scope."""
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise AccessError(
+                _("Retention cleanup accepts batches of 1 to 100 events.")
+            )
+        now = fields.Datetime.now()
+        events = self.search(
+            [
+                ("state", "=", "done"),
+                ("erased_at", "=", False),
+                ("retain_until", "!=", False),
+                ("retain_until", "<=", now),
+                ("company_id", "in", self.env.companies.ids),
+            ],
+            order="retain_until, id",
+            limit=limit,
+        )
+        for event in events:
+            # Two cleanup jobs can race; the row lock serializes the destructive
+            # projection and Odoo retries a stale REPEATABLE READ transaction.
+            self.env.cr.execute(
+                "SELECT id FROM marketing_web_ingress_event WHERE id = %s FOR UPDATE",
+                [event.id],
+            )
+            event.invalidate_recordset(["erased_at"])
+            if event.erased_at:
+                continue
+            scoped = event.sudo().with_context(
+                allowed_company_ids=[event.company_id.id]
+            )
+            scoped.touchpoint_id._erase_private_values(
+                token=ATTRIBUTION_ERASURE_TOKEN, now=now
+            )
+            scoped.click_value_ids._erase_private_values(
+                token=_WEB_RETENTION_TOKEN, now=now
+            )
+            scoped._erase_related_private_values(now=now)
+            scoped.with_context(
+                marketing_web_retention_token=_WEB_RETENTION_TOKEN
+            ).write({"erased_at": now})
+        return len(events)
+
+    def _erase_related_private_values(self, *, now):
+        """Optional bridges erase their copies in the same retention transaction."""
+        return True
 
     def unlink(self):  # pylint: disable=method-required-super
         raise AccessError(_("Web ingress events cannot be deleted."))
@@ -184,6 +294,7 @@ class MarketingWebIngressClickValue(models.Model):
         groups="marketing_center_base.group_marketing_center_admin",
     )
     observed_at = fields.Datetime(required=True, index=True, readonly=True)
+    erased_at = fields.Datetime(index=True, readonly=True, copy=False)
 
     _sql_constraints = [
         (
@@ -216,6 +327,20 @@ class MarketingWebIngressClickValue(models.Model):
 
     def write(self, _values):  # pylint: disable=method-required-super
         raise AccessError(_("Protected click identifiers are immutable."))
+
+    def _erase_private_values(self, *, token, now):
+        if token is not _WEB_RETENTION_TOKEN or any(
+            record.company_id not in self.env.companies for record in self
+        ):
+            raise AccessError(_("Click values require the scoped retention service."))
+        for record in self.filtered(lambda item: not item.erased_at):
+            super(MarketingWebIngressClickValue, record).write(
+                {
+                    "protected_value": "[erased]",
+                    "comparison_hash": hashlib.sha256(uuid.uuid4().bytes).hexdigest(),
+                    "erased_at": now,
+                }
+            )
 
     def unlink(self):  # pylint: disable=method-required-super
         raise AccessError(_("Protected click identifiers cannot be deleted."))

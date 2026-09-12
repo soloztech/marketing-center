@@ -2,12 +2,14 @@ import hashlib
 import json
 import os
 
+from odoo.tests import tagged
 from odoo.tests.common import SavepointCase
 
 from ..services.sanitizer import sanitized_webhook
 from ..services.tokens import META_WEBHOOK_INTERNAL_TOKEN
 
 
+@tagged("post_install", "-at_install")
 class MetaWebhookCase(SavepointCase):
     APP_SECRET_REF = "ODOO_META_WEBHOOK_TEST_APP_SECRET"
     VERIFY_TOKEN_REF = "ODOO_META_WEBHOOK_TEST_VERIFY_TOKEN"

@@ -48,7 +48,11 @@
                             <field name="active" />
                         </group>
                         <group>
-                            <field name="webhook_url" readonly="1" />
+                            <field
+                                name="webhook_url"
+                                readonly="1"
+                                groups="base.group_system"
+                            />
                             <field name="credential_backend" />
                             <field name="verify_token_ref" />
                             <field name="revision" readonly="1" />

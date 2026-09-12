@@ -133,6 +133,18 @@ class MarketingWebsiteCrmService(models.AbstractModel):
             limit=1,
         )
         if intent:
+            if not intent._session_retention_available() and intent.privacy_erased_at:
+                # The event identity is a durable first-wins tombstone. Never
+                # reintroduce a session identifier through a replay.
+                if (
+                    intent.website_id != website
+                    or intent.action_id != action
+                    or intent.lead_id != lead
+                ):
+                    raise ValidationError(
+                        _("The Website form event was already claimed differently.")
+                    )
+                return intent
             expected = (
                 intent.website_id == website
                 and intent.action_id == action
@@ -149,6 +161,26 @@ class MarketingWebsiteCrmService(models.AbstractModel):
                     _("The Website form event was already claimed differently.")
                 )
             return intent
+        if not endpoint._capture_policy_allows():
+            raise AccessError(_("Optional Website capture is disabled."))
+        erased_event = (
+            self.env["marketing.web.ingress.event"]
+            .sudo()
+            .search(
+                [
+                    ("endpoint_id", "=", endpoint.id),
+                    (
+                        "event_key_hash",
+                        "=",
+                        hashlib.sha256(event_ref.encode("utf-8")).hexdigest(),
+                    ),
+                    ("erased_at", "!=", False),
+                ],
+                limit=1,
+            )
+        )
+        if erased_event:
+            raise AccessError(_("The Website form event has expired."))
         return (
             Intent.with_company(company)
             .with_context(marketing_website_crm_write_token=WEBSITE_CRM_WRITE_TOKEN)
@@ -166,6 +198,10 @@ class MarketingWebsiteCrmService(models.AbstractModel):
                     "origin": origin,
                     "occurred_at": occurred_at,
                     "session_reconcile_until": reconcile_until,
+                    "retain_until": endpoint._retention_deadline(occurred_at),
+                    "retention_policy_version": endpoint.privacy_policy_version,
+                    "retention_assigned_by": endpoint.privacy_policy_set_by.id,
+                    "retention_assigned_at": fields.Datetime.now(),
                 }
             )
         )
@@ -173,7 +209,11 @@ class MarketingWebsiteCrmService(models.AbstractModel):
     @api.model
     def _attempt_intent(self, intent):
         intent = intent.sudo().exists()
-        if not intent or intent.state in {"done", "failed", "tombstoned"}:
+        if (
+            not intent
+            or not intent._session_retention_available()
+            or intent.state in {"done", "failed", "tombstoned", "expired"}
+        ):
             return True
         self.env.cr.execute(
             "SELECT id FROM marketing_website_crm_intent WHERE id = %s FOR UPDATE",
@@ -264,6 +304,10 @@ class MarketingWebsiteCrmService(models.AbstractModel):
 
     @api.model
     def _process_intent(self, intent):
+        if not intent._session_retention_available():
+            raise AccessError(
+                _("The Website CRM session has no active retention policy.")
+            )
         action = intent.action_id
         if (
             action.website_id != intent.website_id
@@ -304,6 +348,7 @@ class MarketingWebsiteCrmService(models.AbstractModel):
         asset_refs = touchpoint.asset_refs_json or {}
         if (
             not event
+            or event.erased_at
             or not touchpoint
             or touchpoint.id != result.touchpoint_id
             or touchpoint.source_system != "web.ingress"
@@ -391,6 +436,8 @@ class MarketingWebsiteCrmService(models.AbstractModel):
     @api.model
     def _session_touchpoints(self, intent):
         """Resolve bounded, effective pre-form evidence for this exact session."""
+        if not intent._session_retention_available():
+            return self.env["marketing.attribution.touchpoint"]
         start = intent.occurred_at - _SESSION_LOOKBACK
         scope_ref = "endpoint:%s" % intent.endpoint_id.public_ref
         self.env.cr.execute(
@@ -408,6 +455,8 @@ class MarketingWebsiteCrmService(models.AbstractModel):
                AND event.endpoint_id = %s
                AND event.origin = %s
                AND event.state = 'done'
+               AND event.erased_at IS NULL
+               AND event.retain_until > %s
                AND event.occurred_at >= %s
                AND event.occurred_at <= %s
                AND effective.occurred_at >= %s
@@ -417,6 +466,7 @@ class MarketingWebsiteCrmService(models.AbstractModel):
                AND effective.touchpoint_type IN ('entry_point', 'organic_link')
                AND identifier.namespace = 'web.session'
                AND identifier.role = 'session'
+               AND identifier.erased_at IS NULL
                AND identifier.comparison_hash = %s
              GROUP BY effective.touchpoint_id, effective.occurred_at
              ORDER BY effective.occurred_at, effective.touchpoint_id
@@ -426,6 +476,7 @@ class MarketingWebsiteCrmService(models.AbstractModel):
                 intent.company_id.id,
                 intent.endpoint_id.id,
                 intent.origin,
+                fields.Datetime.now(),
                 start,
                 intent.occurred_at,
                 start,
@@ -462,7 +513,7 @@ class MarketingWebsiteCrmService(models.AbstractModel):
 
     @api.model
     def _append_session_assertions(self, intent, touchpoints):
-        if not intent.lead_id:
+        if not intent._session_retention_available() or not intent.lead_id:
             return self.env["marketing.attribution.crm.link"]
         authority_ref = self._session_authority_ref(intent)
         crm_service = (
@@ -489,6 +540,7 @@ class MarketingWebsiteCrmService(models.AbstractModel):
         intent = intent.sudo().exists()
         if (
             not intent
+            or not intent._session_retention_available(now=now)
             or intent.state != "done"
             or intent.session_reconcile_state not in {"pending", "watching"}
             or (intent.session_reconcile_until < now and not final)

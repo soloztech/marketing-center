@@ -2,7 +2,7 @@ import uuid
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from psycopg2 import errors as pg_errors
+from psycopg2 import OperationalError, errors as pg_errors
 
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tests.common import SavepointCase
@@ -16,7 +16,8 @@ from odoo.addons.contact_center_base.services.tokens import (
     CONTACT_CENTER_ATTRIBUTION_TOKEN,
 )
 from odoo.addons.marketing_center_base.services.dto import AttributionDTOValidationError
-from odoo.addons.queue_job.exception import RetryableJobError
+from odoo.addons.queue_job.exception import FailedJobError, RetryableJobError
+from odoo.addons.queue_job.job import Job
 from odoo.addons.queue_job.tests.common import trap_jobs
 
 from ..services.mapper import ContactCenterAttributionMapper
@@ -459,6 +460,30 @@ class TestMarketingContactCenterAttributionBridge(SavepointCase):
                 "_sync_touchpoint",
                 side_effect=known_race,
             ), self.assertRaises(RetryableJobError):
+                source._job_sync_marketing_touchpoint()
+
+    def test_transient_database_retries_exhaust_and_unknown_errors_fail(self):
+        source = self._source_touchpoint()
+        service_class = type(self.env["marketing.contact.center.attribution.service"])
+        job = Job(source._job_sync_marketing_touchpoint, max_retries=8)
+        with patch.object(
+            service_class,
+            "_sync_touchpoint",
+            side_effect=pg_errors.SerializationFailure(),
+        ):
+            for attempt in range(1, 8):
+                with self.assertRaises(RetryableJobError):
+                    job.perform()
+                self.assertEqual(job.retry, attempt)
+            with self.assertRaises(FailedJobError):
+                job.perform()
+            self.assertEqual(job.retry, 8)
+        with patch.object(
+            service_class,
+            "_sync_touchpoint",
+            side_effect=OperationalError("unclassified"),
+        ):
+            with self.assertRaises(OperationalError):
                 source._job_sync_marketing_touchpoint()
 
         unrelated = _synthetic_unique_violation(

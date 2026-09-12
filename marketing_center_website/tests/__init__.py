@@ -6,4 +6,5 @@ from . import (
     test_concurrency,
     test_contract,
     test_controller,
+    test_js,
 )

@@ -10,6 +10,11 @@ from ..services.mapper import (
     MAPPING_VERSION,
     ContactCenterAttributionMapper,
 )
+from ..services.retry import (
+    MAX_BRIDGE_RETRIES,
+    retry_database_error,
+    retry_transient_database,
+)
 from ..services.tokens import MARKETING_CONTACT_CENTER_LINK_WRITE_TOKEN
 
 _LIVE_ATTRIBUTION_JOB_PRIORITY = 40
@@ -169,12 +174,13 @@ class ContactCenterAttributionTouchpoint(models.Model):
                 company
             ).with_delay(
                 identity_key=touchpoint._marketing_attribution_identity_key(wake_scope),
-                max_retries=0,
+                max_retries=MAX_BRIDGE_RETRIES,
                 priority=priority,
                 description="Marketing attribution bridge %s" % touchpoint.public_ref,
             )._job_sync_marketing_touchpoint()
         return True
 
+    @retry_transient_database
     def _job_sync_marketing_touchpoint(self):
         self.ensure_one()
         touchpoint = self.sudo().exists()
@@ -199,12 +205,14 @@ class ContactCenterAttributionTouchpoint(models.Model):
                 "Marketing attribution bridge observed a concurrent revision",
                 seconds=None,
             ) from None
-        except OperationalError:
-            raise RetryableJobError(
-                "Marketing attribution bridge hit a concurrent database operation"
-            ) from None
+        except OperationalError as error:
+            retry_database_error(
+                error,
+                "Marketing attribution bridge hit a concurrent database operation",
+            )
         return True
 
+    @retry_transient_database
     def _job_sync_marketing_touchpoint_batch(self):
         touchpoints = self.sudo().exists().sorted("id")
         touchpoints._enqueue_marketing_attribution_sync(

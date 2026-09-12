@@ -14,6 +14,13 @@ class TestMarketingWebsiteAction(SavepointCase):
         cls.website = cls.env.ref("website.default_website")
         cls.endpoint = cls.env["marketing.web.ingress.endpoint"].create(
             {
+                "capture_enabled": True,
+                "capture_purpose": "web_attribution",
+                "privacy_policy_version": "test-v1",
+                "privacy_notice_version": "test-v1",
+                "privacy_legal_basis_code": "documented_test_basis",
+                "privacy_policy_justification": "Synthetic test policy.",
+                "identifier_retention_days": 30,
                 "name": "Website action endpoint",
                 "company_id": cls.website.company_id.id,
                 "allowed_origins": "https://www.example.test",
@@ -404,6 +411,13 @@ class TestMarketingWebsiteAction(SavepointCase):
             .with_company(other_company)
             .create(
                 {
+                    "capture_enabled": True,
+                    "capture_purpose": "web_attribution",
+                    "privacy_policy_version": "test-v1",
+                    "privacy_notice_version": "test-v1",
+                    "privacy_legal_basis_code": "documented_test_basis",
+                    "privacy_policy_justification": "Synthetic test policy.",
+                    "identifier_retention_days": 30,
                     "name": "Website action endpoint B",
                     "company_id": other_company.id,
                     "allowed_origins": "https://b.example.test",

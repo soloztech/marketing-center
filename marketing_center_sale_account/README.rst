@@ -65,3 +65,19 @@ and journal entry are locked. This gives concurrent live replay/backfill workers
 a PostgreSQL serialization conflict, handled by the normal Odoo transaction
 retry, rather than allowing them to race the immutable receipt or typed-link
 unique constraints.
+
+Posting counterevents preserve causality
+----------------------------------------
+
+An invoice/credit posting counterevent copies the Sales and CRM edges observed
+on its original posting when it is reversed. It never reads the draft's current
+``sale_line_ids`` or expands the current order-to-CRM graph. This applies even if
+typed invoice lines were changed while posted or in the same write that returns
+the document to draft. A later reposting snapshots its own current typed graph.
+
+Later legitimate CRM evidence enriches both the source posting and its posting
+counterevent under the Sales convergence contract. These appended edges preserve
+zero net revenue for a fully reversed posting when a lead is associated later;
+they do not reread the draft invoice's current typed lines.
+Missing native orders/leads cannot create live navigation; their historical edges
+remain accessible through the counterevent's immutable ``reverses_event_id``.

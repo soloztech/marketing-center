@@ -112,3 +112,29 @@ class TestMarketingBusinessEventDTO(TransactionCase):
                 BusinessEventDTOValidationError
             ):
                 self._dto(**values)
+
+    def test_posting_counterevents_require_exact_direction_and_target(self):
+        for event_type, amount in (
+            ("invoice_posting_reversed", "-100"),
+            ("credit_note_posting_reversed", "100"),
+        ):
+            with self.subTest(event_type=event_type):
+                values = dict(
+                    event_class="revenue",
+                    event_type=event_type,
+                    amount_signed=amount,
+                    currency="BRL",
+                )
+                with self.assertRaises(BusinessEventDTOValidationError):
+                    self._dto(**values)
+                dto = self._dto(
+                    reverses_business_event_key="original-posting", **values
+                )
+                self.assertEqual(dto.event_type, event_type)
+                values["amount_signed"] = str(-decimal.Decimal(amount))
+                with self.assertRaises(BusinessEventDTOValidationError):
+                    self._dto(reverses_business_event_key="original-posting", **values)
+
+    def test_episode_answer_is_distinct_from_conversation_first_response(self):
+        dto = self._dto(event_type="response_episode_answered")
+        self.assertEqual(dto.event_class, "lifecycle")

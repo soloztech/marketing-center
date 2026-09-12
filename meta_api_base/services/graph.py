@@ -1,9 +1,11 @@
+import datetime
 import hashlib
 import hmac
 import json
 import math
 import re
 from collections.abc import Mapping
+from email.utils import parsedate_to_datetime
 
 import requests
 
@@ -13,6 +15,8 @@ from .errors import (
     MetaApiRateLimitError,
     MetaApiTransientError,
     MetaApiUncertainError,
+    _bounded_nonnegative_int,
+    _bounded_percent,
 )
 from .signature import validate_graph_version
 
@@ -72,10 +76,69 @@ def _header(headers, name):
 
 
 def _retry_after(response):
+    value = _header(response.headers, "Retry-After")
     try:
-        return max(0, min(int(_header(response.headers, "Retry-After")), 3600))
+        return max(0, min(int(value), 86_400))
     except (TypeError, ValueError):
-        return 0
+        try:
+            deadline = parsedate_to_datetime(value)
+            if deadline.tzinfo is None:
+                deadline = deadline.replace(tzinfo=datetime.timezone.utc)
+            seconds = math.ceil(
+                (
+                    deadline - datetime.datetime.now(datetime.timezone.utc)
+                ).total_seconds()
+            )
+            return max(0, min(seconds, 86_400))
+        except (TypeError, ValueError, OverflowError):
+            return 0
+
+
+def _usage_diagnostics(response):
+    """Aggregate only numeric usage; discard account IDs and all raw headers."""
+    result = {
+        "usage_call_count_percent": 0.0,
+        "usage_cpu_percent": 0.0,
+        "usage_time_percent": 0.0,
+        "estimated_cooldown_seconds": 0,
+    }
+    for header in ("X-App-Usage", "X-Business-Use-Case-Usage"):
+        raw = _header(response.headers, header)
+        if not raw or len(raw) > 16_384:
+            continue
+        try:
+            value = json.loads(raw)
+        except (ValueError, RecursionError):
+            continue
+        if not isinstance(value, dict):
+            continue
+        rows = (
+            [value]
+            if header == "X-App-Usage"
+            else [
+                row
+                for group in list(value.values())[:100]
+                if isinstance(group, list)
+                for row in group[:100]
+                if isinstance(row, dict)
+            ]
+        )
+        for row in rows:
+            for incoming, output in (
+                ("call_count", "usage_call_count_percent"),
+                ("total_cputime", "usage_cpu_percent"),
+                ("total_time", "usage_time_percent"),
+            ):
+                result[output] = max(
+                    result[output], _bounded_percent(row.get(incoming))
+                )
+            minutes = _bounded_nonnegative_int(
+                row.get("estimated_time_to_regain_access"), maximum=1440
+            )
+            result["estimated_cooldown_seconds"] = max(
+                result["estimated_cooldown_seconds"], minutes * 60
+            )
+    return result
 
 
 def graph_appsecret_proof(app_secret, access_token):
@@ -330,61 +393,54 @@ def _graph_error_shape(payload):
 def _raise_graph_error(response, payload, *, mutating):
     status = int(getattr(response, "status_code", 0) or 0)
     code, subcode, provider_transient = _graph_error_shape(payload)
-    if (
-        status == 429
-        or code in _RATE_LIMIT_CODES
-        or code in _BUSINESS_USE_CASE_RATE_LIMIT_CODES
+    usage = _usage_diagnostics(response)
+    shape = payload.get("error", {})
+    trace = shape.get("fbtrace_id", "") if isinstance(shape, dict) else ""
+    diagnostics = {
+        "http_status": status,
+        "provider_code": code,
+        "provider_subcode": subcode,
+        "provider_trace_id": trace or _header(response.headers, "x-fb-trace-id"),
+        **usage,
+    }
+    cooldown = max(_retry_after(response), usage["estimated_cooldown_seconds"])
+    if status == 429 or (
+        status < 500
+        and status not in (401, 408, 425)
+        and (code in _RATE_LIMIT_CODES or code in _BUSINESS_USE_CASE_RATE_LIMIT_CODES)
     ):
         raise MetaApiRateLimitError(
             "Meta Graph rate limit is active",
-            retry_after_seconds=_retry_after(response) or 60,
-            http_status=status,
-            provider_code=code,
-            provider_subcode=subcode,
+            retry_after_seconds=cooldown or 60,
+            **diagnostics,
         )
-    if (
-        status in (401, 403)
-        or code in _AUTHENTICATION_CODES
-        or code in _PERMISSION_CODES
+    if status in (401, 403) or (
+        status < 500
+        and status not in (408, 425)
+        and (code in _AUTHENTICATION_CODES or code in _PERMISSION_CODES)
     ):
         raise MetaApiPausedError(
-            "Meta Graph authorization is unavailable",
-            http_status=status,
-            provider_code=code,
-            provider_subcode=subcode,
+            "Meta Graph authorization is unavailable", **diagnostics
         )
     if status in (408, 425):
         error_class = MetaApiUncertainError if mutating else MetaApiTransientError
         raise error_class(
-            "Meta Graph request timed out",
-            retry_after_seconds=_retry_after(response),
-            http_status=status,
-            provider_code=code,
-            provider_subcode=subcode,
+            "Meta Graph request timed out", retry_after_seconds=cooldown, **diagnostics
         )
     if status >= 500:
         error_class = MetaApiUncertainError if mutating else MetaApiTransientError
         raise error_class(
             "Meta Graph is temporarily unavailable",
-            retry_after_seconds=_retry_after(response),
-            http_status=status,
-            provider_code=code,
-            provider_subcode=subcode,
+            retry_after_seconds=cooldown,
+            **diagnostics,
         )
     if provider_transient:
         raise MetaApiTransientError(
             "Meta Graph rejected a transient request",
-            retry_after_seconds=_retry_after(response),
-            http_status=status,
-            provider_code=code,
-            provider_subcode=subcode,
+            retry_after_seconds=cooldown,
+            **diagnostics,
         )
-    raise MetaApiError(
-        "Meta Graph rejected the request",
-        http_status=status,
-        provider_code=code,
-        provider_subcode=subcode,
-    )
+    raise MetaApiError("Meta Graph rejected the request", **diagnostics)
 
 
 def _validated_files(files, method, json_data):
@@ -477,9 +533,7 @@ def graph_request(
         # These statuses are self-describing. Classify them before decoding so an
         # empty/HTML proxy body cannot weaken authentication, throttling or an
         # uncertain mutation into a generic JSON failure.
-        if status in (401, 408, 425, 429) or status >= 500:
-            _raise_graph_error(response, {}, mutating=effective_mutating)
-        if status == 403:
+        if status in (401, 403, 408, 425, 429) or status >= 500:
             try:
                 payload = _bounded_json(response, max_response_bytes)
             except (MetaApiError, MetaApiTransientError):

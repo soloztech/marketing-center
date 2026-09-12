@@ -1,3 +1,7 @@
+import math
+import re
+
+
 class MetaApiError(Exception):
     """Permanent, safely reportable failure at the Meta API boundary."""
 
@@ -11,6 +15,11 @@ class MetaApiError(Exception):
         http_status=0,
         provider_code=0,
         provider_subcode=0,
+        provider_trace_id="",
+        usage_call_count_percent=0,
+        usage_cpu_percent=0,
+        usage_time_percent=0,
+        estimated_cooldown_seconds=0,
     ):
         super().__init__(message)
         self.retry_after_seconds = _bounded_nonnegative_int(
@@ -22,6 +31,18 @@ class MetaApiError(Exception):
         )
         self.provider_subcode = _bounded_nonnegative_int(
             provider_subcode, maximum=2_147_483_647
+        )
+        self.provider_trace_id = (
+            provider_trace_id
+            if isinstance(provider_trace_id, str)
+            and re.fullmatch(r"[A-Za-z0-9_-]{1,128}", provider_trace_id)
+            else ""
+        )
+        self.usage_call_count_percent = _bounded_percent(usage_call_count_percent)
+        self.usage_cpu_percent = _bounded_percent(usage_cpu_percent)
+        self.usage_time_percent = _bounded_percent(usage_time_percent)
+        self.estimated_cooldown_seconds = _bounded_nonnegative_int(
+            estimated_cooldown_seconds, maximum=86_400
         )
 
 
@@ -57,3 +78,13 @@ def _bounded_nonnegative_int(value, *, maximum):
     if isinstance(value, bool):
         return 0
     return max(0, min(number, maximum))
+
+
+def _bounded_percent(value):
+    if isinstance(value, bool):
+        return 0.0
+    try:
+        number = float(value)
+    except (OverflowError, TypeError, ValueError):
+        return 0.0
+    return min(max(number, 0.0), 10_000.0) if math.isfinite(number) else 0.0

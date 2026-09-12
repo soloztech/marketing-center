@@ -91,12 +91,18 @@ class MarketingWebIngressService(models.AbstractModel):
                 "replay_window_seconds",
                 "max_body_bytes",
                 "max_field_length",
+                "privacy_policy_set_by",
             ]
+            + list(endpoint._privacy_policy_fields())
         )
         if not endpoint.active:
             raise AccessError(_("The web ingress endpoint is inactive."))
         if endpoint.company_id not in self.env.companies:
             raise AccessError(_("The web ingress endpoint belongs to another company."))
+        if not endpoint._capture_policy_allows():
+            raise AccessError(
+                _("Optional attribution is blocked by the endpoint policy.")
+            )
         if (
             not isinstance(body_size_bytes, int)
             or isinstance(body_size_bytes, bool)
@@ -232,6 +238,10 @@ class MarketingWebIngressService(models.AbstractModel):
                 "config_revision": endpoint.config_revision,
                 "ingress_provenance": ingress_provenance,
                 "state": "processing",
+                "retain_until": endpoint._retention_deadline(observed_at),
+                "retention_policy_version": endpoint.privacy_policy_version,
+                "retention_assigned_by": endpoint.privacy_policy_set_by.id,
+                "retention_assigned_at": observed_at,
             }
         )
         click_refs = self._create_click_values(event, payload, observed_at)
@@ -313,6 +323,8 @@ class MarketingWebIngressService(models.AbstractModel):
                     comparison_hash=_sha256(value),
                     value_ref=click_refs[field_name],
                     source_field=field_name,
+                    purpose=endpoint.capture_purpose,
+                    retain_until=endpoint._retention_deadline(observed_at).date(),
                 )
             )
         for field_name, comparison_hash in payload.reference_hashes.items():
@@ -322,6 +334,8 @@ class MarketingWebIngressService(models.AbstractModel):
                     role=("session" if field_name == "session_ref" else "visitor"),
                     comparison_hash=comparison_hash,
                     source_field=field_name,
+                    purpose=endpoint.capture_purpose,
+                    retain_until=endpoint._retention_deadline(observed_at).date(),
                 )
             )
         # Click parameters are evidence, not a causal classification. Keep the
@@ -363,6 +377,9 @@ class MarketingWebIngressService(models.AbstractModel):
             asset_refs=asset_refs,
             identifiers=tuple(identifiers),
             privacy=PrivacySnapshotDTO(
+                policy_version=endpoint.privacy_policy_version,
+                notice_version=endpoint.privacy_notice_version,
+                legal_basis_code=endpoint.privacy_legal_basis_code,
                 consent_state=payload.consent_state,
                 decision_source=(
                     "server_internal" if payload.consent_state != "unknown" else ""

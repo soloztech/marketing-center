@@ -12,6 +12,13 @@ class TestMarketingWebsiteIngressBinding(SavepointCase):
         cls.website = cls.env.ref("website.default_website")
         cls.endpoint = cls.env["marketing.web.ingress.endpoint"].create(
             {
+                "capture_enabled": True,
+                "capture_purpose": "web_attribution",
+                "privacy_policy_version": "test-v1",
+                "privacy_notice_version": "test-v1",
+                "privacy_legal_basis_code": "documented_test_basis",
+                "privacy_policy_justification": "Synthetic test policy.",
+                "identifier_retention_days": 30,
                 "name": "Website binding endpoint",
                 "company_id": cls.website.company_id.id,
                 "allowed_origins": "https://www.example.test",
@@ -50,6 +57,13 @@ class TestMarketingWebsiteIngressBinding(SavepointCase):
             .with_company(other_company)
             .create(
                 {
+                    "capture_enabled": True,
+                    "capture_purpose": "web_attribution",
+                    "privacy_policy_version": "test-v1",
+                    "privacy_notice_version": "test-v1",
+                    "privacy_legal_basis_code": "documented_test_basis",
+                    "privacy_policy_justification": "Synthetic test policy.",
+                    "identifier_retention_days": 30,
                     "name": "Other company endpoint",
                     "company_id": other_company.id,
                     "allowed_origins": "https://other.example.test",
@@ -108,6 +122,13 @@ class TestMarketingWebsiteIngressBinding(SavepointCase):
             .with_company(second_company)
             .create(
                 {
+                    "capture_enabled": True,
+                    "capture_purpose": "web_attribution",
+                    "privacy_policy_version": "test-v1",
+                    "privacy_notice_version": "test-v1",
+                    "privacy_legal_basis_code": "documented_test_basis",
+                    "privacy_policy_justification": "Synthetic test policy.",
+                    "identifier_retention_days": 30,
                     "name": "Rule endpoint B",
                     "company_id": second_company.id,
                     "allowed_origins": "https://b.example.test",

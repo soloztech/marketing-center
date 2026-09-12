@@ -72,11 +72,23 @@ before initializing its database, so dependency drift fails before addon tests.
 
 ## Current greenfield baseline
 
-The eighteen analytics and provider addons in the original greenfield baseline
-use `16.0.1.0.0`, coordinated with the six Contact Center addons. The three
-independent content catalog addons are versioned separately. The [2026-09-05 audit](reviews/2026-09-05-greenfield-audit.md) records the
-current corrections and validation; the older laboratory totals below describe
-their historical source tree, not this candidate.
+The eighteen analytics/provider addons and the three independent content catalog
+addons have separate versions in their manifests. The workflow pins the compatible
+Contact Center source SHA; `oca_dependencies.txt` is an alternative installation
+description, not the CI lock. Use the manifest and workflow from the same reviewed
+commit when assembling a release.
+
+The [2026-09-12 implementation record](reviews/2026-09-12-review-fixes-implementation.md)
+tracks this candidate and its validation. The [2026-09-05 audit](reviews/2026-09-05-greenfield-audit.md)
+and laboratory totals below describe historical source trees.
+
+The attribution calculation engine is an internal foundation. Automatic eligible
+candidate production and an attributed-revenue dashboard are not enabled features.
+Effective CRM links alone do not authorize credit. See the
+[calculation contract](reviews/2026-09-01-attribution-calculation-foundation.md).
+
+Queue capacity, retry exhaustion, public ingress admission and credential rotation
+follow the [operations contract](docs/queue-and-credential-operations.md).
 
 The pre-production development lineage was squashed before the first production
 candidate. Older laboratory schemas are not supported upgrade origins. After the first
@@ -97,4 +109,5 @@ converged, temporary resources were removed and the former remote `integration-c
 root was removed. See the
 [cross-repository baseline](reviews/2026-09-04-greenfield-baseline-cross-repo.md).
 
-Production has not been changed by this repository release.
+The historical validation above does not establish the current production state.
+This review-fix candidate is local code and requires its own release evidence.

@@ -1,6 +1,8 @@
 from odoo import _, models
 from odoo.exceptions import ValidationError
 
+from ..services.retry import MAX_BRIDGE_RETRIES, retry_transient_database
+
 _BACKFILL_PHASES = {
     "attribution": "marketing.contact.center.attribution.service",
     "lifecycle": "marketing.contact.center.lifecycle.service",
@@ -30,13 +32,14 @@ class ResCompany(models.Model):
                 "marketing_contact_center:bootstrap:%s:company:%s:after:%s"
                 % (phase, self.id, after_id)
             ),
-            max_retries=0,
+            max_retries=MAX_BRIDGE_RETRIES,
             priority=50,
             description=(
                 "Marketing Contact Center %s bootstrap after %s" % (phase, after_id)
             ),
         )._job_marketing_contact_center_backfill(phase, after_id, limit)
 
+    @retry_transient_database
     def _job_marketing_contact_center_backfill(
         self,
         phase,

@@ -24,6 +24,13 @@ class TestMarketingWebIngressConcurrency(TransactionCase):
             )
             endpoint = env["marketing.web.ingress.endpoint"].create(
                 {
+                    "capture_enabled": True,
+                    "capture_purpose": "web_attribution",
+                    "privacy_policy_version": "test-v1",
+                    "privacy_notice_version": "test-v1",
+                    "privacy_legal_basis_code": "documented_test_basis",
+                    "privacy_policy_justification": "Synthetic test policy.",
+                    "identifier_retention_days": 30,
                     "name": "Concurrent web ingress %s" % suffix[-8:],
                     "company_id": self.env.company.id,
                     "allowed_origins": "https://race.soloz.example",

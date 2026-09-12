@@ -10,6 +10,13 @@ class TestMarketingWebsiteIngressController(HttpCase):
         cls.website = cls.env.ref("website.default_website")
         cls.endpoint = cls.env["marketing.web.ingress.endpoint"].create(
             {
+                "capture_enabled": True,
+                "capture_purpose": "web_attribution",
+                "privacy_policy_version": "test-v1",
+                "privacy_notice_version": "test-v1",
+                "privacy_legal_basis_code": "documented_test_basis",
+                "privacy_policy_justification": "Synthetic test policy.",
+                "identifier_retention_days": 30,
                 "name": "Website public config endpoint",
                 "company_id": cls.website.company_id.id,
                 "allowed_origins": "https://www.example.test",
@@ -77,6 +84,13 @@ class TestMarketingWebsiteIngressController(HttpCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"enabled": False})
         self.assertNotIn(self.endpoint.public_ref, response.text)
+        self.assertNotIn(self.endpoint.public_key, response.text)
+
+    def test_disabled_capture_policy_returns_no_endpoint_material(self):
+        self.endpoint.write({"capture_enabled": False})
+        response = self.url_open("/marketing/website-ingress/config")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"enabled": False})
         self.assertNotIn(self.endpoint.public_key, response.text)
 
     def test_authenticated_session_receives_no_public_endpoint_material(self):

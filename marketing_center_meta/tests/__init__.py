@@ -3,6 +3,7 @@ from . import (
     test_attribution_resolution,
     test_catalog_adapter,
     test_catalog_sync,
+    test_credential_health,
     test_insights_adapter,
     test_insights_sync,
     test_lead_ads,
@@ -10,4 +11,5 @@ from . import (
     test_lead_ads_concurrency,
     test_meta_profile,
     test_meta_service,
+    test_webhook_access,
 )

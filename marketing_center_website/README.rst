@@ -72,6 +72,21 @@ Create the Web Ingress endpoint first. Its exact origin and landing-host
 allowlists must include the website. Then open *Marketing Center >
 Configuration > Website Ingress* and bind the website to that endpoint.
 
+Bindings alone no longer enable optional tracking. On the endpoint a Marketing
+Administrator must explicitly configure and enable the documented purpose,
+non-consent basis, policy/notice versions, justification and retention duration.
+The default is blocked. This is not a consent manager: no browser claim becomes
+``granted`` and consent-based capture remains unavailable until a trusted
+individual-decision producer exists. See the Web Ingress README for cleanup and
+the separate, reviewed legacy-retention assignment action.
+
+When policy is disabled, the config response contains only ``enabled=false``;
+the browser does not prepare optional landing/action identifiers from that
+configuration. The server independently enforces the gate on stale clients.
+Native Website forms continue their usual record creation without a marketing
+receipt or correlation. Ordinary links and the configured fallback navigation
+remain native browser behavior.
+
 Create each tracked form or WhatsApp handoff under *Marketing Center >
 Configuration > Website Actions*. An action stores an immutable technical
 route, exact queryless source path and either an Odoo model enabled for Website

@@ -1,6 +1,6 @@
 import json
 from unittest.mock import patch
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 
 from odoo.tests import tagged
 from odoo.tests.common import HttpCase
@@ -20,6 +20,13 @@ class TestMarketingWebsiteActionController(HttpCase):
         cls.host = urlsplit(cls.origin).hostname
         cls.endpoint = cls.env["marketing.web.ingress.endpoint"].create(
             {
+                "capture_enabled": True,
+                "capture_purpose": "web_attribution",
+                "privacy_policy_version": "test-v1",
+                "privacy_notice_version": "test-v1",
+                "privacy_legal_basis_code": "documented_test_basis",
+                "privacy_policy_justification": "Synthetic test policy.",
+                "identifier_retention_days": 30,
                 "name": "Website action HTTP endpoint",
                 "company_id": cls.website.company_id.id,
                 "allowed_origins": cls.origin,
@@ -268,3 +275,34 @@ class TestMarketingWebsiteActionController(HttpCase):
             )
         self.assertEqual(response.status_code, 400, response.text)
         self.assertEqual(calls, [(self.endpoint.id, "website_whatsapp")])
+
+    def test_blocked_optional_capture_preserves_native_form_creation(self):
+        self.endpoint.write({"capture_enabled": False})
+        self.env["ir.model.fields"].formbuilder_whitelist("res.partner", ["name"])
+        name = "Native contact without optional attribution"
+        query = urlencode(
+            {
+                "mc_action": self.form_action.public_ref,
+                "mc_event": "11111111-1111-4111-8111-111111111111",
+                "mc_session": "22222222-2222-4222-8222-222222222222",
+            }
+        )
+        response = self.opener.post(
+            "%s/website/form/res.partner?%s" % (self.base_url(), query),
+            data={"name": name},
+            headers={"Origin": self.origin},
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertTrue(response.json().get("id"), response.text)
+        self.assertNotIn("marketing_center_receipt", response.json())
+        self.env.invalidate_all()
+        self.assertTrue(self.env["res.partner"].search([("name", "=", name)]))
+        self.assertFalse(
+            self.env["marketing.web.ingress.event"]
+            .sudo()
+            .search(
+                [
+                    ("endpoint_id", "=", self.endpoint.id),
+                ]
+            )
+        )

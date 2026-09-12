@@ -13,6 +13,9 @@
         <field name="lead_id" />
         <field name="lead_display_ref" optional="hide" />
         <field name="state" />
+        <field name="retain_until" />
+        <field name="proposed_retain_until" optional="show" />
+        <field name="privacy_erased_at" optional="show" />
         <field name="attempts" />
         <field name="next_retry_at" />
       </tree>
@@ -25,6 +28,14 @@
     <field name="arch" type="xml">
       <form create="false" edit="false" delete="false">
         <header>
+          <button
+                        name="action_apply_retention_policy"
+                        string="Apply policy to legacy intent"
+                        type="object"
+                        attrs="{'invisible': ['|', ('retain_until', '!=', False), ('privacy_erased_at', '!=', False)]}"
+                        groups="marketing_center_base.group_marketing_center_admin"
+                        confirm="Apply the configured endpoint policy from the original form date? Expired sessions will be erased by retention cleanup. Capture can remain disabled."
+                    />
           <button
                         name="action_retry"
                         string="Retry"
@@ -70,6 +81,14 @@
           <group string="Failure">
             <field name="last_error_class" />
             <field name="last_error_message" />
+          </group>
+          <group string="Session identifier retention">
+            <field name="retain_until" />
+            <field name="proposed_retain_until" />
+            <field name="retention_policy_version" />
+            <field name="retention_assigned_by" />
+            <field name="retention_assigned_at" />
+            <field name="privacy_erased_at" />
           </group>
           <group string="Session reconciliation failure">
             <field name="session_reconcile_error_class" />

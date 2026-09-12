@@ -51,6 +51,7 @@ class MarketingWebsiteIngressController(http.Controller):
         if (
             not binding
             or not endpoint.active
+            or not endpoint._capture_policy_allows()
             or endpoint.company_id != website.company_id
         ):
             return _config_response({"enabled": False})

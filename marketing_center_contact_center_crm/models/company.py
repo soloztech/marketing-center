@@ -1,6 +1,11 @@
 from odoo import _, models
 from odoo.exceptions import ValidationError
 
+from odoo.addons.marketing_center_contact_center.services.retry import (
+    MAX_BRIDGE_RETRIES,
+    retry_transient_database,
+)
+
 _BACKFILL_PAGE_SIZE = 50
 _CONVERGENCE_PAGE_SIZE = 100
 
@@ -23,7 +28,7 @@ class ResCompany(models.Model):
                 "marketing_contact_center_crm:bootstrap:company:%s:after:%s"
                 % (self.id, after_conversation_link_id)
             ),
-            max_retries=0,
+            max_retries=MAX_BRIDGE_RETRIES,
             priority=50,
             description=(
                 "Marketing Contact Center CRM bootstrap after %s"
@@ -31,6 +36,7 @@ class ResCompany(models.Model):
             ),
         )._job_marketing_contact_center_crm_backfill(after_conversation_link_id, limit)
 
+    @retry_transient_database
     def _job_marketing_contact_center_crm_backfill(
         self,
         after_conversation_link_id=0,
@@ -93,7 +99,7 @@ class ResCompany(models.Model):
                 "marketing_contact_center_crm:conversation:%s:after_attribution:%s"
                 % (conversation_link_id, after_attribution_link_id)
             ),
-            max_retries=0,
+            max_retries=MAX_BRIDGE_RETRIES,
             priority=40,
             description=(
                 "Marketing CRM convergence for Contact Center conversation link %s after %s"
@@ -105,6 +111,7 @@ class ResCompany(models.Model):
             limit,
         )
 
+    @retry_transient_database
     def _job_marketing_contact_center_crm_conversation_link(
         self,
         conversation_link_id,
@@ -173,7 +180,7 @@ class ResCompany(models.Model):
                 "marketing_contact_center_crm:attribution:%s:after_conversation:%s"
                 % (attribution_link_id, after_conversation_link_id)
             ),
-            max_retries=0,
+            max_retries=MAX_BRIDGE_RETRIES,
             priority=40,
             description=(
                 "Marketing CRM convergence for attribution link %s after %s"
@@ -185,6 +192,7 @@ class ResCompany(models.Model):
             limit,
         )
 
+    @retry_transient_database
     def _job_marketing_contact_center_crm_attribution_link(
         self,
         attribution_link_id,

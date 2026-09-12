@@ -35,6 +35,7 @@
               <field name="name" />
               <field name="company_id" groups="base.group_multi_company" />
               <field name="active" />
+              <field name="capture_enabled" />
               <field name="public_ref" readonly="1" />
               <field name="public_key" readonly="1" />
             </group>
@@ -50,6 +51,29 @@
           <group string="Explicit allowlists" col="2">
             <field name="allowed_origins" placeholder="https://www.example.com" />
             <field name="allowed_hosts" placeholder="www.example.com" />
+          </group>
+          <group string="Optional attribution policy">
+            <div class="alert alert-info" colspan="2">
+              Capture is blocked until an administrator configures a documented
+              non-consent basis and retention. This setting does not record visitor
+              consent. Consent-based capture requires a trusted decision integration.
+            </div>
+            <field name="capture_purpose" />
+            <field name="privacy_policy_version" />
+            <field name="privacy_notice_version" />
+            <field name="privacy_legal_basis_code" />
+            <field name="privacy_policy_justification" />
+            <field name="identifier_retention_days" />
+            <field name="privacy_policy_set_by" />
+            <field name="privacy_policy_set_at" />
+          </group>
+          <group string="Legacy retention assignment">
+            <field name="legacy_retention_count" />
+            <button name="action_preview_legacy_retention" type="object"
+                    string="Review legacy events and proposed deadlines" />
+            <button name="action_apply_legacy_retention" type="object"
+                    string="Apply policy to next 100 legacy events"
+                    confirm="Use the configured duration from each event's original observation date? Expired values will be erased by cleanup. Review proposed deadlines first. Existing deadlines are never extended." />
           </group>
           <notebook>
             <page string="Accepted events">
@@ -88,6 +112,9 @@
         <field name="state" />
         <field name="ingress_provenance" />
         <field name="touchpoint_id" />
+        <field name="retain_until" />
+        <field name="proposed_retain_until" optional="show" />
+        <field name="erased_at" />
       </tree>
     </field>
   </record>
@@ -120,6 +147,14 @@
             <field name="request_digest" />
             <field name="key_revision" />
             <field name="config_revision" />
+          </group>
+          <group string="Retention">
+            <field name="retain_until" />
+            <field name="proposed_retain_until" />
+            <field name="retention_policy_version" />
+            <field name="retention_assigned_by" />
+            <field name="retention_assigned_at" />
+            <field name="erased_at" />
           </group>
           <field name="click_value_ids" readonly="1">
             <tree create="0" edit="0" delete="0">

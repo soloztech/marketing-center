@@ -4,6 +4,9 @@ from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 
 from odoo.addons.marketing_center_base.services import MarketingBusinessEventDTO
+from odoo.addons.marketing_center_base.services.business_event_dto import (
+    POSTING_REVERSAL_EVENT_PAIRS,
+)
 
 from .tokens import (
     MARKETING_ACCOUNT_INTERNAL_WRITE_TOKEN,
@@ -321,17 +324,38 @@ class MarketingAccountService(models.AbstractModel):
             move.currency_id, move.amount_untaxed, negative=negative
         )
         reversed_event = self.env["marketing.business.event"]
+        extensions = self._move_extensions(move, sequence=sequence)
+        extensions["account.occurred_at_basis"] = (
+            "document_date" if evidence_level == "imported" else "observed_transition"
+        )
         if negative and move.reversed_entry_id:
-            original = move.reversed_entry_id
-            if original.company_id != company:
-                raise ValidationError(
-                    _("A credit note cannot reverse another company.")
+            existing = (
+                self.env["marketing.business.event"]
+                .sudo()
+                .search(
+                    [
+                        ("company_id", "=", company.id),
+                        ("source_system", "=", "odoo.account"),
+                        (
+                            "business_event_key",
+                            "=",
+                            self._move_event_key(move, occurrence_ref),
+                        ),
+                    ],
+                    limit=1,
                 )
-            reversed_event = self._ensure_move_event(
-                original, evidence_level="imported"
             )
-            if reversed_event and reversed_event.event_type != "invoice_posted":
-                raise ValidationError(_("The credit note reversal target is invalid."))
+            if existing:
+                # Replay keeps its original relation even if subsequent credit
+                # facts changed the available budget or the invoice was reposted.
+                reversed_event = existing.reverses_event_id
+                reason = existing.snapshot_json.get("extensions", {}).get(
+                    "account.credit_reversal_disposition",
+                    "linked" if reversed_event else "independent",
+                )
+            else:
+                reversed_event, reason = self._credit_reversal_target(move, amount)
+            extensions["account.credit_reversal_disposition"] = reason
         source_evidence_ref = "account.move:%s:%s" % (
             move.id,
             evidence_ref or occurrence_ref,
@@ -352,7 +376,7 @@ class MarketingAccountService(models.AbstractModel):
             reverses_business_event_key=(
                 reversed_event.business_event_key if reversed_event else ""
             ),
-            extensions=self._move_extensions(move, sequence=sequence),
+            extensions=extensions,
         )
         result = (
             self.env["marketing.business.event.service"]
@@ -361,30 +385,141 @@ class MarketingAccountService(models.AbstractModel):
         )
         event = self.env["marketing.business.event"].sudo().browse(result.event_id)
         self._link_event_move(event, move, "source")
-        if reversed_event:
+        if negative and move.reversed_entry_id:
             self._link_event_move(event, move.reversed_entry_id, "reversed_invoice")
         return event
 
     @api.model
+    def _credit_reversal_target(self, move, amount):
+        """Keep native credit facts even when a capped reversal is ineligible.
+
+        A typed Accounting relation is retained independently of this optional
+        monetary relationship. No exception from the ledger is swallowed.
+        """
+        original = move.reversed_entry_id
+        empty = self.env["marketing.business.event"]
+        if original.company_id != move.company_id:
+            raise ValidationError(_("A credit note cannot reverse another company."))
+        if original.move_type != "out_invoice":
+            return empty, "target_not_customer_invoice"
+        if original.state != "posted":
+            return empty, "target_not_posted"
+        target = self._ensure_move_event(original, evidence_level="imported")
+        if target.currency_id != move.currency_id:
+            return empty, "different_currency"
+        # Include surviving credits tied to earlier postings of this same
+        # native invoice, including uncapped credits retained as independent
+        # facts. Never retarget historical edges when the invoice is reposted.
+        credits = (
+            self.env["marketing.business.event.account.move.link"]
+            .sudo()
+            .search(
+                [
+                    ("company_id", "=", move.company_id.id),
+                    ("move_res_id", "=", original.id),
+                    ("role", "=", "reversed_invoice"),
+                    ("event_id.event_type", "=", "credit_note_posted"),
+                    ("event_id.currency_id", "=", target.currency_id.id),
+                ]
+            )
+            .mapped("event_id")
+        )
+        ledger = self.env["marketing.business.event.service"]
+        credited = sum(
+            ledger._active_posting_events(credits).mapped("amount_signed_micros")
+        )
+        if abs(credited + int(amount * 1_000_000)) > abs(target.amount_signed_micros):
+            return empty, "exceeds_active_invoice_amount"
+        return target, "linked"
+
+    @api.model
+    def _emit_move_posting_reversal(self, move, event, destination_state):
+        """Append one exact counterevent after a successful native unposting."""
+        company = self._company_for_move(move)
+        reversal_type = {
+            value: key for key, value in POSTING_REVERSAL_EVENT_PAIRS.items()
+        }.get(event.event_type)
+        if (
+            not reversal_type
+            or event.company_id != company
+            or event.source_system != "odoo.account"
+            or event.source_model != "account.move"
+            or event.source_res_id != move.id
+            or destination_state not in {"draft", "cancel"}
+        ):
+            raise ValidationError(_("The invoice posting reversal is invalid."))
+        existing = (
+            self.env["marketing.business.event"]
+            .sudo()
+            .search(
+                [
+                    ("reverses_event_id", "=", event.id),
+                    ("event_type", "=", reversal_type),
+                ],
+                limit=1,
+            )
+        )
+        if existing:
+            return existing
+        occurrence = "unposted:%s" % event.public_ref
+        # Preserve the original amount basis, currency and typed source graph;
+        # values on a mutable draft must not rewrite the cancelled fact.
+        extensions = dict(event.snapshot_json.get("extensions", {}))
+        extensions.update(
+            {
+                "account.destination_state": destination_state,
+                "account.occurred_at_basis": "observed_transition",
+            }
+        )
+        result = self.env["marketing.business.event.service"]._ingest_event(
+            company,
+            MarketingBusinessEventDTO(
+                event_class="revenue",
+                event_type=reversal_type,
+                source_system="odoo.account",
+                source_model="account.move",
+                source_res_id=move.id,
+                source_occurrence_ref=occurrence,
+                source_evidence_ref="account.move:%s:%s" % (move.id, occurrence),
+                business_event_key="account.move:%s:%s" % (move.id, occurrence),
+                occurred_at=fields.Datetime.now(),
+                evidence_level="first_party",
+                amount_signed=-decimal.Decimal(event.amount_signed_micros) / 1_000_000,
+                currency=event.currency_id.name,
+                reverses_business_event_key=event.business_event_key,
+                extensions=extensions,
+            ),
+        )
+        reversal = self.env["marketing.business.event"].sudo().browse(result.event_id)
+        for link in event.account_move_link_ids.filtered("move_id"):
+            self._link_event_move(reversal, link.move_id, link.role)
+        return reversal
+
+    @api.model
     def _ensure_move_event(self, move, evidence_level="imported"):
+        move._marketing_account_lock_event_state()
         events = self._source_move_events(move)
         expected_type = {
             "out_invoice": "invoice_posted",
             "out_refund": "credit_note_posted",
         }.get(move.move_type)
-        matching = events.filtered(lambda event: event.event_type == expected_type)
-        if matching:
-            return matching[-1]
         if move.state != "posted" or not expected_type:
             return self.env["marketing.business.event"]
+        matching = self.env["marketing.business.event.service"]._active_posting_events(
+            events.filtered(lambda event: event.event_type == expected_type)
+        )
+        if matching:
+            return matching[-1]
         occurred_at = fields.Datetime.to_datetime(
             move.invoice_date or move.date or move.create_date or fields.Date.today()
         )
         stable_stamp = fields.Datetime.to_string(occurred_at).replace(" ", "T")
+        sequence = move._marketing_account_next_event_sequence()
         return self._emit_move_event(
             move,
-            "record:posted:%s" % stable_stamp,
+            "record:posted:%s:sequence:%s" % (stable_stamp, sequence),
             occurred_at=occurred_at,
+            sequence=sequence,
             evidence_level=evidence_level,
             evidence_ref="record:%s" % move.id,
         )

@@ -1,0 +1,739 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+#	* marketing_center_dashboard
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 16.0\n"
+"Language: pt_BR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "<span class=\"badge badge-danger\">Stale</span>"
+msgstr "<span class=\"badge badge-danger\">Desatualizada</span>"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "<span class=\"badge badge-info\">No causal credit</span>"
+msgstr "<span class=\"badge badge-info\">Sem crédito causal</span>"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "<span class=\"badge badge-secondary\">No performance data</span>"
+msgstr "<span class=\"badge badge-secondary\">Sem performance</span>"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "<span class=\"badge badge-secondary\">Read paused</span>"
+msgstr "<span class=\"badge badge-secondary\">Leitura pausada</span>"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "<span class=\"badge badge-success\">Up to date</span>"
+msgstr "<span class=\"badge badge-success\">Atualizada</span>"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "<span class=\"badge badge-warning\">Delayed</span>"
+msgstr "<span class=\"badge badge-warning\">Com atraso</span>"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "<span class=\"badge badge-warning\">Incomplete synchronization · totals hidden</span>"
+msgstr "<span class=\"badge badge-warning\">Sincronização incompleta · totais ocultados</span>"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "<span class=\"badge badge-warning\">No unique source</span>"
+msgstr "<span class=\"badge badge-warning\">Sem fonte única</span>"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "<span class=\"h2\">—</span>"
+msgstr "<span class=\"h2\">—</span>"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "<span class=\"text-muted small\">Updated at </span>"
+msgstr "<span class=\"text-muted small\">Atualizada em </span>"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "<span class=\"text-muted\"> answered episodes</span>"
+msgstr "<span class=\"text-muted\"> ciclos respondidos</span>"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "<span class=\"text-muted\"> cancelled</span>"
+msgstr "<span class=\"text-muted\"> cancelados</span>"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "<span class=\"text-muted\"> confirmed orders</span>\n                                    <span class=\"mx-1\">·</span>"
+msgstr "<span class=\"text-muted\"> pedidos confirmados</span>\n                                    <span class=\"mx-1\">·</span>"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "<span class=\"text-muted\"> conversations started</span>\n                                    <span class=\"mx-1\">·</span>"
+msgstr "<span class=\"text-muted\"> conversas iniciadas</span>\n                                    <span class=\"mx-1\">·</span>"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "<span class=\"text-muted\"> credit-note posting occurrences</span>\n                                    <span class=\"mx-1\">·</span>"
+msgstr "<span class=\"text-muted\"> ocorrências de postagem de notas de crédito</span>\n                                    <span class=\"mx-1\">·</span>"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "<span class=\"text-muted\"> invoice posting occurrences</span>\n                                    <span class=\"mx-1\">·</span>"
+msgstr "<span class=\"text-muted\"> ocorrências de postagem de faturas</span>\n                                    <span class=\"mx-1\">·</span>"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "<span class=\"text-muted\"> leads</span>\n                                    <span class=\"mx-1\">·</span>"
+msgstr "<span class=\"text-muted\"> leads</span>\n                                    <span class=\"mx-1\">·</span>"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "<span class=\"text-muted\"> payment allocations</span>"
+msgstr "<span class=\"text-muted\"> alocações de pagamento</span>"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "<span class=\"text-muted\"> proposals</span>\n                                    <span class=\"mx-1\">·</span>"
+msgstr "<span class=\"text-muted\"> propostas</span>\n                                    <span class=\"mx-1\">·</span>"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "<span class=\"text-muted\"> qualification transitions</span>\n                                    <span class=\"mx-1\">·</span>"
+msgstr "<span class=\"text-muted\"> transições de qualificação</span>\n                                    <span class=\"mx-1\">·</span>"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "<span class=\"text-muted\"> response episodes</span>\n                                    <span class=\"mx-1\">·</span>"
+msgstr "<span class=\"text-muted\"> ciclos de resposta</span>\n                                    <span class=\"mx-1\">·</span>"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "<span class=\"text-muted\"> with a first response</span>"
+msgstr "<span class=\"text-muted\"> com 1ª resposta</span>"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "<span class=\"text-muted\"> won transitions</span>"
+msgstr "<span class=\"text-muted\"> transições para ganho</span>"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "<strong class=\"h4\">Not attributable</strong>"
+msgstr "<strong class=\"h4\">Não atribuível</strong>"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "<strong>—</strong>"
+msgstr "<strong>—</strong>"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__performance_grain__account
+msgid "Account"
+msgstr "Conta"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__source_state__active
+msgid "Active"
+msgstr "Ativa"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__performance_grain__ad
+msgid "Ad"
+msgstr "Anúncio"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__performance_grain__ad_group
+msgid "Ad group"
+msgstr "Grupo de anúncios"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__source_state__attention
+msgid "Attention"
+msgstr "Atenção"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_form
+msgid "CRM"
+msgstr "CRM"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__performance_grain__campaign
+msgid "Campaign"
+msgstr "Campanha"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__clicks
+msgid "Clicks"
+msgstr "Cliques"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__company_id
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_search
+msgid "Company"
+msgstr "Empresa"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__row_kind__summary
+msgid "Company facts (no causal credit)"
+msgstr "Fatos da empresa (sem crédito causal)"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,help:marketing_center_dashboard.field_marketing_center_dashboard_overview__timezone
+msgid "Company facts use UTC calendar days. Source rows use the source's reporting timezone."
+msgstr "Os fatos da empresa usam dias do calendário UTC. As linhas das fontes usam o fuso horário de relatório de cada fonte."
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "Company facts · last 30 days"
+msgstr "Fatos da empresa · últimos 30 dias"
+
+#. module: marketing_center_dashboard
+#: code:addons/marketing_center_dashboard/models/dashboard.py:0
+#, python-format
+msgid "Company overview — %(company)s"
+msgstr "Visão da empresa — %(company)s"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.actions.act_window,help:marketing_center_dashboard.action_marketing_dashboard_overview
+msgid "Configure a marketing source or wait for the first synchronization."
+msgstr "Configure uma fonte de marketing ou aguarde a primeira sincronização."
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__conversation_started_count
+msgid "Conversation Started Count"
+msgstr "Conversas iniciadas"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__conversation_first_response_count
+msgid "Conversations with first human response"
+msgstr "Conversas com primeira resposta humana"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__cost_amount
+msgid "Cost Amount"
+msgstr "Custo"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__cost_micros
+msgid "Cost Micros"
+msgstr "Custo em milionésimos"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,help:marketing_center_dashboard.field_marketing_center_dashboard_overview__won_count
+msgid "Counts transitions to won, not distinct opportunities or a cohort conversion rate."
+msgstr "Conta transições para ganho, não oportunidades distintas nem uma taxa de conversão por coorte."
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,help:marketing_center_dashboard.field_marketing_center_dashboard_overview__qualified_count
+msgid "Counts transitions, including repeated qualification of the same opportunity."
+msgstr "Conta transições, incluindo qualificações repetidas da mesma oportunidade."
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_form
+msgid "Coverage"
+msgstr "Cobertura"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "Coverage · last 30 days"
+msgstr "Cobertura · últimos 30 dias"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__credit_note_posted_count
+msgid "Credit-note posting occurrences"
+msgstr "Ocorrências de postagem de notas de crédito"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__currency_id
+msgid "Currency"
+msgstr "Moeda"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_form
+msgid "Customer service"
+msgstr "Atendimento"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_search
+msgid "Data freshness"
+msgstr "Atualização"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__freshness_state__delayed
+msgid "Delayed"
+msgstr "Com atraso"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__source_state__disabled
+msgid "Disabled"
+msgstr "Desativada"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__display_name
+msgid "Display Name"
+msgstr "Nome de exibição"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__source_state__draft
+msgid "Draft"
+msgstr "Rascunho"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_form
+msgid "Financial facts"
+msgstr "Financeiro"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__freshness_state__fresh
+msgid "Fresh"
+msgstr "Atualizada"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__freshness_hours
+msgid "Freshness Hours"
+msgstr "Horas desde a atualização"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__freshness_state
+msgid "Freshness State"
+msgstr "Estado de atualização"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_search
+msgid "Group By"
+msgstr "Agrupar por"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__has_account
+msgid "Has Account"
+msgstr "Possui financeiro"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__has_clicks
+msgid "Has Clicks"
+msgstr "Possui cliques"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__has_contact_center
+msgid "Has Contact Center"
+msgstr "Possui central de atendimento"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__has_cost
+msgid "Has Cost"
+msgstr "Possui custo"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__has_crm
+msgid "Has Crm"
+msgstr "Possui CRM"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__has_performance_data
+msgid "Has Performance Data"
+msgstr "Possui dados de performance"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__has_sale
+msgid "Has Sale"
+msgstr "Possui vendas"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__has_touchpoint_data
+msgid "Has Touchpoint Data"
+msgstr "Possui dados de touchpoints"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,help:marketing_center_dashboard.field_marketing_center_dashboard_overview__credit_note_posted_count
+msgid "Historical credit-note posting occurrences, including repostings."
+msgstr "Ocorrências históricas de postagem de notas de crédito, incluindo repostagens."
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_form
+msgid "Historical posting and allocation occurrences, including repostings. They represent neither currently posted documents nor net revenue. Values with different currencies or bases are not added together."
+msgstr "Ocorrências históricas de postagem e alocação, incluindo repostagens. Não representam documentos vigentes nem receita líquida. Valores de moedas e bases diferentes não são somados."
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,help:marketing_center_dashboard.field_marketing_center_dashboard_overview__invoice_posted_count
+msgid "Historical posting occurrences, including repostings. This is not net revenue or a count of currently posted documents."
+msgstr "Ocorrências históricas de postagem, incluindo repostagens. Não representam receita líquida nem contagem de documentos atualmente postados."
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,help:marketing_center_dashboard.field_marketing_center_dashboard_overview__lost_count
+msgid "Includes archiving a lead, following the native CRM loss semantics."
+msgstr "Inclui o arquivamento de um lead, conforme a semântica nativa de perda do CRM."
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__freshness_state__partial
+msgid "Incomplete synchronization"
+msgstr "Sincronização incompleta"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__invoice_posted_count
+msgid "Invoice posting occurrences"
+msgstr "Ocorrências de postagem de faturas"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__performance_grain__keyword
+msgid "Keyword"
+msgstr "Palavra-chave"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__lead_created_count
+msgid "Lead Created Count"
+msgstr "Leads criados"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__lost_count
+msgid "Lost/archive transitions"
+msgstr "Transições para perda/arquivamento"
+
+#. module: marketing_center_dashboard
+#: model:ir.actions.act_window,name:marketing_center_dashboard.action_marketing_dashboard_overview
+#: model:ir.ui.menu,name:marketing_center_dashboard.menu_marketing_dashboard_overview
+msgid "Management overview"
+msgstr "Visão gerencial"
+
+#. module: marketing_center_dashboard
+#: model:ir.model,name:marketing_center_dashboard.model_marketing_center_dashboard_overview
+msgid "Marketing Center Operational Overview"
+msgstr "Visão operacional da Central de Marketing"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__row_kind__source
+msgid "Marketing source"
+msgstr "Fonte de marketing"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__metric_origin
+msgid "Metric Origin"
+msgstr "Origem da métrica"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__performance_grain__mixed
+msgid "Mixed daily basis"
+msgstr "Base diária mista"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__name
+msgid "Name"
+msgstr "Nome"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__freshness_state__no_data
+msgid "No performance data"
+msgstr "Sem performance"
+
+#. module: marketing_center_dashboard
+#: code:addons/marketing_center_dashboard/models/dashboard.py:0
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__row_kind__unresolved
+#, python-format
+msgid "No unique source"
+msgstr "Sem fonte única"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__freshness_state__not_applicable
+msgid "Not applicable"
+msgstr "Não se aplica"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_search
+msgid "Not attributable"
+msgstr "Não atribuível"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,help:marketing_center_dashboard.field_marketing_center_dashboard_overview__conversation_first_response_count
+msgid "Number of distinct conversations with at least one confirmed human response in the dashboard window."
+msgstr "Número de conversas distintas com ao menos uma resposta humana confirmada na janela do painel."
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,help:marketing_center_dashboard.field_marketing_center_dashboard_overview__response_episode_started_count
+msgid "Number of inbound response episodes opened in the dashboard window."
+msgstr "Número de ciclos de resposta abertos por mensagens recebidas na janela do painel."
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,help:marketing_center_dashboard.field_marketing_center_dashboard_overview__response_episode_answered_count
+msgid "Number of response episodes with a confirmed first human response in the dashboard window."
+msgstr "Número de ciclos de resposta com primeira resposta humana confirmada na janela do painel."
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_form
+msgid "Odoo facts and correlations are shown without causal credit to a source, campaign or ad."
+msgstr "Fatos do Odoo e correlações são exibidos sem crédito causal para fonte, campanha ou anúncio."
+
+#. module: marketing_center_dashboard
+#: code:addons/marketing_center_dashboard/models/dashboard.py:0
+#, python-format
+msgid "Only Marketing Analysts can inspect business events."
+msgstr "Somente analistas de marketing podem consultar eventos de negócio."
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "Operational correlation and counts; no value has been credited to a campaign."
+msgstr "Correlação e contagem operacional; nenhum valor foi creditado a uma campanha."
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__order_cancelled_count
+msgid "Order Cancelled Count"
+msgstr "Pedidos cancelados"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__order_confirmed_count
+msgid "Order Confirmed Count"
+msgstr "Pedidos confirmados"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__source_state__paused
+msgid "Paused"
+msgstr "Pausada"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__payment_allocated_count
+msgid "Payment Allocated Count"
+msgstr "Alocações de pagamento"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__payment_allocation_reversed_count
+msgid "Payment Allocation Reversed Count"
+msgstr "Alocações de pagamento revertidas"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__performance_grain
+msgid "Performance Grain"
+msgstr "Nível da performance"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__performance_updated_at
+msgid "Performance Updated At"
+msgstr "Performance atualizada em"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_search
+msgid "Performance needs attention"
+msgstr "Performance requer atenção"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__metric_origin__platform_reported
+msgid "Platform reported"
+msgstr "Reportada pela plataforma"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "Platform-reported performance; touchpoints represent technical resolution, not causal attribution."
+msgstr "Performance reportada pela plataforma; touchpoints são resolução técnica, não atribuição causal."
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__proposal_sent_count
+msgid "Proposal Sent Count"
+msgstr "Propostas enviadas"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__qualified_count
+msgid "Qualification transitions"
+msgstr "Transições de qualificação"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__freshness_state__paused
+msgid "Read disabled"
+msgstr "Leitura desativada"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__timezone
+msgid "Reporting timezone"
+msgstr "Fuso horário dos relatórios"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__resolution_coverage
+msgid "Resolution Coverage"
+msgstr "Cobertura de resolução"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__resolved_touchpoint_count
+msgid "Resolved Touchpoint Count"
+msgstr "Touchpoints com fonte única"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__response_episode_answered_count
+msgid "Response episodes answered"
+msgstr "Ciclos de resposta respondidos"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__response_episode_started_count
+msgid "Response episodes started"
+msgstr "Ciclos de resposta iniciados"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__row_kind
+msgid "Row Kind"
+msgstr "Tipo de linha"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__row_rank
+msgid "Row Rank"
+msgstr "Ordem da linha"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_search
+msgid "Row type"
+msgstr "Tipo de linha"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_form
+msgid "Sales"
+msgstr "Vendas"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__service
+msgid "Service"
+msgstr "Serviço"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,help:marketing_center_dashboard.field_marketing_center_dashboard_overview__resolution_coverage
+msgid "Share of effective touchpoints in the 30-day window that resolve to one unique marketing source. This is technical coverage, not causal attribution."
+msgstr "Parcela de touchpoints efetivos na janela de 30 dias que possuem uma única fonte de marketing resolvida. Trata-se de cobertura técnica, não de atribuição causal."
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__source_id
+msgid "Source"
+msgstr "Fonte"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__source_state
+msgid "Source State"
+msgstr "Estado da fonte"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_form
+msgid "Source performance"
+msgstr "Performance da fonte"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_search
+msgid "Sources"
+msgstr "Fontes"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__freshness_state__stale
+msgid "Stale"
+msgstr "Desatualizada"
+
+#. module: marketing_center_dashboard
+#: code:addons/marketing_center_dashboard/models/dashboard.py:0
+#, python-format
+msgid "The marketing dashboard is read-only."
+msgstr "O painel de marketing é somente leitura."
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_form
+msgid "These touchpoints have no unique technically resolved source and are therefore not distributed."
+msgstr "Estes touchpoints não possuem uma única fonte tecnicamente resolvida e, por isso, não são distribuídos."
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "This row keeps ambiguous signals from being distributed among sources. It represents neither an “organic” campaign nor revenue without media."
+msgstr "Esta linha evita distribuir sinais ambíguos entre fontes. Ela não representa uma campanha “orgânica” nem receita sem mídia."
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__total_touchpoint_count
+msgid "Total Touchpoint Count"
+msgstr "Total de touchpoints efetivos"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__touchpoint_count
+msgid "Touchpoint Count"
+msgstr "Touchpoints efetivos"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__unresolved_touchpoint_count
+msgid "Unresolved Touchpoint Count"
+msgstr "Touchpoints sem fonte única"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__updated_at
+msgid "Updated At"
+msgstr "Atualizado em"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "View Odoo facts"
+msgstr "Ver fatos do Odoo"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_form
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "View daily performance"
+msgstr "Ver performance diária"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__window_end_date
+msgid "Window End Date"
+msgstr "Fim da janela"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__window_start_date
+msgid "Window Start Date"
+msgstr "Início da janela"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__won_count
+msgid "Won transitions"
+msgstr "Transições para ganho"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.actions.act_window,help:marketing_center_dashboard.action_marketing_dashboard_overview
+msgid "Zeros do not replace missing data; the screen identifies data freshness and coverage separately."
+msgstr "Zeros não substituem dados ausentes; a tela identifica atualização e cobertura separadamente."
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "effective touchpoints"
+msgstr "touchpoints efetivos"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "effective touchpoints without a unique resolution"
+msgstr "touchpoints efetivos ainda sem resolução única"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "no observed touchpoints"
+msgstr "nenhum touchpoint observado"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "platform cost"
+msgstr "custo da plataforma"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "reported clicks"
+msgstr "cliques reportados"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "signals with this source"
+msgstr "sinais com esta fonte"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "technical source coverage"
+msgstr "cobertura técnica de fonte"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "with a unique source"
+msgstr "com fonte única"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "without a unique source"
+msgstr "sem fonte única"

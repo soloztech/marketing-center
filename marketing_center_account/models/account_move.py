@@ -102,7 +102,32 @@ class AccountMove(models.Model):
                         "a company or journal from another company."
                     )
                 )
-        return super().write(values)
+        guarded = (
+            self.env.context.get("marketing_account_transition_guard")
+            is MARKETING_ACCOUNT_TRANSITION_GUARD
+        )
+        departing = self.browse()
+        postings = {}
+        if not internal and not guarded and values.get("state") in {"draft", "cancel"}:
+            departing = self.filtered(
+                lambda move: move.state == "posted"
+                and move.move_type in OUTGOING_MOVE_TYPES
+            )
+            departing._marketing_account_lock_event_state()
+            service = self.env["marketing.account.service"]
+            for move in departing.filtered(
+                lambda candidate: candidate.state == "posted"
+            ):
+                # Capture an existing posted fact before the native write may
+                # change its amount, currency or document type in the same call.
+                postings[move.id] = service._ensure_move_event(move)
+        result = super().write(values)
+        for move in departing:
+            if move.state != "posted" and postings.get(move.id):
+                self.env["marketing.account.service"]._emit_move_posting_reversal(
+                    move, postings[move.id], move.state
+                )
+        return result
 
     def _post(self, soft=True):
         if (
@@ -135,11 +160,19 @@ class AccountMove(models.Model):
     def _marketing_account_lock_event_state(self):
         if not self.ids:
             return True
+        # Credits and their source document share one ordered lock scope. A
+        # physical no-op update of the source row forces a fresh RR snapshot
+        # when another posting/backfill changed its economic credit aggregate.
+        scope = self | self.mapped("reversed_entry_id")
         self.env.cr.execute(
             "SELECT id FROM account_move WHERE id IN %s ORDER BY id FOR UPDATE",
-            [tuple(self.ids)],
+            [tuple(scope.ids)],
         )
-        self.invalidate_recordset(
+        self.env.cr.execute(
+            "UPDATE account_move SET write_date = write_date WHERE id IN %s",
+            [tuple(scope.ids)],
+        )
+        scope.invalidate_recordset(
             [
                 "state",
                 "marketing_account_event_sequence",

@@ -11,7 +11,11 @@ from odoo.exceptions import AccessError, ValidationError
 
 from odoo.addons.queue_job.exception import RetryableJobError
 
-from ..services.retry import bounded_retry_seconds
+from ..services.retry import (
+    DATABASE_RETRY_CEILING,
+    bounded_retry_seconds,
+    retry_transient_database,
+)
 from ..services.tokens import META_WEBHOOK_INTERNAL_TOKEN
 
 _logger = logging.getLogger(__name__)
@@ -43,6 +47,16 @@ def _job_attempt(record, job_uuid, persisted_attempts=None):
     )
     attempts = record.attempts if persisted_attempts is None else persisted_attempts
     return max(attempts + 1, (job.retry + 1) if job else 1)
+
+
+def _has_failed_job(record):
+    """A terminal job needs explicit requeue, not a new automatic budget."""
+    return bool(
+        record.queue_job_uuid
+        and record.env["queue.job"]
+        .sudo()
+        .search_count([("uuid", "=", record.queue_job_uuid), ("state", "=", "failed")])
+    )
 
 
 class MetaWebhookDelivery(models.Model):
@@ -201,11 +215,13 @@ class MetaWebhookDelivery(models.Model):
                 if delivery.queue_job_uuid != active_job.uuid:
                     internal.write({"queue_job_uuid": active_job.uuid})
                 continue
+            if _has_failed_job(delivery):
+                continue
             delayed = (
                 delivery.sudo()
                 .with_delay(
                     identity_key=delivery._identity_key(),
-                    max_retries=0,
+                    max_retries=DATABASE_RETRY_CEILING,
                     priority=20,
                     description="Meta webhook delivery %s" % delivery.public_ref,
                 )
@@ -214,6 +230,7 @@ class MetaWebhookDelivery(models.Model):
             internal.write({"queue_job_uuid": delayed.uuid})
         return True
 
+    @retry_transient_database
     def _job_fanout(self):
         self.ensure_one()
         job_uuid = self.env.context.get("job_uuid")
@@ -256,8 +273,8 @@ class MetaWebhookDelivery(models.Model):
                 )
                 return False
         except OperationalError:
-            # Let Odoo/queue_job retry the complete database transaction. A
-            # serialization conflict is not a failed provider delivery attempt.
+            # The outer decorator classifies before Job.perform enforces its
+            # finite budget. Keep database failures outside provider attempts.
             raise
         except Exception as error:  # queue isolation boundary
             _logger.error(
@@ -458,14 +475,19 @@ class MetaWebhookDelivery(models.Model):
 
     @api.model
     def _lock_orphaned_ids(self, cutoff, limit):
-        self.flush_model(["state", "write_date"])
-        self.env["queue.job"].sudo().flush_model(["identity_key", "state"])
+        self.flush_model(["state", "write_date", "queue_job_uuid"])
+        self.env["queue.job"].sudo().flush_model(["identity_key", "state", "uuid"])
         self.env.cr.execute(
             """
             SELECT delivery.id
               FROM meta_webhook_delivery AS delivery
              WHERE delivery.state IN ('pending', 'processing')
                AND COALESCE(delivery.write_date, delivery.create_date) <= %s
+               AND NOT EXISTS (
+                    SELECT 1 FROM queue_job AS failed_job
+                     WHERE failed_job.uuid = delivery.queue_job_uuid
+                       AND failed_job.state = 'failed'
+               )
                AND NOT EXISTS (
                     SELECT 1
                       FROM queue_job AS job
@@ -782,11 +804,13 @@ class MetaWebhookDispatch(models.Model):
                 if dispatch.queue_job_uuid != active_job.uuid:
                     internal.write({"queue_job_uuid": active_job.uuid})
                 continue
+            if _has_failed_job(dispatch):
+                continue
             delayed = (
                 dispatch.sudo()
                 .with_delay(
                     identity_key=dispatch._identity_key(),
-                    max_retries=0,
+                    max_retries=DATABASE_RETRY_CEILING,
                     priority=25,
                     description="Meta webhook dispatch %s" % dispatch.id,
                 )
@@ -795,6 +819,7 @@ class MetaWebhookDispatch(models.Model):
             internal.write({"queue_job_uuid": delayed.uuid})
         return True
 
+    @retry_transient_database
     def _job_process(self):
         self.ensure_one()
         job_uuid = self.env.context.get("job_uuid")
@@ -1048,14 +1073,19 @@ class MetaWebhookDispatch(models.Model):
         cutoff = fields.Datetime.now() - datetime.timedelta(
             seconds=max(0, int(grace_seconds or 0))
         )
-        self.flush_model(["state", "write_date"])
-        self.env["queue.job"].sudo().flush_model(["identity_key", "state"])
+        self.flush_model(["state", "write_date", "queue_job_uuid"])
+        self.env["queue.job"].sudo().flush_model(["identity_key", "state", "uuid"])
         self.env.cr.execute(
             """
             SELECT dispatch.id
               FROM meta_webhook_dispatch AS dispatch
              WHERE dispatch.state IN ('pending', 'processing')
                AND COALESCE(dispatch.write_date, dispatch.create_date) <= %s
+               AND NOT EXISTS (
+                    SELECT 1 FROM queue_job AS failed_job
+                     WHERE failed_job.uuid = dispatch.queue_job_uuid
+                       AND failed_job.state = 'failed'
+               )
                AND NOT EXISTS (
                     SELECT 1
                       FROM queue_job AS job

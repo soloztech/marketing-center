@@ -1,6 +1,10 @@
 from odoo import _, api, models
 from odoo.exceptions import AccessError, ValidationError
 
+from odoo.addons.marketing_center_base.services.business_event_dto import (
+    POSTING_REVERSAL_EVENT_PAIRS,
+)
+
 from .tokens import MARKETING_SALE_ACCOUNT_LINK_WRITE_TOKEN
 
 OUTGOING_MOVE_TYPES = frozenset({"out_invoice", "out_refund"})
@@ -152,11 +156,23 @@ class MarketingAccountService(models.AbstractModel):
         if projection:
             return projection, False
 
-        orders = self._typed_invoice_orders(move)
         sale_service = self.env["marketing.sale.service"]
-        for order in orders:
-            self._link_typed_move_order(move, order)
-            sale_service._link_event_order(event, order)
+        if event.event_type in POSTING_REVERSAL_EVENT_PAIRS:
+            # The draft may already have different invoice lines. The exact
+            # counterevent inherits the graph of the immutable posting, never
+            # causality reconstructed from today's native Sales/CRM graph.
+            original = event.reverses_event_id
+            orders = original.sale_order_link_ids.mapped("order_id").exists()
+            for order in orders:
+                sale_service._link_event_order(event, order, project_crm=False)
+            crm_service = self.env["marketing.crm.service"]
+            for lead in original.crm_link_ids.mapped("lead_id").exists():
+                crm_service._link_event_lead(event, lead)
+        else:
+            orders = self._typed_invoice_orders(move)
+            for order in orders:
+                self._link_typed_move_order(move, order)
+                sale_service._link_event_order(event, order)
         projection = (
             Projection.with_company(company)
             .with_context(

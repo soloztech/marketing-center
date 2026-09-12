@@ -476,7 +476,7 @@ class TestMetaGraphClient(SavepointCase):
             ),
             FakeGraphResponse(status_code=400, payload={"error": {"code": 4}}),
         )
-        expected_retry = (9, 3600, 60)
+        expected_retry = (9, 7200, 60)
         for response, retry_after in zip(rate_limits, expected_retry):
             with self.subTest(status=response.status_code), mock.patch(
                 REQUEST_PATCH, return_value=response
@@ -749,3 +749,108 @@ class TestMetaGraphClient(SavepointCase):
         self.assertEqual(overflow.retry_after_seconds, 0)
         self.assertEqual(overflow.http_status, 0)
         self.assertEqual(overflow.provider_code, 0)
+
+    def test_rate_error_preserves_only_bounded_diagnostics_and_cooldown(self):
+        response = FakeGraphResponse(
+            status_code=429,
+            payload={
+                "error": {
+                    "code": 80004,
+                    "error_subcode": 42,
+                    "fbtrace_id": "Trace_123-abc",
+                    "message": self.PAGE_TOKEN,
+                }
+            },
+            headers={
+                "Retry-After": "300",
+                "X-App-Usage": json.dumps(
+                    {"call_count": 31.5, "total_cputime": 22, "total_time": 4}
+                ),
+                "X-Business-Use-Case-Usage": json.dumps(
+                    {
+                        "private-account-id": [
+                            {
+                                "call_count": 105,
+                                "total_cputime": 80,
+                                "total_time": 45,
+                                "estimated_time_to_regain_access": 19,
+                                "secret": self.PAGE_TOKEN,
+                            }
+                        ]
+                    }
+                ),
+            },
+        )
+        with mock.patch(REQUEST_PATCH, return_value=response), self.assertRaises(
+            MetaApiRateLimitError
+        ) as raised:
+            graph_request(self.app, self.PAGE_TOKEN, "GET", self.PAGE_ID)
+        error = raised.exception
+        self.assertEqual(error.provider_trace_id, "Trace_123-abc")
+        self.assertEqual((error.provider_code, error.provider_subcode), (80004, 42))
+        self.assertEqual(error.retry_after_seconds, 1140)
+        self.assertEqual(error.estimated_cooldown_seconds, 1140)
+        self.assertEqual(error.usage_call_count_percent, 105)
+        self.assertEqual(error.usage_cpu_percent, 80)
+        self.assertNotIn(self.PAGE_TOKEN, str(vars(error)))
+        self.assertNotIn("private-account-id", str(vars(error)))
+
+    def test_usage_cannot_shorten_retry_after_and_invalid_diagnostics_are_dropped(self):
+        response = FakeGraphResponse(
+            status_code=429,
+            payload={
+                "error": {
+                    "fbtrace_id": "secret=value\nheader",
+                    "code": 4,
+                }
+            },
+            headers={
+                "Retry-After": "7200",
+                "X-App-Usage": "{" * 20,
+                "X-Business-Use-Case-Usage": json.dumps(
+                    {
+                        "ignored": [
+                            {
+                                "call_count": "NaN",
+                                "total_time": True,
+                                "estimated_time_to_regain_access": 1,
+                            }
+                        ]
+                    }
+                ),
+            },
+        )
+        with mock.patch(REQUEST_PATCH, return_value=response), self.assertRaises(
+            MetaApiRateLimitError
+        ) as raised:
+            graph_request(self.app, self.PAGE_TOKEN, "GET", self.PAGE_ID)
+        self.assertEqual(raised.exception.retry_after_seconds, 7200)
+        self.assertFalse(raised.exception.provider_trace_id)
+        self.assertEqual(raised.exception.usage_call_count_percent, 0)
+        self.assertEqual(raised.exception.usage_time_percent, 0)
+
+    def test_server_failure_keeps_uncertain_mutation_class_despite_body_code(self):
+        response = FakeGraphResponse(
+            status_code=503,
+            payload={
+                "error": {
+                    "code": 4,
+                    "fbtrace_id": "Trace500",
+                    "message": self.PAGE_TOKEN,
+                }
+            },
+            headers={"Retry-After": "71"},
+        )
+        with mock.patch(REQUEST_PATCH, return_value=response), self.assertRaises(
+            MetaApiUncertainError
+        ) as raised:
+            graph_request(
+                self.app,
+                self.PAGE_TOKEN,
+                "POST",
+                self.PAGE_ID,
+                data={"message": "test"},
+            )
+        self.assertEqual(raised.exception.provider_trace_id, "Trace500")
+        self.assertEqual(raised.exception.http_status, 503)
+        self.assertEqual(raised.exception.retry_after_seconds, 71)

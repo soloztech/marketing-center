@@ -9,6 +9,8 @@ from odoo.addons.marketing_center_website.services.contracts import sha256_text
 
 from .tokens import WEBSITE_CRM_WRITE_TOKEN
 
+_WEBSITE_CRM_RETENTION_TOKEN = object()
+
 
 class MarketingWebsiteCrmIntent(models.Model):
     _name = "marketing.website.crm.intent"
@@ -63,8 +65,17 @@ class MarketingWebsiteCrmIntent(models.Model):
     lead_res_id = fields.Integer(required=True, readonly=True, index=True)
     lead_display_ref = fields.Char(required=True, readonly=True, size=256)
     event_ref = fields.Char(required=True, readonly=True, index=True, size=36)
-    session_ref = fields.Char(required=True, readonly=True, index=True, size=36)
-    session_hash = fields.Char(required=True, readonly=True, index=True, size=64)
+    session_ref = fields.Char(readonly=True, index=True, size=36)
+    session_hash = fields.Char(readonly=True, index=True, size=64)
+    event_key_hash = fields.Char(
+        compute="_compute_event_key_hash", store=True, index=True
+    )
+    retain_until = fields.Datetime(readonly=True, index=True, copy=False)
+    retention_policy_version = fields.Char(readonly=True, copy=False)
+    retention_assigned_by = fields.Many2one("res.users", readonly=True, copy=False)
+    retention_assigned_at = fields.Datetime(readonly=True, copy=False)
+    privacy_erased_at = fields.Datetime(readonly=True, index=True, copy=False)
+    proposed_retain_until = fields.Datetime(compute="_compute_proposed_retain_until")
     origin = fields.Char(required=True, readonly=True, size=512)
     occurred_at = fields.Datetime(required=True, readonly=True, index=True)
     session_reconcile_until = fields.Datetime(required=True, readonly=True, index=True)
@@ -92,6 +103,7 @@ class MarketingWebsiteCrmIntent(models.Model):
             ("done", "Done"),
             ("failed", "Failed"),
             ("tombstoned", "CRM lead removed"),
+            ("expired", "Optional attribution expired"),
         ],
         required=True,
         readonly=True,
@@ -136,6 +148,45 @@ class MarketingWebsiteCrmIntent(models.Model):
         return super().create(vals_list)
 
     def write(self, values):
+        if (
+            self.env.context.get("marketing_website_crm_retention_token")
+            is _WEBSITE_CRM_RETENTION_TOKEN
+        ):
+            if any(intent.company_id not in self.env.companies for intent in self):
+                raise AccessError(_("Website CRM retention cannot cross companies."))
+            retention_fields = {
+                "retain_until",
+                "retention_policy_version",
+                "retention_assigned_by",
+                "retention_assigned_at",
+            }
+            erasure_fields = {
+                "session_ref",
+                "session_hash",
+                "privacy_erased_at",
+                "state",
+                "next_retry_at",
+                "queue_job_uuid",
+                "session_reconcile_state",
+                "session_reconciled_at",
+                "next_session_reconcile_at",
+                "last_error_class",
+                "last_error_message",
+                "session_reconcile_error_class",
+                "session_reconcile_error_message",
+            }
+            assigning = set(values) == retention_fields and all(
+                not intent.retain_until for intent in self
+            )
+            erasing = (
+                set(values) == erasure_fields
+                and values.get("privacy_erased_at")
+                and not values.get("session_ref")
+                and not values.get("session_hash")
+            )
+            if not assigning and not erasing:
+                raise AccessError(_("The Website CRM retention update is invalid."))
+            return super().write(values)
         if not self._internal():
             raise AccessError(_("Website CRM intents are managed internally."))
         mutable = {
@@ -159,6 +210,137 @@ class MarketingWebsiteCrmIntent(models.Model):
 
     def unlink(self):  # pylint: disable=method-required-super
         raise AccessError(_("Website CRM intents cannot be deleted."))
+
+    @api.depends("event_ref")
+    def _compute_event_key_hash(self):
+        for intent in self:
+            intent.event_key_hash = sha256_text(intent.event_ref)
+
+    @api.depends("retain_until", "occurred_at", "endpoint_id.identifier_retention_days")
+    def _compute_proposed_retain_until(self):
+        for intent in self:
+            intent.proposed_retain_until = (
+                intent.endpoint_id._retention_deadline(intent.occurred_at)
+                if not intent.retain_until
+                and intent.endpoint_id.identifier_retention_days > 0
+                else False
+            )
+
+    def _session_retention_available(self, now=None):
+        """Serialize retries with erasure and fail closed for unscheduled legacy."""
+        self.ensure_one()
+        if self.company_id not in self.env.companies:
+            raise AccessError(_("Website CRM retention cannot cross companies."))
+        self.env.cr.execute(
+            "SELECT id FROM marketing_website_crm_intent WHERE id = %s FOR UPDATE",
+            [self.id],
+        )
+        self.invalidate_recordset(["retain_until", "privacy_erased_at", "state"])
+        if self.privacy_erased_at or not self.retain_until:
+            return False
+        now = now or fields.Datetime.now()
+        if self.retain_until <= now:
+            self._erase_session_values(token=_WEBSITE_CRM_RETENTION_TOKEN, now=now)
+            return False
+        return True
+
+    def _erase_session_values(self, *, token, now):
+        if token is not _WEBSITE_CRM_RETENTION_TOKEN:
+            raise AccessError(_("Website sessions require the retention service."))
+        if any(intent.company_id not in self.env.companies for intent in self):
+            raise AccessError(_("Website CRM retention cannot cross companies."))
+        for intent in self.sorted("id"):
+            self.env.cr.execute(
+                "SELECT id FROM marketing_website_crm_intent WHERE id = %s FOR UPDATE",
+                [intent.id],
+            )
+            intent.invalidate_recordset(["privacy_erased_at", "state"])
+            if intent.privacy_erased_at:
+                continue
+            intent.sudo().with_context(
+                marketing_website_crm_retention_token=_WEBSITE_CRM_RETENTION_TOKEN
+            ).write(
+                {
+                    "session_ref": False,
+                    "session_hash": False,
+                    "privacy_erased_at": now,
+                    "state": "done" if intent.state == "done" else "expired",
+                    "next_retry_at": False,
+                    "queue_job_uuid": False,
+                    "session_reconcile_state": "complete",
+                    "session_reconciled_at": now,
+                    "next_session_reconcile_at": False,
+                    "last_error_class": False,
+                    "last_error_message": False,
+                    "session_reconcile_error_class": False,
+                    "session_reconcile_error_message": False,
+                }
+            )
+        return True
+
+    @api.model
+    def _cron_expire_session_values(self, limit=100):
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise ValidationError(
+                _("Session retention accepts batches of 1 to 100 intents.")
+            )
+        now = fields.Datetime.now()
+        intents = self.search(
+            [
+                ("company_id", "in", self.env.companies.ids),
+                ("retain_until", "!=", False),
+                ("retain_until", "<=", now),
+                ("privacy_erased_at", "=", False),
+            ],
+            order="retain_until, id",
+            limit=limit,
+        )
+        intents._erase_session_values(token=_WEBSITE_CRM_RETENTION_TOKEN, now=now)
+        return len(intents)
+
+    def action_apply_retention_policy(self):
+        """Assign an explicit policy to at most 100 selected legacy intents."""
+        if not self.env.user.has_group(
+            "marketing_center_base.group_marketing_center_admin"
+        ):
+            raise AccessError(_("Only Marketing administrators can assign retention."))
+        self.check_access_rights("read")
+        self.check_access_rule("read")
+        if len(self) > 100:
+            raise ValidationError(_("Select at most 100 legacy intents."))
+        for intent in self.sorted("id"):
+            if intent.company_id not in self.env.companies:
+                raise AccessError(_("Website CRM retention cannot cross companies."))
+            endpoint = intent.endpoint_id
+            self.env.cr.execute(
+                "SELECT id FROM marketing_web_ingress_endpoint WHERE id = %s FOR SHARE",
+                [endpoint.id],
+            )
+            endpoint.invalidate_recordset(list(endpoint._privacy_policy_fields()))
+            if not endpoint._privacy_policy_configured():
+                raise ValidationError(
+                    _(
+                        "Configure the documented endpoint policy first; capture can remain disabled."
+                    )
+                )
+            self.env.cr.execute(
+                "SELECT id FROM marketing_website_crm_intent WHERE id = %s FOR UPDATE",
+                [intent.id],
+            )
+            intent.invalidate_recordset(["retain_until", "privacy_erased_at"])
+            if intent.retain_until or intent.privacy_erased_at:
+                continue
+            intent.sudo().with_context(
+                marketing_website_crm_retention_token=_WEBSITE_CRM_RETENTION_TOKEN
+            ).write(
+                {
+                    "retain_until": endpoint._retention_deadline(intent.occurred_at),
+                    "retention_policy_version": endpoint.privacy_policy_version,
+                    "retention_assigned_by": self.env.uid,
+                    "retention_assigned_at": fields.Datetime.now(),
+                }
+            )
+        return True
 
     @api.model
     def _internal(self):
@@ -196,6 +378,8 @@ class MarketingWebsiteCrmIntent(models.Model):
 
     def _enqueue(self):
         for intent in self.sudo().exists().sorted("id"):
+            if not intent._session_retention_available():
+                continue
             intent.flush_recordset(["state", "queue_job_uuid"])
             intent.env.cr.execute(
                 "SELECT state, queue_job_uuid "
@@ -244,6 +428,8 @@ class MarketingWebsiteCrmIntent(models.Model):
         self.check_access_rights("read")
         self.check_access_rule("read")
         for intent in self.sudo().exists():
+            if not intent._session_retention_available():
+                continue
             if intent.state != "failed":
                 continue
             intent._internal_write(
@@ -270,6 +456,8 @@ class MarketingWebsiteCrmIntent(models.Model):
         self.check_access_rule("read")
         now = fields.Datetime.now()
         for intent in self.sudo().exists():
+            if not intent._session_retention_available(now=now):
+                continue
             if intent.state != "done" or intent.session_reconcile_state != "failed":
                 continue
             expired = intent.session_reconcile_until < now
@@ -289,7 +477,11 @@ class MarketingWebsiteCrmIntent(models.Model):
     def _job_process(self):
         self.ensure_one()
         intent = self.sudo().exists()
-        if not intent or intent.state in {"done", "failed", "tombstoned"}:
+        if (
+            not intent
+            or not intent._session_retention_available()
+            or intent.state in {"done", "failed", "tombstoned", "expired"}
+        ):
             return True
         job_uuid = self.env.context.get("job_uuid")
         intent.flush_recordset(["queue_job_uuid"])
@@ -452,10 +644,17 @@ class MarketingWebsiteCrmIntent(models.Model):
             ):
                 raise ValidationError(_("The Website CRM intent action is invalid."))
 
-    @api.constrains("session_hash")
+    @api.constrains("session_hash", "session_ref", "privacy_erased_at")
     def _check_session_hash(self):
         for intent in self:
-            if not re.fullmatch(r"[0-9a-f]{64}", intent.session_hash or ""):
+            if intent.privacy_erased_at:
+                if intent.session_ref or intent.session_hash:
+                    raise ValidationError(
+                        _("Erased Website sessions cannot retain identifiers.")
+                    )
+            elif not intent.session_ref or not re.fullmatch(
+                r"[0-9a-f]{64}", intent.session_hash or ""
+            ):
                 raise ValidationError(_("The Website session hash is invalid."))
 
     @api.constrains(
@@ -493,7 +692,7 @@ class MarketingWebsiteCrmIntent(models.Model):
                 raise ValidationError(
                     _("Website CRM retry scheduling is inconsistent with its state.")
                 )
-            if intent.state in {"done", "failed", "tombstoned"} and (
+            if intent.state in {"done", "failed", "tombstoned", "expired"} and (
                 intent.queue_job_uuid
             ):
                 raise ValidationError(

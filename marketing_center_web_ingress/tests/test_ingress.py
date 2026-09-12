@@ -1,7 +1,9 @@
+import dataclasses
 import datetime
 import json
 from unittest.mock import patch
 
+from odoo import fields
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tests.common import SavepointCase
 
@@ -14,6 +16,13 @@ class TestMarketingWebIngress(SavepointCase):
         super().setUpClass()
         cls.endpoint = cls.env["marketing.web.ingress.endpoint"].create(
             {
+                "capture_enabled": True,
+                "capture_purpose": "web_attribution",
+                "privacy_policy_version": "test-v1",
+                "privacy_notice_version": "test-v1",
+                "privacy_legal_basis_code": "documented_test_basis",
+                "privacy_policy_justification": "Synthetic test policy.",
+                "identifier_retention_days": 30,
                 "name": "Website laboratory",
                 "company_id": cls.env.company.id,
                 "allowed_origins": "https://www.soloz.example",
@@ -459,6 +468,10 @@ class TestMarketingWebIngress(SavepointCase):
                 self.env[model_name].with_user(user).search([]).read(["id"])
         with self.assertRaises(AccessError):
             self.endpoint.with_user(user).action_rotate_public_key()
+        with self.assertRaises(AccessError):
+            self.endpoint.with_user(user).write({"capture_enabled": False})
+        with self.assertRaises(AccessError):
+            self.endpoint.with_user(user).action_apply_legacy_retention()
 
     def test_company_is_fenced_through_endpoint_and_touchpoint(self):
         second_company = self.env["res.company"].create({"name": "Ingress Company B"})
@@ -468,6 +481,13 @@ class TestMarketingWebIngress(SavepointCase):
             .with_company(second_company)
             .create(
                 {
+                    "capture_enabled": True,
+                    "capture_purpose": "web_attribution",
+                    "privacy_policy_version": "test-v1",
+                    "privacy_notice_version": "test-v1",
+                    "privacy_legal_basis_code": "documented_test_basis",
+                    "privacy_policy_justification": "Synthetic test policy.",
+                    "identifier_retention_days": 30,
                     "name": "Company B endpoint",
                     "company_id": second_company.id,
                     "allowed_origins": "https://b.soloz.example",
@@ -514,6 +534,13 @@ class TestMarketingWebIngress(SavepointCase):
     def test_same_event_identifier_is_independent_between_endpoints(self):
         second_endpoint = self.env["marketing.web.ingress.endpoint"].create(
             {
+                "capture_enabled": True,
+                "capture_purpose": "web_attribution",
+                "privacy_policy_version": "test-v1",
+                "privacy_notice_version": "test-v1",
+                "privacy_legal_basis_code": "documented_test_basis",
+                "privacy_policy_justification": "Synthetic test policy.",
+                "identifier_retention_days": 30,
                 "name": "Second website endpoint",
                 "company_id": self.env.company.id,
                 "allowed_origins": "https://www.soloz.example",
@@ -533,4 +560,217 @@ class TestMarketingWebIngress(SavepointCase):
         self.assertNotEqual(first.event_ref, second.event_ref)
         self.assertEqual(
             self.env["marketing.web.ingress.event"].sudo().search_count([]), 2
+        )
+
+    def test_optional_capture_is_blocked_by_default_and_policy_is_explicit(self):
+        endpoint = self.env["marketing.web.ingress.endpoint"].create(
+            {
+                "name": "Unconfigured optional tracking",
+                "allowed_origins": "https://www.soloz.example",
+                "allowed_hosts": "www.soloz.example",
+            }
+        )
+        self.assertFalse(endpoint.capture_enabled)
+        self.assertEqual(endpoint.identifier_retention_days, 0)
+        with self.assertRaises(AccessError):
+            self.service._ingest_payload(
+                endpoint,
+                self._payload(),
+                origin="https://www.soloz.example",
+                observed_at=self.observed_at,
+            )
+        with self.assertRaises(ValidationError), self.env.cr.savepoint():
+            endpoint.write({"capture_enabled": True})
+        with self.assertRaises(ValidationError), self.env.cr.savepoint():
+            self.endpoint.write({"privacy_legal_basis_code": "consent"})
+        with self.assertRaises(AccessError):
+            self.endpoint.write({"privacy_policy_set_at": self.observed_at})
+        self.assertFalse(self.env["marketing.web.ingress.event"].search_count([]))
+
+    def test_policy_revocation_fences_stale_browser_and_confirmed_actions(self):
+        revision = self.endpoint.config_revision
+        key = self.endpoint.public_key
+        self.endpoint.write({"capture_enabled": False})
+        self.assertGreater(self.endpoint.config_revision, revision)
+        self.assertFalse(self.endpoint._locked_for_public_key(key, str(revision)))
+        self.assertFalse(
+            self.endpoint._locked_for_public_key(
+                key,
+                str(self.endpoint.config_revision),
+            )
+        )
+        for provenance in ("browser_capability", "server_internal"):
+            with self.assertRaises(AccessError):
+                self._ingest(ingress_provenance=provenance)
+
+    def test_retention_erases_values_and_replays_cannot_restore_them(self):
+        captured = []
+        original_dto = type(self.service)._touchpoint_dto
+
+        def remember(service, *args, **kwargs):
+            dto = original_dto(service, *args, **kwargs)
+            captured.append(dto)
+            return dto
+
+        with patch.object(type(self.service), "_touchpoint_dto", new=remember):
+            result = self._ingest()
+        event = self.env["marketing.web.ingress.event"].search(
+            [
+                ("public_ref", "=", result.event_ref),
+            ]
+        )
+        touchpoint = event.touchpoint_id
+        self.assertEqual(touchpoint.policy_version, "test-v1")
+        self.assertEqual(touchpoint.consent_state, "unknown")
+        self.assertFalse(touchpoint.privacy_decided_at)
+        self.assertEqual(
+            event.retain_until, self.observed_at + datetime.timedelta(days=30)
+        )
+        self.assertTrue(
+            all(
+                item.retain_until == event.retain_until.date()
+                for item in touchpoint.identifier_ids
+            )
+        )
+        original_hashes = set(touchpoint.identifier_ids.mapped("comparison_hash"))
+        canonical_key = touchpoint.canonical_key
+        cleanup = self.env["marketing.web.ingress.event"]
+        with patch.object(
+            fields.Datetime,
+            "now",
+            return_value=event.retain_until - datetime.timedelta(seconds=1),
+        ):
+            self.assertEqual(cleanup._cron_expire_retained_values(), 0)
+        with patch.object(fields.Datetime, "now", return_value=event.retain_until):
+            self.assertEqual(cleanup._cron_expire_retained_values(), 1)
+            self.assertEqual(cleanup._cron_expire_retained_values(), 0)
+        self.assertTrue(event.erased_at)
+        self.assertEqual(event.click_value_ids.protected_value, "[erased]")
+        self.assertTrue(touchpoint.privacy_erased_at)
+        self.assertFalse(touchpoint.landing_url)
+        self.assertFalse(touchpoint.utm_source)
+        self.assertTrue(
+            all(
+                item.erased_at and not item.value_ref
+                for item in touchpoint.identifier_ids
+            )
+        )
+        self.assertFalse(
+            original_hashes & set(touchpoint.identifier_ids.mapped("comparison_hash"))
+        )
+        self.assertEqual(touchpoint.canonical_key, canonical_key)
+        self.assertEqual(self._ingest().disposition, "duplicate")
+        revised = dataclasses.replace(
+            captured[0], utm={"campaign": "must-not-resurrect"}
+        )
+        replay = self.env["marketing.attribution.service"]._ingest_touchpoint(
+            self.env.company, revised
+        )
+        self.assertEqual(replay.disposition, "duplicate")
+        self.assertEqual(replay.touchpoint_id, touchpoint.id)
+        self.assertEqual(event.click_value_ids.protected_value, "[erased]")
+        self.assertFalse(touchpoint.utm_campaign)
+
+    def test_retention_capability_and_company_scope_are_enforced(self):
+        result = self._ingest()
+        event = self.env["marketing.web.ingress.event"].search(
+            [
+                ("public_ref", "=", result.event_ref),
+            ]
+        )
+        with self.assertRaises(AccessError):
+            event.touchpoint_id._erase_private_values(
+                token="forged", now=self.observed_at
+            )
+        with self.assertRaises(AccessError):
+            event.click_value_ids._erase_private_values(
+                token="forged", now=self.observed_at
+            )
+        with self.assertRaises(AccessError):
+            event.write({"erased_at": self.observed_at})
+        with self.assertRaises(AccessError):
+            event.touchpoint_id.identifier_ids.sudo().write(
+                {"comparison_hash": "0" * 64}
+            )
+        other_company = self.env["res.company"].create({"name": "Retention company B"})
+        with patch.object(fields.Datetime, "now", return_value=event.retain_until):
+            self.assertEqual(
+                self.env["marketing.web.ingress.event"]
+                .sudo()
+                .with_context(
+                    allowed_company_ids=[other_company.id],
+                )
+                ._cron_expire_retained_values(),
+                0,
+            )
+        self.assertFalse(event.erased_at)
+        with self.assertRaises(AccessError):
+            self.env["marketing.web.ingress.event"]._cron_expire_retained_values(
+                limit=101
+            )
+
+    def test_legacy_retention_requires_review_and_explicit_assignment(self):
+        result = self._ingest()
+        self.endpoint.write({"capture_enabled": False})
+        self.assertTrue(self.endpoint._privacy_policy_configured())
+        self.assertFalse(self.endpoint._capture_policy_allows())
+        event = self.env["marketing.web.ingress.event"].search(
+            [
+                ("public_ref", "=", result.event_ref),
+            ]
+        )
+        # Simulate a pre-upgrade row, without exposing a write capability in API.
+        self.env.cr.execute(
+            "UPDATE marketing_web_ingress_event SET retain_until = NULL, "
+            "retention_policy_version = NULL, retention_assigned_by = NULL, "
+            "retention_assigned_at = NULL WHERE id = %s",
+            [event.id],
+        )
+        event.invalidate_recordset()
+        with patch.object(
+            fields.Datetime,
+            "now",
+            return_value=self.observed_at + datetime.timedelta(days=40),
+        ):
+            self.assertEqual(
+                self.env["marketing.web.ingress.event"]._cron_expire_retained_values(),
+                0,
+            )
+            preview = self.endpoint.action_preview_legacy_retention()
+            self.assertIn(("retain_until", "=", False), preview["domain"])
+            self.assertFalse(event.retain_until)
+            self.assertEqual(
+                event.proposed_retain_until,
+                self.observed_at + datetime.timedelta(days=30),
+            )
+            self.endpoint.action_apply_legacy_retention()
+            self.assertFalse(self.endpoint.capture_enabled)
+            self.assertEqual(event.retention_assigned_by, self.env.user)
+            self.assertEqual(
+                event.retain_until, self.observed_at + datetime.timedelta(days=30)
+            )
+            self.endpoint.write({"identifier_retention_days": 60})
+            self.endpoint.action_apply_legacy_retention()
+            self.assertEqual(
+                event.retain_until, self.observed_at + datetime.timedelta(days=30)
+            )
+            self.assertEqual(
+                self.env["marketing.web.ingress.event"]._cron_expire_retained_values(),
+                1,
+            )
+
+    def test_retention_batch_limit_leaves_later_and_unexpired_events(self):
+        self._ingest(self._payload(event_id="retention-batch-000001"))
+        self._ingest(self._payload(event_id="retention-batch-000002"))
+        deadline = self.endpoint._retention_deadline(self.observed_at)
+        self.endpoint.write({"identifier_retention_days": 60})
+        later = self._ingest(self._payload(event_id="retention-batch-000003"))
+        events = self.env["marketing.web.ingress.event"]
+        with patch.object(fields.Datetime, "now", return_value=deadline):
+            self.assertEqual(events._cron_expire_retained_values(limit=1), 1)
+            self.assertEqual(events.search_count([("erased_at", "!=", False)]), 1)
+            self.assertEqual(events._cron_expire_retained_values(limit=1), 1)
+            self.assertEqual(events._cron_expire_retained_values(limit=1), 0)
+        self.assertFalse(
+            events.search([("public_ref", "=", later.event_ref)]).erased_at
         )

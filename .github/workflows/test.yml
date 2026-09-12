@@ -48,7 +48,7 @@ jobs:
     name: ${{ matrix.name }}
     env:
       PIP_CONSTRAINT: ${{ github.workspace }}/constraints.txt
-      PEER_REF: ${{ inputs.peer_ref || '1e6fb3d172152b3edf7cb3f3592fbff8091d6acb' }}
+      PEER_REF: ${{ inputs.peer_ref || '5203d61f1715311e8339e1ce268e4a312a6bba49' }}
     strategy:
       fail-fast: false
       matrix:
@@ -83,9 +83,18 @@ jobs:
           # PRs use the validated compatible baseline; a manual release run
           # selects the exact coordinated peer commit without rewriting the workflow.
           ref: ${{ env.PEER_REF }}
+          fetch-depth: 0
           path: .ci-private-dependency/contact-center
           token: ${{ secrets.CROSS_REPO_READ_TOKEN }}
           persist-credentials: false
+      - name: Verify Contact Center side panel compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          peer_root="${GITHUB_WORKSPACE}/.ci-private-dependency/contact-center"
+          test "$(git -C "$peer_root" rev-parse HEAD)" = "$PEER_REF"
+          git -C "$peer_root" merge-base --is-ancestor \
+            9d7049915dd9941ece1e5167c6ca7153e2d5e5e3 "$PEER_REF"
       - name: Install private Contact Center addon dependencies
         shell: bash
         run: |
@@ -106,8 +115,32 @@ jobs:
         run: manifestoo -d . check-dev-status --default-dev-status=Beta
       - name: Initialize test db
         run: oca_init_test_database
-      - name: Run tests
-        run: oca_run_tests
+      - name: Run tests including post-install QUnit suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          oca_run_tests 2>&1 | tee "${RUNNER_TEMP}/marketing-center-tests.log"
+          python - <<'PYTHON'
+          import os
+          from pathlib import Path
+
+          log = (Path(os.environ["RUNNER_TEMP"]) / "marketing-center-tests.log").read_text()
+          for addon in (
+              "marketing_center_website",
+              "marketing_center_catalog",
+              "marketing_center_catalog_contact_center",
+          ):
+              for mode in ("minified", "assets"):
+                  marker = f"Marketing QUnit verified: {addon} {mode}"
+                  assert marker in log, f"Missing successful browser suite: {marker}"
+          PYTHON
+      - name: Upload test log and QUnit counts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: ${{ always() }}
+        with:
+          name: Test log - ${{ matrix.name }}
+          path: ${{ runner.temp }}/marketing-center-tests.log
+          if-no-files-found: ignore
       - name: Verify Marketing suite does not install Kanban
         run: |
           python - <<'PYTHON'

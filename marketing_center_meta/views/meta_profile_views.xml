@@ -10,6 +10,8 @@
                 <field name="meta_app_id" />
                 <field name="credential_backend" />
                 <field name="health_state" />
+                <field name="credential_alert" />
+                <field name="next_health_check_at" optional="hide" />
                 <field name="verified_at" />
                 <field name="profile_revision" />
                 <field name="company_id" />
@@ -62,6 +64,8 @@
                             <field name="token_type" />
                             <field name="token_expires_at" />
                             <field name="data_access_expires_at" />
+                            <field name="credential_alert" />
+                            <field name="next_health_check_at" />
                         </group>
                     </group>
                     <notebook>
@@ -81,6 +85,17 @@
                                 <field name="verified_scopes_json" />
                                 <field name="last_error_class" />
                                 <field name="last_error_message" />
+                                <field name="last_error_http_status" />
+                                <field name="last_error_provider_code" />
+                                <field name="last_error_provider_subcode" />
+                                <field name="last_error_trace_id" />
+                                <field name="last_error_retry_seconds" />
+                                <field name="last_usage_call_percent" />
+                                <field name="last_usage_cpu_percent" />
+                                <field name="last_usage_time_percent" />
+                                <field name="last_estimated_cooldown_seconds" />
+                                <field name="last_health_check_at" />
+                                <field name="health_check_failures" />
                             </group>
                         </page>
                         <page string="Connections">

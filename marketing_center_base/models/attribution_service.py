@@ -59,6 +59,10 @@ class MarketingAttributionService(models.AbstractModel):
             order="revision_sequence asc, id asc",
         )
         previous = existing[-1:] if existing else touchpoint_model.browse()
+        if existing.filtered("privacy_erased_at"):
+            # A revised replay of a retired occurrence must never restore its
+            # identifiers/free-form values. Keep the canonical dedupe fence.
+            return self._result(previous, "duplicate")
         if previous and previous.content_hash == content_hash:
             self._create_evidence(previous, dto, "duplicate", previous)
             return self._result(previous, "duplicate")

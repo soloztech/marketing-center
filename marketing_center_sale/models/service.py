@@ -4,6 +4,9 @@ from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 
 from odoo.addons.marketing_center_base.services import MarketingBusinessEventDTO
+from odoo.addons.marketing_center_base.services.business_event_dto import (
+    POSTING_REVERSAL_EVENT_PAIRS,
+)
 
 from .tokens import MARKETING_SALE_INTERNAL_WRITE_TOKEN, MARKETING_SALE_LINK_WRITE_TOKEN
 
@@ -91,11 +94,13 @@ class MarketingSaleService(models.AbstractModel):
         )
         crm_service = self.env["marketing.crm.service"]
         for event in event_links.mapped("event_id"):
+            # Later evidence belongs to both the posting and its counterevent;
+            # projecting only the posting would invent revenue for this lead.
             crm_service._link_event_lead(event, lead)
         return link
 
     @api.model
-    def _link_event_order(self, event, order):
+    def _link_event_order(self, event, order, *, project_crm=True):
         event = event.exists()
         if getattr(event, "_name", "") != "marketing.business.event" or len(event) != 1:
             raise ValidationError(_("A single valid marketing event is required."))
@@ -135,6 +140,8 @@ class MarketingSaleService(models.AbstractModel):
                     }
                 )
             )
+        if not project_crm or event.event_type in POSTING_REVERSAL_EVENT_PAIRS:
+            return link
         crm_service = self.env["marketing.crm.service"]
         lead_links = (
             self.env["marketing.sale.order.crm.link"]
