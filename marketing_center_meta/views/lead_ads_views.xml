@@ -4,15 +4,15 @@
         <field name="name">marketing.center.meta.lead.route.tree</field>
         <field name="model">marketing.center.meta.lead.route</field>
         <field name="arch" type="xml">
-            <tree delete="false">
-                <field name="name" />
-                <field name="webhook_page_id" />
-                <field name="external_form_id" />
-                <field name="lead_profile_id" />
-                <field name="source_id" />
-                <field name="reconcile_state" />
-                <field name="last_reconciled_at" />
-                <field name="active" />
+            <tree delete="false" js_class="marketing_meta_lead_routes">
+                <field name="name" string="Formulário" />
+                <field name="webhook_page_id" string="Página da Meta" />
+                <field name="external_form_id" string="ID na Meta" optional="hide" />
+                <field name="lead_profile_id" optional="hide" />
+                <field name="source_id" string="Conta de marketing" />
+                <field name="reconcile_state" string="Sincronização" />
+                <field name="last_reconciled_at" string="Última consulta concluída" />
+                <field name="active" string="Recebimento ativo" />
             </tree>
         </field>
     </record>
@@ -25,14 +25,27 @@
                 <header>
                     <button
                         name="action_configure_webhook"
-                        string="Configure webhook"
+                        string="Conectar recebimento"
                         type="object"
                         class="oe_highlight"
                         groups="marketing_center_base.group_marketing_center_admin"
                     />
                     <button
                         name="action_enqueue_reconciliation"
-                        string="Reconcile now"
+                        string="Buscar entradas recentes"
+                        type="object"
+                        groups="marketing_center_base.group_marketing_center_admin"
+                    />
+                    <button
+                        name="action_open_history_sync"
+                        string="Sincronizar histórico"
+                        type="object"
+                        class="oe_highlight"
+                        groups="marketing_center_base.group_marketing_center_admin"
+                    />
+                    <button
+                        name="action_open_discovery"
+                        string="Descobrir formulários na Meta"
                         type="object"
                         groups="marketing_center_base.group_marketing_center_admin"
                     />
@@ -45,47 +58,93 @@
                 <sheet>
                     <group>
                         <group>
-                            <field name="name" />
-                            <field name="company_id" />
+                            <field name="name" string="Formulário" />
+                            <field name="company_id" string="Empresa" />
                             <field
                                 name="webhook_page_id"
+                                string="Página da Meta"
                                 options="{'no_create': True, 'no_create_edit': True}"
                                 domain="[('company_id', '=', company_id)]"
                             />
-                            <field name="external_form_id" />
+                            <field
+                                name="external_form_id"
+                                string="ID do formulário na Meta"
+                            />
                             <field
                                 name="lead_profile_id"
+                                string="Acesso para consultar formulários"
                                 options="{'no_create': True, 'no_create_edit': True}"
                                 domain="[('company_id', '=', company_id), ('reader_kind', '=', 'lead_reader')]"
                             />
                             <field
                                 name="source_id"
+                                string="Conta de marketing"
                                 options="{'no_create': True, 'no_create_edit': True}"
                                 domain="[('company_id', '=', company_id), ('service', '=', 'meta.ads'), ('active', '=', True)]"
                                 attrs="{'required': [('active', '=', True)], 'readonly': [('source_id', '!=', False)]}"
                             />
                         </group>
                         <group>
-                            <field name="public_ref" />
-                            <field name="meta_app_id" />
-                            <field name="route_revision" />
-                            <field name="active" />
-                            <field name="reconcile_enabled" />
                             <field
-                                name="reconcile_lookback_hours"
-                                attrs="{'invisible': [('reconcile_enabled', '=', False)]}"
+                                name="active"
+                                string="Receber entradas deste formulário"
+                            />
+                            <field
+                                name="reconcile_enabled"
+                                string="Conferir entradas automaticamente"
+                            />
+                            <field name="initial_sync_period_locked" invisible="1" />
+                            <field name="last_reconciled_at" invisible="1" />
+                            <field
+                                name="initial_sync_period"
+                                string="Na primeira sincronização, importar"
+                                attrs="{'readonly': [('initial_sync_period_locked', '=', True)]}"
                             />
                         </group>
                     </group>
                     <div class="alert alert-info" role="status">
-                        The Meta Ads source is the security boundary for this route.
-                        Only users on its active team roster can read the route and
-                        resulting submissions; administrators retain company-wide
-                        access.
+                        O período acima é usado na primeira sincronização deste formulário.
+                        Depois, as consultas acompanham as novas entradas automaticamente.
+                        Para buscar registros anteriores, use <strong
+                        >Sincronizar histórico</strong>
+                        e escolha o período desejado.
                     </div>
                     <notebook>
-                        <page string="Reconciliation">
+                        <page string="Acompanhamento">
                             <group>
+                                <field
+                                    name="last_reconciled_at"
+                                    string="Última consulta concluída"
+                                />
+                                <field
+                                    name="last_reconcile_error_message"
+                                    string="Detalhe da última falha"
+                                />
+                            </group>
+                            <field
+                                name="history_ids"
+                                nolabel="1"
+                                groups="marketing_center_base.group_marketing_center_admin"
+                            >
+                                <tree create="false" edit="false" delete="false">
+                                    <field name="requested_at" string="Solicitado em" />
+                                    <field
+                                        name="requested_by"
+                                        string="Solicitado por"
+                                    />
+                                    <field
+                                        name="requested_since"
+                                        string="Buscar a partir de"
+                                    />
+                                    <field name="state" string="Situação" />
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Diagnóstico" groups="base.group_system">
+                            <group>
+                                <field name="public_ref" />
+                                <field name="meta_app_id" />
+                                <field name="route_revision" />
                                 <field name="reconcile_since" />
                                 <field name="reconcile_after" />
                                 <field name="reconcile_page_count" />
@@ -94,12 +153,10 @@
                                     name="reconcile_job_uuid"
                                     groups="base.group_system"
                                 />
-                                <field name="last_reconciled_at" />
                                 <field name="last_reconcile_error_class" />
-                                <field name="last_reconcile_error_message" />
                             </group>
                         </page>
-                        <page string="Submissions">
+                        <page string="Formulários recebidos">
                             <field name="submission_ids" nolabel="1">
                                 <tree create="false" edit="false" delete="false">
                                     <field name="provider_created_at" />

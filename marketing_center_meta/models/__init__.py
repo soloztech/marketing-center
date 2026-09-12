@@ -4,6 +4,8 @@ from . import (
     connection,
     insights_sync,
     lead_ads,
+    lead_history,
+    lead_discovery,
     meta_profile,
     meta_service,
 )

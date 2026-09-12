@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_meta_lead_history_form" model="ir.ui.view">
+        <field name="name">marketing.center.meta.lead.history.form</field>
+        <field name="model">marketing.center.meta.lead.history</field>
+        <field name="arch" type="xml">
+            <form string="Sincronizar histórico" delete="false" duplicate="false">
+                <sheet>
+                    <field name="id" invisible="1" />
+                    <field name="state" invisible="1" />
+                    <group>
+                        <field
+                            name="route_id"
+                            string="Formulário"
+                            options="{'no_create': True}"
+                            attrs="{'readonly': [('id', '!=', False)]}"
+                        />
+                        <field
+                            name="period"
+                            string="Qual período deseja importar?"
+                            attrs="{'readonly': [('state', '!=', 'draft')]}"
+                        />
+                        <field
+                            name="start_date"
+                            string="Importar desde"
+                            attrs="{'invisible': [('period', '!=', 'custom')], 'required': [('period', '=', 'custom')], 'readonly': [('state', '!=', 'draft')]}"
+                        />
+                    </group>
+                    <div
+                        class="alert alert-info"
+                        role="status"
+                        attrs="{'invisible': [('state', '!=', 'draft')]}"
+                    >
+                        A busca vai até o momento em que você iniciar a sincronização.
+                        Serão importados os registros que a Meta disponibilizar dentro
+                        do período escolhido. Registros já recebidos não serão duplicados.
+                        Esta ação mantém a configuração atual de integração com o CRM.
+                    </div>
+                    <group
+                        string="Acompanhamento"
+                        attrs="{'invisible': [('state', '=', 'draft')]}"
+                    >
+                        <field name="state" string="Situação" />
+                        <field name="requested_since" string="Buscar a partir de" />
+                        <field
+                            name="requested_at"
+                            string="Buscar até / solicitado em"
+                        />
+                        <field name="requested_by" string="Solicitado por" />
+                    </group>
+                </sheet>
+                <footer>
+                    <button
+                        name="action_sync"
+                        type="object"
+                        string="Sincronizar histórico"
+                        class="btn-primary"
+                        attrs="{'invisible': [('state', '!=', 'draft')]}"
+                    />
+                    <button string="Fechar" special="cancel" class="btn-secondary" />
+                </footer>
+            </form>
+        </field>
+    </record>
+    <record id="action_meta_lead_history" model="ir.actions.act_window">
+        <field name="name">Sincronizar histórico</field>
+        <field name="res_model">marketing.center.meta.lead.history</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_meta_lead_history_form" />
+        <field name="target">new</field>
+    </record>
+
+    <record id="view_meta_lead_discovery_form" model="ir.ui.view">
+        <field name="name">marketing.center.meta.lead.discovery.form</field>
+        <field name="model">marketing.center.meta.lead.discovery</field>
+        <field name="arch" type="xml">
+            <form string="Descobrir formulários na Meta">
+                <field name="state" invisible="1" />
+                <group>
+                    <group string="Onde procurar">
+                        <field
+                            name="company_id"
+                            string="Empresa"
+                            attrs="{'readonly': [('state', '!=', 'draft')]}"
+                        />
+                        <field
+                            name="webhook_page_id"
+                            string="Página da Meta"
+                            options="{'no_create': True}"
+                            domain="[('company_id', '=', company_id), ('active', '=', True)]"
+                            attrs="{'readonly': [('state', '!=', 'draft')]}"
+                        />
+                        <field
+                            name="lead_profile_id"
+                            string="Acesso para consultar formulários"
+                            options="{'no_create': True}"
+                            domain="[('company_id', '=', company_id), ('reader_kind', '=', 'lead_reader'), ('active', '=', True)]"
+                            attrs="{'readonly': [('state', '!=', 'draft')]}"
+                        />
+                        <field
+                            name="source_id"
+                            string="Conta de marketing"
+                            options="{'no_create': True}"
+                            domain="[('company_id', '=', company_id), ('service', '=', 'meta.ads'), ('active', '=', True)]"
+                            attrs="{'readonly': [('state', '!=', 'draft')]}"
+                        />
+                    </group>
+                    <group string="Ao configurar os selecionados">
+                        <field
+                            name="initial_sync_period"
+                            string="Quanto deseja importar?"
+                            attrs="{'readonly': [('state', '=', 'done')]}"
+                        />
+                        <field
+                            name="discovered_at"
+                            string="Lista consultada em"
+                            attrs="{'invisible': [('discovered_at', '=', False)]}"
+                        />
+                    </group>
+                </group>
+                <div class="alert alert-info" role="status">
+                    Descobrir consulta os formulários disponíveis nesta página.
+                    Depois, selecione quais deseja receber no Marketing Center.
+                    A configuração será aplicada somente aos novos formulários selecionados,
+                    com criação automática no CRM desligada.
+                </div>
+                <field
+                    name="line_ids"
+                    nolabel="1"
+                    attrs="{'invisible': [('state', '=', 'draft')], 'readonly': [('state', '=', 'done')]}"
+                >
+                    <tree
+                        editable="bottom"
+                        create="false"
+                        delete="false"
+                        decoration-muted="disposition != 'new'"
+                    >
+                        <field
+                            name="selected"
+                            string="Receber"
+                            attrs="{'readonly': ['|', ('disposition', '!=', 'new'), ('form_status', '!=', 'ACTIVE')]}"
+                        />
+                        <field name="name" string="Formulário" readonly="1" />
+                        <field
+                            name="form_status"
+                            string="Estado na Meta"
+                            readonly="1"
+                        />
+                        <field
+                            name="disposition"
+                            string="No Marketing Center"
+                            readonly="1"
+                        />
+                        <field
+                            name="reported_leads_count"
+                            string="Total informado pela Meta"
+                            readonly="1"
+                        />
+                        <field
+                            name="route_id"
+                            string="Configuração existente"
+                            readonly="1"
+                            optional="hide"
+                        />
+                        <field
+                            name="external_form_id"
+                            string="ID na Meta"
+                            readonly="1"
+                            optional="hide"
+                        />
+                        <field
+                            name="form_created_at"
+                            string="Criado na Meta em"
+                            readonly="1"
+                            optional="hide"
+                        />
+                    </tree>
+                </field>
+                <div
+                    class="text-muted mt-2"
+                    attrs="{'invisible': [('state', '=', 'draft')]}"
+                >
+                    O total informado pela Meta pode incluir registros anteriores ao período
+                    escolhido. Formulário ativo não significa anúncio em veiculação.
+                </div>
+                <footer>
+                    <button
+                        name="action_discover"
+                        type="object"
+                        string="Descobrir formulários"
+                        class="btn-primary"
+                        attrs="{'invisible': [('state', '=', 'done')]}"
+                    />
+                    <button
+                        name="action_configure"
+                        type="object"
+                        string="Configurar selecionados"
+                        class="btn-primary"
+                        attrs="{'invisible': [('state', '!=', 'preview')]}"
+                    />
+                    <button string="Fechar" special="cancel" class="btn-secondary" />
+                </footer>
+            </form>
+        </field>
+    </record>
+    <record id="action_meta_lead_discovery" model="ir.actions.act_window">
+        <field name="name">Descobrir formulários na Meta</field>
+        <field name="res_model">marketing.center.meta.lead.discovery</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_meta_lead_discovery_form" />
+        <field name="target">new</field>
+    </record>
+    <menuitem
+        id="menu_meta_lead_discovery"
+        name="Descobrir formulários na Meta"
+        parent="marketing_center_base.menu_marketing_center_configuration"
+        action="action_meta_lead_discovery"
+        sequence="27"
+        groups="marketing_center_base.group_marketing_center_admin"
+    />
+</odoo>

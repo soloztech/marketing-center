@@ -440,13 +440,17 @@ class MarketingCenterMetaLeadRoute(models.Model):
     def _enqueue_reconciliation(self):
         self.ensure_one()
         route = self.sudo()
+        route._lock_reconciliation_schedule()
         if (
             not route.active
             or not route.source_id.active
             or not route.reconcile_enabled
         ):
             return False
-        continuing = bool(route.reconcile_state == "partial" and route.reconcile_since)
+        current_job = route._current_reconcile_job()
+        if current_job:
+            return current_job
+        continuing = route._continue_reconciliation_sweep()
         since = route.reconcile_since if continuing else route._new_reconcile_since()
         after = route.reconcile_after if continuing else ""
         page_number = route.reconcile_page_count if continuing else 0
@@ -495,6 +499,34 @@ class MarketingCenterMetaLeadRoute(models.Model):
             }
         )
         return delayed
+
+    def _lock_reconciliation_schedule(self):
+        """Serialize UI/cron scheduling with the worker's existing route lock."""
+        self.ensure_one()
+        self.flush_recordset()
+        self.env.cr.execute(
+            "SELECT id FROM marketing_center_meta_lead_route WHERE id = %s FOR UPDATE",
+            [self.id],
+        )
+        self.invalidate_recordset()
+
+    def _current_reconcile_job(self):
+        self.ensure_one()
+        return (
+            self.env["queue.job"]
+            .sudo()
+            .search(
+                [
+                    ("uuid", "=", self.reconcile_job_uuid or ""),
+                    ("state", "in", _ACTIVE_JOB_STATES),
+                ],
+                limit=1,
+            )
+        )
+
+    def _continue_reconciliation_sweep(self):
+        self.ensure_one()
+        return bool(self.reconcile_state == "partial" and self.reconcile_since)
 
     def _job_reconcile_meta_leads_page(
         self,
