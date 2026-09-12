@@ -373,11 +373,40 @@ class TestMarketingRetentionBridge(MarketingLifecycleCase):
             .with_company(company_b)
             .env
         )
+        agent = (
+            scoped["res.users"]
+            .with_context(no_reset_password=True)
+            .create(
+                {
+                    "name": "Retention company B agent",
+                    "login": "retention-company-b-%s" % uuid.uuid4(),
+                    "company_id": company_b.id,
+                    "company_ids": [(6, 0, company_b.ids)],
+                    "groups_id": [
+                        (
+                            6,
+                            0,
+                            scoped.ref(
+                                "contact_center_base.group_contact_center_agent"
+                            ).ids,
+                        )
+                    ],
+                }
+            )
+        )
+        team = scoped["contact.center.team"].create(
+            {
+                "name": "Retention company B team",
+                "company_id": company_b.id,
+                "agent_ids": [(6, 0, agent.ids)],
+            }
+        )
         account = scoped["contact.center.account"].create(
             {
                 "name": "Retention other company inbox",
                 "company_id": company_b.id,
                 "platform": "whatsapp",
+                "access_team_ids": [(6, 0, team.ids)],
             }
         )
         account.with_context(**_service_context()).write(
@@ -389,6 +418,7 @@ class TestMarketingRetentionBridge(MarketingLifecycleCase):
         channel = scoped["mail.channel"]._contact_center_create_channel(
             account=account,
             identity=scoped["contact.center.identity"],
+            teams=team,
             conversation_type="group",
             partner_ids=[],
             guest_ids=[],
