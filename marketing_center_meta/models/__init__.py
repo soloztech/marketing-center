@@ -1,3 +1,5 @@
+# isort: skip_file
+# Model extensions must register after their base classes.
 from . import (
     attribution_resolution_service,
     catalog_sync,
@@ -12,3 +14,4 @@ from . import (
 
 # Register extensions after the profile model exists.
 from . import credential_health
+from . import ad_preview

@@ -12,6 +12,7 @@ from odoo.addons.meta_api_base.services.credentials import (
 from odoo.addons.meta_api_base.services.errors import MetaApiError, MetaApiPausedError
 from odoo.addons.meta_api_base.services.graph import graph_debug_token, graph_request
 
+from .ad_preview import fetch_meta_ad_preview
 from .catalog import fetch_meta_catalog_page
 from .insights import fetch_meta_insights_page
 from .lead_ads import fetch_meta_lead, fetch_meta_lead_page
@@ -225,6 +226,9 @@ class MetaMarketingReadAdapter:
 
     def fetch_lead(self, leadgen_id):
         return fetch_meta_lead(self._app, self._access_token, leadgen_id)
+
+    def fetch_ad_preview(self, account_ref, ad_ref):
+        return fetch_meta_ad_preview(self._app, self._access_token, account_ref, ad_ref)
 
     def fetch_lead_page(self, form_id, *, after="", since=None):
         return fetch_meta_lead_page(

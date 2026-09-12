@@ -10,6 +10,7 @@ _CONSUMER_LABELS = {
     "catalog": "Catalog",
     "insights": "Insights",
     "lead_ads": "Lead Ads",
+    "ad_preview": "Ad Preview",
 }
 
 
