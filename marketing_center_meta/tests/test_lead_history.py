@@ -293,13 +293,38 @@ class TestMarketingMetaLeadHistory(SavepointCase):
         self.assertFalse(self.route.initial_sync_started_at)
 
     def test_initial_period_cannot_change_after_collection_started(self):
+        self.assertFalse(self.route.initial_sync_period_locked)
         self.route._runtime_write({"last_reconciled_at": self.NOW})
+        self.assertTrue(self.route.initial_sync_period_locked)
         with self.assertRaises(UserError):
             self.route.write({"initial_sync_period": "30"})
         self.route._runtime_write({"last_reconciled_at": False})
         self._start(self._request(period="7"))
         with self.assertRaises(UserError):
             self.route.write({"initial_sync_period": "90"})
+
+    def test_new_only_filters_old_pull_rows_but_explicit_history_can_import_them(self):
+        with patch("odoo.fields.Datetime.now", return_value=self.NOW), trap_jobs():
+            self.route.write({"initial_sync_period": "new"})
+            self.assertFalse(self.route.initial_sync_period_locked)
+            self.route.action_enqueue_reconciliation()
+        old_lead = self._lead(offset=1)
+        current_lead = self._lead(offset=0, lead_id="710000000000008")
+        self._run_page(MetaLeadPage((old_lead, current_lead), "", False))
+        self.assertEqual(
+            self.route.submission_ids.mapped("leadgen_id"), [current_lead.leadgen_id]
+        )
+        self._start(self._request(period="7"))
+        self._run_page(MetaLeadPage((old_lead, current_lead), "", False))
+        self.assertEqual(
+            set(self.route.submission_ids.mapped("leadgen_id")),
+            {
+                old_lead.leadgen_id,
+                current_lead.leadgen_id,
+            },
+        )
+        self.assertTrue(self.route.initial_sync_new_only)
+        self.assertEqual(self.route.initial_sync_started_at, self.NOW)
 
     def test_audit_fields_are_not_forgeable_and_sent_request_is_immutable(self):
         for values in (

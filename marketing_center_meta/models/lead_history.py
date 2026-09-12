@@ -17,6 +17,8 @@ _PERIODS = [
 ]
 
 
+# History requests and form discovery have separate lifecycle responsibilities.
+# pylint: disable=consider-merging-classes-inherited
 class MarketingCenterMetaLeadRoute(models.Model):
     _inherit = "marketing.center.meta.lead.route"
 
