@@ -108,7 +108,7 @@ class MarketingWebsiteConsent(models.Model):
             limit=1,
         )
         if not decision or not consteq(
-            match[2], hmac(self.env, _SCOPE, decision._message())
+            match[2], hmac(decision.env, _SCOPE, decision._message())
         ):
             return self.browse()
         return decision
