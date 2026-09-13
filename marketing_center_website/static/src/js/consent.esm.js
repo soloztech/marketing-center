@@ -11,6 +11,48 @@ const STORAGE_PREFIX = "marketing_center.website.v1";
 let pending = null;
 let choice = null;
 let serial = 0;
+let decisionQueue = Promise.resolve();
+let withdrawalPending = false;
+const WITHDRAWAL_SIGNAL = "marketing_center.consent.withdrawal";
+const channel =
+    typeof window.BroadcastChannel === "function"
+        ? new window.BroadcastChannel(WITHDRAWAL_SIGNAL)
+        : null;
+
+function receiveWithdrawal() {
+    ++serial;
+    withdrawalPending = true;
+    pending = null;
+    choice = {...(choice || {}), granted: false};
+    clearOptionalSession();
+    notify("consent-changed", {granted: false, confirmed: false});
+    loadConsent(true);
+}
+if (channel) {
+    channel.addEventListener("message", (event) => {
+        if (event.data === "withdrawn") {
+            receiveWithdrawal();
+        }
+    });
+} else {
+    window.addEventListener("storage", (event) => {
+        if (event.key === WITHDRAWAL_SIGNAL && event.newValue) {
+            receiveWithdrawal();
+        }
+    });
+}
+function broadcastWithdrawal() {
+    if (channel) {
+        channel.postMessage("withdrawn");
+    } else {
+        try {
+            window.localStorage.setItem(WITHDRAWAL_SIGNAL, String(Date.now()));
+            window.localStorage.removeItem(WITHDRAWAL_SIGNAL);
+        } catch (_error) {
+            /* The server and shared native cookie still deny capture. */
+        }
+    }
+}
 
 function notify(name, detail) {
     document.dispatchEvent(new CustomEvent(`marketing_center:${name}`, {detail}));
@@ -39,7 +81,7 @@ export function loadConsent(refresh = false) {
             })
             .then((response) => (response.ok ? response.json() : null))
             .then((value) => {
-                if (generation !== serial) {
+                if (generation !== serial || withdrawalPending) {
                     return choice || {available: false, granted: false};
                 }
                 choice =
@@ -60,42 +102,63 @@ export function loadConsent(refresh = false) {
 export async function submitConsent(granted) {
     const sequence = ++serial;
     if (!granted) {
+        setCookie(
+            "website_cookies_bar",
+            '{"required":true,"optional":false}',
+            999 * 86400,
+            "required"
+        );
+        broadcastWithdrawal();
+        withdrawalPending = true;
         pending = null;
         choice = {...(choice || {}), granted: false};
         clearOptionalSession();
         // Fail closed immediately in this document, even if the request fails.
         notify("consent-changed", {granted: false, confirmed: false});
     }
-    const config = choice || (await loadConsent());
-    if (granted && !config.available) {
-        return false;
-    }
-    const response = await window.fetch(DECISION, {
-        method: "POST",
-        credentials: "same-origin",
-        cache: "no-store",
-        headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-            "X-Marketing-Consent": "1",
-        },
-        body: JSON.stringify({
-            granted,
-            config_revision: config.config_revision || 0,
-            policy_version: config.policy_version || "",
-            notice_version: config.notice_version || "",
-        }),
+    const previous = decisionQueue;
+    let release;
+    decisionQueue = new Promise((resolve) => {
+        release = resolve;
     });
-    const result = response.ok ? await response.json() : null;
-    if (sequence !== serial) {
-        return false;
+    await previous;
+    try {
+        const config = choice || (await loadConsent());
+        if (granted && !config.available) {
+            return false;
+        }
+        const response = await window.fetch(DECISION, {
+            method: "POST",
+            credentials: "same-origin",
+            cache: "no-store",
+            headers: {
+                Accept: "application/json",
+                "Content-Type": "application/json",
+                "X-Marketing-Consent": "1",
+            },
+            body: JSON.stringify({
+                granted,
+                config_revision: config.config_revision || 0,
+                policy_version: config.policy_version || "",
+                notice_version: config.notice_version || "",
+            }),
+        });
+        const result = response.ok ? await response.json() : null;
+        if (sequence !== serial) {
+            return false;
+        }
+        const accepted = Boolean(result && result.accepted === true);
+        if (accepted && sequence === serial) {
+            withdrawalPending = false;
+        }
+        const actualGrant = accepted && result.granted === true;
+        choice = {...config, granted: actualGrant};
+        pending = Promise.resolve(choice);
+        notify("consent-changed", {...choice, confirmed: accepted});
+        return accepted;
+    } finally {
+        release();
     }
-    const accepted = Boolean(result && result.accepted === true);
-    const actualGrant = accepted && result.granted === true;
-    choice = {...config, granted: actualGrant};
-    pending = Promise.resolve(choice);
-    notify("consent-changed", {...choice, confirmed: accepted});
-    return accepted;
 }
 
 publicWidget.registry.cookies_bar.include({
