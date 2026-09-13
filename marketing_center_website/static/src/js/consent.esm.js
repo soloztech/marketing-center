@@ -59,8 +59,17 @@ function notify(name, detail) {
 }
 
 function clearOptionalSession() {
+    const hostname = window.location.hostname || "";
+    const domains = /^[a-z0-9.-]+$/i.test(hostname)
+        ? [hostname, `.${hostname}`]
+        : [];
     for (const name of ["odoo_utm_campaign", "odoo_utm_source", "odoo_utm_medium"]) {
         deleteCookie(name);
+        // Odoo's native server UTM cookie can have an explicit Domain. Its
+        // legacy deleteCookie helper removes only the host-cookie scope.
+        for (const domain of domains) {
+            document.cookie = `${name}=; Max-Age=0; Path=/; Domain=${domain}; Secure; SameSite=Lax`;
+        }
     }
     try {
         for (const key of Object.keys(window.sessionStorage)) {
