@@ -1,4 +1,6 @@
 import datetime
+from types import SimpleNamespace
+from urllib.parse import parse_qs, urlsplit
 from unittest.mock import patch
 
 from odoo.exceptions import AccessError, ValidationError
@@ -113,6 +115,31 @@ class TestMarketingWebsiteAction(SavepointCase):
         )
         self.assertFalse(resolved)
         self.assertEqual(fallback, "/contactus")
+
+    def test_whatsapp_fixed_message_is_encoded_and_cannot_be_browser_replaced(self):
+        from ..controllers import website_action
+
+        message = "Olá! Orçamento & engenharia?"
+        action = self._whatsapp_action(whatsapp_message=message)
+        raw_token = self.env["marketing.website.redirect.grant"]._issue(
+            action, "11111111-1111-4111-8111-111111111111"
+        )
+        with patch.object(
+            website_action,
+            "request",
+            SimpleNamespace(env=self.env, website=self.website),
+        ):
+            response = (
+                website_action.MarketingWebsiteActionController().whatsapp_redirect(
+                    raw_token, text="Browser replacement"
+                )
+            )
+        location = urlsplit(response.headers["Location"])
+        self.assertEqual(location.netloc, "wa.me")
+        self.assertEqual(location.path, "/5519999999999")
+        self.assertEqual(parse_qs(location.query), {"text": [message]})
+        with self.assertRaises(AccessError):
+            action.write({"whatsapp_message": "Changed destination message"})
 
     def test_archived_handoff_revokes_redirect_and_refuses_new_grant(self):
         action = self._whatsapp_action()

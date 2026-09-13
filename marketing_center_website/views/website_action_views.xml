@@ -69,6 +69,7 @@
                             attrs="{'required': [('kind', '=', 'whatsapp_handoff')], 'readonly': [('id', '!=', False)]}"
                         />
             <field name="fallback_path" />
+            <field name="whatsapp_message" attrs="{'readonly': [('id', '!=', False)]}" />
           </group>
           <group string="Website marker">
             <field name="marker_attribute" readonly="1" />

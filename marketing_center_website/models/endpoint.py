@@ -8,7 +8,8 @@ class MarketingWebIngressEndpoint(models.Model):
     consent_ttl_days = fields.Integer(
         default=999,
         required=True,
-        help="Technical validity of an individual consent receipt; independent of attribution-history retention.",
+        help="Technical validity of an individual consent receipt; "
+        "independent of attribution-history retention.",
     )
 
     @api.constrains("consent_ttl_days")

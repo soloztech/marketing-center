@@ -11,7 +11,7 @@ const FORM_PATH_PATTERN = /^\/website\/form\/[a-z0-9_.]+$/i;
 const NATIVE_TRACKED_LINK_PATH_PATTERN = /^\/r\/[^/]+(?:\/.*)?$/;
 const RESERVED_FORM_QUERY = Object.freeze(["mc_action", "mc_event", "mc_session"]);
 
-export async function boundedActionResponse(path, options, scope = window) {
+export async function boundedActionResponse(path, options, scope = window, timeoutMs = 5000) {
     const controller =
         typeof scope.AbortController === "function"
             ? new scope.AbortController()
@@ -23,7 +23,7 @@ export async function boundedActionResponse(path, options, scope = window) {
                 controller.abort();
             }
             reject(new Error("Action request timed out"));
-        }, 5000);
+        }, timeoutMs);
     });
     try {
         return await Promise.race([
@@ -264,7 +264,9 @@ export function validRedirectPath(value) {
     return typeof value === "string" && REDIRECT_PATH_PATTERN.test(value);
 }
 
-export function createFormPostBridge(originalPost, origin, takeClaim, exchange) {
+export function createFormPostBridge(
+    originalPost, origin, takeClaim, exchange, maxWaitMs = 2000
+) {
     return function marketingWebsiteFormPost(rawUrl, opaqueBody) {
         // Preserve unrelated legacy AJAX calls exactly and leave the pending
         // claim armed until the exact native Website form route is observed.
@@ -276,15 +278,29 @@ export function createFormPostBridge(originalPost, origin, takeClaim, exchange) 
             nativePromise &&
             typeof nativePromise.then === "function"
         ) {
-            nativePromise.then(
-                (result) => {
+            return nativePromise.then(
+                async (result) => {
                     const receipt = receiptFromFormResult(result);
                     const payload = formExchangePayload(claim, receipt);
                     if (payload) {
-                        exchange(payload);
+                        let timeoutId;
+                        const deadline = Date.now() + maxWaitMs;
+                        try {
+                            await Promise.race([
+                                Promise.resolve().then(() => exchange(payload, deadline)),
+                                new Promise((resolve) => {
+                                    timeoutId = setTimeout(resolve, maxWaitMs);
+                                }),
+                            ]);
+                        } catch (_error) {
+                            // Tracking can never turn a successful native form into
+                            // a failure, nor keep its navigation pending indefinitely.
+                        } finally {
+                            clearTimeout(timeoutId);
+                        }
                     }
-                },
-                () => undefined
+                    return result;
+                }
             );
         }
         return nativePromise;

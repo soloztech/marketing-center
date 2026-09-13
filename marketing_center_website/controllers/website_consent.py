@@ -107,11 +107,13 @@ class MarketingWebsiteConsentController(http.Controller):
                 previous = model._from_cookie(endpoint, previous_cookie)
                 if previous:
                     request.env.cr.execute(
-                        "SELECT id FROM marketing_web_ingress_endpoint WHERE id = %s FOR SHARE",
+                        "SELECT id FROM marketing_web_ingress_endpoint "
+                        "WHERE id = %s FOR SHARE",
                         [endpoint.id],
                     )
                     request.env.cr.execute(
-                        "SELECT id FROM marketing_website_consent WHERE id = %s FOR UPDATE",
+                        "SELECT id FROM marketing_website_consent "
+                        "WHERE id = %s FOR UPDATE",
                         [previous.id],
                     )
                     previous.invalidate_recordset(["revoked_at"])

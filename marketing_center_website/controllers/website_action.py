@@ -1,6 +1,7 @@
 import datetime
 import json
 import logging
+from urllib.parse import urlencode
 
 from psycopg2 import Error as PsycopgError
 from werkzeug.utils import redirect
@@ -305,6 +306,8 @@ class MarketingWebsiteActionController(http.Controller):
         target = fallback
         if action:
             target = "https://wa.me/%s" % action.whatsapp_destination
+            if action.whatsapp_message:
+                target += "?" + urlencode({"text": action.whatsapp_message})
         response = redirect(target, code=303)
         # Werkzeug otherwise expands a relative fallback to an absolute URL
         # while finalizing the response. Keep the second, already-consumed

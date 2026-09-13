@@ -478,7 +478,11 @@ class MarketingWebsiteCrmService(models.AbstractModel):
                AND event.origin = %s
                AND event.state = 'done'
                AND event.erased_at IS NULL
-               AND (event.retain_until > %s OR (event.retention_manual AND event.retention_policy_version IS NOT NULL AND event.retention_assigned_at IS NOT NULL))
+               AND (event.retain_until > %s OR (
+                   event.retention_manual
+                   AND event.retention_policy_version IS NOT NULL
+                   AND event.retention_assigned_at IS NOT NULL
+               ))
                AND event.occurred_at >= %s
                AND event.occurred_at <= %s
                AND effective.occurred_at >= %s

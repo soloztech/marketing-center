@@ -49,7 +49,7 @@ function delay(milliseconds) {
     return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 }
 
-async function postTechnicalAction(path, payload) {
+async function postTechnicalAction(path, payload, deadline = Date.now() + 16000) {
     const body = JSON.stringify(payload);
     if (
         typeof window.TextEncoder !== "function" ||
@@ -58,6 +58,9 @@ async function postTechnicalAction(path, payload) {
         return null;
     }
     for (let attempt = 0; attempt < RETRY_DELAYS_MS.length; attempt += 1) {
+        if (Date.now() + RETRY_DELAYS_MS[attempt] >= deadline) {
+            return null;
+        }
         if (RETRY_DELAYS_MS[attempt]) {
             await delay(RETRY_DELAYS_MS[attempt]);
         }
@@ -74,7 +77,7 @@ async function postTechnicalAction(path, payload) {
                     ...(consentRef ? {"X-Marketing-Consent-Ref": consentRef} : {}),
                 },
                 body,
-            });
+            }, window, Math.max(1, Math.min(5000, deadline - Date.now())));
         } catch (_error) {
             continue;
         }
@@ -91,22 +94,46 @@ async function postTechnicalAction(path, payload) {
     return null;
 }
 
-function notifyAction(kind, eventId) {
+async function notifyAction(kind, eventId, deadline = Date.now() + 750) {
+    const pending = [];
+    let dispatching = true;
     document.dispatchEvent(
         new CustomEvent("marketing_center:action-confirmed", {
-            detail: {kind, event_id: eventId},
+            detail: {
+                kind,
+                event_id: eventId,
+                waitUntil(promise) {
+                    if (dispatching && promise && typeof promise.then === "function") {
+                        pending.push(Promise.resolve(promise).catch(() => null));
+                    }
+                },
+            },
         })
     );
+    dispatching = false;
+    if (!pending.length) {
+        return;
+    }
+    let timeoutId;
+    try {
+        await Promise.race([
+            Promise.all(pending),
+            new Promise((resolve) => {
+                timeoutId = window.setTimeout(
+                    resolve, Math.max(0, Math.min(750, deadline - Date.now()))
+                );
+            }),
+        ]);
+    } finally {
+        window.clearTimeout(timeoutId);
+    }
 }
 
-function exchangeForm(payload) {
-    postTechnicalAction(FORM_EXCHANGE_PATH, payload)
-        .then((result) => {
-            if (result && result.accepted === true) {
-                notifyAction("form_submission", payload.event_id);
-            }
-        })
-        .catch(() => null);
+async function exchangeForm(payload, deadline) {
+    const result = await postTechnicalAction(FORM_EXCHANGE_PATH, payload, deadline);
+    if (enabled && result && result.accepted === true && Date.now() < deadline) {
+        await notifyAction("form_submission", payload.event_id, deadline);
+    }
 }
 
 async function claimWhatsApp(actionRef, fallbackPath) {
@@ -116,7 +143,7 @@ async function claimWhatsApp(actionRef, fallbackPath) {
         : null;
     const redirectPath = result && result.redirect_path;
     if (result && result.accepted === true && validRedirectPath(redirectPath)) {
-        notifyAction("whatsapp_handoff", payload.event_id);
+        await notifyAction("whatsapp_handoff", payload.event_id);
     }
     window.location.assign(
         validRedirectPath(redirectPath) ? redirectPath : fallbackPath

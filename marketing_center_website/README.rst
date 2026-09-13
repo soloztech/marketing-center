@@ -111,7 +111,12 @@ Frontend integration exports ``loadConsent()`` from
 ``confirmed === true``. A false value must disable optional measurement at once.
 A control marked ``data-marketing-consent-revoke`` withdraws the decision and
 reopens the native banner. The event ``marketing_center:action-confirmed``
-contains only ``kind`` and opaque ``event_id`` after a successful server exchange.
+contains ``kind`` and opaque ``event_id`` after a successful server exchange.
+Listeners may synchronously register ``detail.waitUntil(promise)`` for a bounded
+analytics callback. A successful native form waits at most two seconds for its
+exchange and callbacks before returning the exact native result; tracking errors
+cannot fail the form. Callbacks alone are capped at 750 ms. A thank-you page visit
+never emits a form success event.
 Only ``form_submission`` signifies a native form success; ``whatsapp_handoff`` is
 navigation, never a lead or sale. This addon sends no external analytics itself.
 
@@ -125,7 +130,9 @@ remain native browser behavior.
 Create each tracked form or WhatsApp handoff under *Marketing Center >
 Configuration > Website Actions*. An action stores an immutable technical
 route, exact queryless source path and either an Odoo model enabled for Website
-forms or a fixed WhatsApp E.164 destination. Copy its generated marker onto the
+forms or a fixed WhatsApp E.164 destination and optional fixed public CTA message.
+The server URL-encodes that immutable message; browser text cannot override it.
+Copy its generated marker onto the
 corresponding native form or link:
 
 * ``data-marketing-form-action="<opaque UUID>"`` on the form or send control;

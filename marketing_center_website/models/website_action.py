@@ -82,7 +82,15 @@ class MarketingWebsiteAction(models.Model):
         string="WhatsApp destination",
         size=15,
         groups="marketing_center_base.group_marketing_center_admin",
-        help="Fixed E.164 destination using digits only; it is never sent to browser JS.",
+        help="Fixed E.164 destination using digits only; "
+        "it is never sent to browser JS.",
+    )
+    whatsapp_message = fields.Char(
+        string="Fixed WhatsApp message",
+        size=512,
+        groups="marketing_center_base.group_marketing_center_admin",
+        help="Optional fixed public CTA text, configured by an administrator. "
+        "Never use customer data.",
     )
     fallback_path = fields.Char(
         required=True,
@@ -162,6 +170,7 @@ class MarketingWebsiteAction(models.Model):
             "source_path",
             "form_model_id",
             "whatsapp_destination",
+            "whatsapp_message",
         }
         if immutable.intersection(values):
             raise AccessError(
@@ -218,6 +227,7 @@ class MarketingWebsiteAction(models.Model):
         "kind",
         "form_model_id",
         "whatsapp_destination",
+        "whatsapp_message",
         "route_ref",
         "source_path",
         "fallback_path",
@@ -230,7 +240,11 @@ class MarketingWebsiteAction(models.Model):
                 safe_relative_path(action.source_path, "source_path")
                 safe_relative_path(action.fallback_path, "fallback_path")
                 if action.kind == "form_submission":
-                    if not action.form_model_id or action.whatsapp_destination:
+                    if (
+                        not action.form_model_id
+                        or action.whatsapp_destination
+                        or action.whatsapp_message
+                    ):
                         raise WebsiteActionContractError(
                             "a form action requires only an allowed form model"
                         )
@@ -244,6 +258,14 @@ class MarketingWebsiteAction(models.Model):
                             "a WhatsApp action requires only a fixed destination"
                         )
                     whatsapp_digits(action.whatsapp_destination)
+                    if action.whatsapp_message and (
+                        len(action.whatsapp_message) > 512
+                        or any(ord(char) < 32 for char in action.whatsapp_message)
+                    ):
+                        raise WebsiteActionContractError(
+                            "the fixed WhatsApp message must be at most "
+                            "512 printable characters"
+                        )
                 else:
                     raise WebsiteActionContractError("kind is invalid")
             except WebsiteActionContractError as error:
