@@ -118,6 +118,7 @@ class MarketingWebsiteConsent(models.Model):
             len(self) != 1
             or self.endpoint_id != endpoint
             or self.company_id != endpoint.company_id
+            or not self.website_id.cookies_bar
         ):
             return False
         if (

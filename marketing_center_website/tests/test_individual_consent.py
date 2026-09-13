@@ -12,6 +12,7 @@ class TestIndividualWebsiteConsent(SavepointCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.website = cls.env.ref("website.default_website")
+        cls.website.write({"cookies_bar": True})
         cls.endpoint = cls.env["marketing.web.ingress.endpoint"].create(
             {
                 "name": "Synthetic consent endpoint",
@@ -67,7 +68,13 @@ class TestIndividualWebsiteConsent(SavepointCase):
                 self.endpoint, cookie[:-1] + ("0" if cookie[-1] != "0" else "1")
             )
         )
-        other = self.endpoint.copy({"name": "Other endpoint"})
+        other = self.env["marketing.web.ingress.endpoint"].create(
+            {
+                "name": "Other endpoint",
+                "allowed_origins": "https://other.example.test",
+                "allowed_hosts": "other.example.test",
+            }
+        )
         self.assertFalse(self.consent._from_cookie(other, cookie))
         decision.with_context(website_consent_internal=CONSENT_CONTEXT_TOKEN).write(
             {"revoked_at": fields.Datetime.now()}

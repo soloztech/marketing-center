@@ -32,6 +32,7 @@ def _configuration(binding):
     endpoint = binding.endpoint_id
     if (
         not binding
+        or not binding.website_id.cookies_bar
         or not endpoint.capture_enabled
         or endpoint.privacy_legal_basis_code != "consent"
         or not endpoint._privacy_policy_configured()
@@ -90,6 +91,11 @@ class MarketingWebsiteConsentController(http.Controller):
                 set(payload)
                 != {"granted", "config_revision", "policy_version", "notice_version"}
                 or type(payload["granted"]) is not bool
+                or type(payload["config_revision"]) is not int
+                or not isinstance(payload["policy_version"], str)
+                or not isinstance(payload["notice_version"], str)
+                or len(payload["policy_version"]) > 128
+                or len(payload["notice_version"]) > 128
             ):
                 raise ValidationError("Invalid decision envelope")
             endpoint = binding.endpoint_id

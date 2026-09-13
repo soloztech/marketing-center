@@ -1406,6 +1406,7 @@ class TestMarketingWebsiteCrm(SavepointCase):
         self.assertFalse(intent.correlation_id)
 
     def test_individual_consent_manual_retention_correlation_and_revoke(self):
+        self.website.write({"cookies_bar": True})
         from odoo.addons.marketing_center_website.models.consent import (
             CONSENT_CONTEXT_TOKEN,
         )
