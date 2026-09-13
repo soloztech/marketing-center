@@ -211,6 +211,14 @@ class TestIndividualWebsiteConsent(SavepointCase):
             self.assertTrue(config["tracking_test_mode"])
             self.assertTrue(config["capture_allowed"])
             self.assertFalse(config["granted"])
+        # Odoo may resolve the same Website on its legacy ERP hostname. That
+        # must not advertise test-mode analytics outside the endpoint allowlist.
+        with self._http(
+            "/marketing/website-consent/config", base_url="https://legacy.invalid"
+        ) as controller:
+            config = json.loads(controller.configuration().get_data())
+            self.assertFalse(config["tracking_test_mode"])
+            self.assertFalse(config["capture_allowed"])
         with self._http(
             "/marketing/website-consent/decision",
             {
@@ -305,7 +313,10 @@ class TestIndividualWebsiteConsent(SavepointCase):
             )
             self.assertFalse(self._trusted_endpoint(current)._capture_policy_allows())
 
-    def _http(self, path, payload=None, *, cookie="", extra_headers=None):
+    def _http(
+        self, path, payload=None, *, cookie="", extra_headers=None,
+        base_url="https://example.test",
+    ):
         import contextlib
         import json
         from types import SimpleNamespace
@@ -326,7 +337,7 @@ class TestIndividualWebsiteConsent(SavepointCase):
             headers.update(extra_headers or {})
             builder = EnvironBuilder(
                 path=path,
-                base_url="https://example.test",
+                base_url=base_url,
                 method="POST" if payload is not None else "GET",
                 data=json.dumps(payload) if payload is not None else None,
                 content_type="application/json" if payload is not None else None,

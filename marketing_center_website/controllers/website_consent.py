@@ -7,7 +7,7 @@ from odoo.http import request
 
 from ..models.consent import CONSENT_COOKIE, CONSENT_CONTEXT_TOKEN
 from .website_action import _bounded_strict_json, _human_post_headers, _same_origin
-from .website_ingress import _config_response
+from .website_ingress import _config_response, _endpoint_origin_allowed
 
 
 def _binding():
@@ -33,6 +33,7 @@ def _configuration(binding):
     if (
         not binding
         or not endpoint.active
+        or not _endpoint_origin_allowed(endpoint, request.httprequest.host_url)
         or not endpoint.capture_enabled
         or not endpoint._privacy_policy_configured()
     ):
