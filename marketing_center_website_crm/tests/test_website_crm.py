@@ -1536,6 +1536,7 @@ class TestMarketingWebsiteCrm(SavepointCase):
             self.assertTrue(job_intent._job_process())
             self.assertEqual(intent.state, "done")
             self.assertTrue(intent.correlation_id)
+
             self.assertEqual(
                 intent.correlation_id.event_id.touchpoint_id.consent_state, "granted"
             )
@@ -1555,6 +1556,85 @@ class TestMarketingWebsiteCrm(SavepointCase):
             self.assertFalse(revoked_intent.correlation_id)
             self.assertTrue(revoked_intent.lead_id.exists())
             self.assertTrue(intent.correlation_id)
+
+    def test_native_insert_ignores_residual_utm_cookies_without_current_consent(self):
+        from types import SimpleNamespace
+        from werkzeug.test import EnvironBuilder
+        from werkzeug.wrappers import Request
+        from odoo.addons.marketing_center_website.models import consent
+        from odoo.addons.utm.models import utm_mixin
+
+        self.website.write({"cookies_bar": True, "domain": self.origin})
+        self.endpoint.write({"privacy_legal_basis_code": "consent"})
+        campaign = self.env["utm.campaign"].create(
+            {"name": "Native consent " + uuid.uuid4().hex}
+        )
+        source = self.env["utm.source"].create(
+            {"name": "Native source " + uuid.uuid4().hex}
+        )
+        medium = self.env["utm.medium"].create(
+            {"name": "Native medium " + uuid.uuid4().hex}
+        )
+        cookies = "; ".join(
+            [
+                "odoo_utm_campaign=" + campaign.name,
+                "odoo_utm_source=" + source.name,
+                "odoo_utm_medium=" + medium.name,
+                'website_cookies_bar={"required":true,"optional":true}',
+            ]
+        )
+        decision = self.env["marketing.website.consent"]._decide(self.binding, True)
+        visitor_model = type(self.env["website.visitor"])
+        public_env = self.env(user=self.website.user_id.id)
+        controller = MarketingWebsiteCrmFormController()
+
+        def insert(cookie):
+            fake = SimpleNamespace(
+                httprequest=Request(
+                    EnvironBuilder(
+                        path="/website/form/crm.lead",
+                        method="POST",
+                        base_url=self.origin,
+                        headers={"Cookie": cookie},
+                    ).get_environ()
+                ),
+                env=public_env,
+                website=self.website,
+                context=dict(public_env.context),
+                session=SimpleNamespace(uid=False),
+            )
+            values = {
+                "name": "Synthetic native insert " + uuid.uuid4().hex,
+                "phone": "+55 19 99999-9999",
+            }
+            with patch.object(consent, "request", fake), patch.object(
+                utm_mixin, "request", fake
+            ), patch.object(
+                visitor_model,
+                "_get_visitor_from_request",
+                return_value=self.env["website.visitor"],
+            ):
+                record_id = controller.insert_record(fake, self.crm_model, values, "")
+            return self.env["crm.lead"].browse(record_id)
+
+        refused = insert(cookies)
+        self.assertFalse(refused.campaign_id or refused.source_id or refused.medium_id)
+        self.assertEqual(refused.phone, "+55 19 99999-9999")
+        granted = insert(cookies + "; mc_website_consent=" + decision._cookie())
+        self.assertEqual(granted.campaign_id, campaign)
+        self.assertEqual(granted.source_id, source)
+        self.assertEqual(granted.medium_id, medium)
+        decision.with_context(
+            website_consent_internal=consent.CONSENT_CONTEXT_TOKEN
+        ).write({"revoked_at": fields.Datetime.now()})
+        revoked = insert(cookies + "; mc_website_consent=" + decision._cookie())
+        self.assertFalse(revoked.campaign_id or revoked.source_id or revoked.medium_id)
+        self.assertEqual(
+            self.env["marketing.website.crm.intent"].search_count(
+                [("lead_id", "in", [refused.id, granted.id, revoked.id])]
+            ),
+            0,
+        )
 
 
 @tagged("-at_install", "post_install")

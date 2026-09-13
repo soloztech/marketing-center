@@ -47,6 +47,31 @@ class MarketingWebsiteCrmFormController(
     dispatched by Odoo's native ``WebsiteForm`` implementation.
     """
 
+    def insert_record(self, request, model, values, custom, meta=None):
+        if model.sudo().model == "crm.lead" and getattr(request, "website", None):
+            website = request.website
+            binding = (
+                request.env["marketing.website.ingress.binding"]
+                .sudo()
+                .with_context(active_test=False)
+                .search(
+                    [
+                        ("website_id", "=", website.id),
+                        ("company_id", "=", website.company_id.id),
+                        ("endpoint_id.privacy_legal_basis_code", "=", "consent"),
+                    ],
+                    limit=1,
+                )
+            )
+            if binding and not binding.endpoint_id._capture_policy_allows():
+                # Native utm.mixin.default_get reads residual cookies without a
+                # consent check. Explicit False prevents those defaults during
+                # this Website form only, before any native lead is created.
+                values = dict(
+                    values, campaign_id=False, source_id=False, medium_id=False
+                )
+        return super().insert_record(request, model, values, custom, meta=meta)
+
     @http.route()
     def website_form(self, model_name, **kwargs):
         claim = _form_claim()

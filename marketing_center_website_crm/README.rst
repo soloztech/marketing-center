@@ -14,6 +14,13 @@ record-insertion hooks remain in the same ``super()`` chain. Marketing correlati
 therefore observes a lead created by the native flow; it never substitutes that
 flow.
 
+On a Website with a consent-based ingress binding, native CRM form insertion
+explicitly clears campaign/source/medium defaults when the individual decision
+is absent, expired or withdrawn. This prevents residual native UTM cookies from
+attributing a refused form before browser cleanup completes. The native insertion
+chain remains responsible for lead creation and phone/visitor hooks; other forms,
+backend ORM operations and consented native UTM behavior are unchanged.
+
 One immutable correlation owns each Website ingress event. Replaying the same
 event for the same lead returns the existing correlation; reusing it for another
 lead is rejected and never creates a second attribution assertion. Form values
