@@ -59,6 +59,9 @@ function notify(name, detail) {
 }
 
 function clearOptionalSession() {
+    for (const name of ["odoo_utm_campaign", "odoo_utm_source", "odoo_utm_medium"]) {
+        deleteCookie(name);
+    }
     try {
         for (const key of Object.keys(window.sessionStorage)) {
             if (key.startsWith(STORAGE_PREFIX)) {

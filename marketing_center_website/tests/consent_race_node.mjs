@@ -11,6 +11,7 @@ const answer = (value) => ({ok: true, json: async () => value});
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 function tab(fetch, bus = [], cookies = {optional: true}) {
     const events = [];
+    const deleted = [];
     let widget;
     class Channel {
         constructor() { this.listeners = []; bus.push(this); }
@@ -22,13 +23,13 @@ function tab(fetch, bus = [], cookies = {optional: true}) {
         CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } },
         publicWidget: {registry: {cookies_bar: {include(value) { widget = value; }}}},
         eligibleLandingPath: () => false,
-        deleteCookie: () => {},
+        deleteCookie: (name) => deleted.push(name),
         setCookie(_name, value) { cookies.optional = JSON.parse(value).optional; },
         document: {body: {classList: {contains: () => false}}, addEventListener() {}, dispatchEvent(event) { events.push(event); }},
         window: {fetch, BroadcastChannel: Channel, sessionStorage: {removeItem() {}}, location: {pathname: "/", reload() {}}, addEventListener() {}},
     });
     vm.runInContext(source, context);
-    return {api: context.api, events, widget, cookies};
+    return {api: context.api, events, widget, cookies, deleted};
 }
 
 // A config response captured before withdrawal must not reactivate consumers.
@@ -37,6 +38,7 @@ function tab(fetch, bus = [], cookies = {optional: true}) {
     const page = tab((path) => path.endsWith("/config") ? new Promise((resolve) => { resolveGet = resolve; }) : Promise.resolve(answer({accepted: true, granted: false})));
     const old = page.api.loadConsent();
     await page.api.submitConsent(false);
+    assert.ok(["odoo_utm_campaign", "odoo_utm_source", "odoo_utm_medium"].every((name) => page.deleted.includes(name)));
     resolveGet(answer(ready));
     await old;
     assert.equal(page.events.some((event) => event.detail.granted === true), false);
