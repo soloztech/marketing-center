@@ -239,6 +239,7 @@ class MarketingWebIngressService(models.AbstractModel):
                 "ingress_provenance": ingress_provenance,
                 "state": "processing",
                 "retain_until": endpoint._retention_deadline(observed_at),
+                "retention_manual": endpoint.retention_mode == "manual",
                 "retention_policy_version": endpoint.privacy_policy_version,
                 "retention_assigned_by": endpoint.privacy_policy_set_by.id,
                 "retention_assigned_at": observed_at,
@@ -324,7 +325,11 @@ class MarketingWebIngressService(models.AbstractModel):
                     value_ref=click_refs[field_name],
                     source_field=field_name,
                     purpose=endpoint.capture_purpose,
-                    retain_until=endpoint._retention_deadline(observed_at).date(),
+                    retain_until=(
+                        endpoint._retention_deadline(observed_at).date()
+                        if endpoint.retention_mode != "manual"
+                        else None
+                    ),
                 )
             )
         for field_name, comparison_hash in payload.reference_hashes.items():
@@ -335,7 +340,11 @@ class MarketingWebIngressService(models.AbstractModel):
                     comparison_hash=comparison_hash,
                     source_field=field_name,
                     purpose=endpoint.capture_purpose,
-                    retain_until=endpoint._retention_deadline(observed_at).date(),
+                    retain_until=(
+                        endpoint._retention_deadline(observed_at).date()
+                        if endpoint.retention_mode != "manual"
+                        else None
+                    ),
                 )
             )
         # Click parameters are evidence, not a causal classification. Keep the

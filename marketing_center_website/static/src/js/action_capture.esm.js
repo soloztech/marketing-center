@@ -126,15 +126,27 @@ export function whatsappFallbackPath(event, origin) {
         } catch (_error) {
             return "";
         }
-        if (
-            parsed.origin !== origin ||
-            parsed.username ||
-            parsed.password ||
-            !parsed.pathname.startsWith("/")
-        ) {
+        if (parsed.username || parsed.password) {
             return "";
         }
-        return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+        if (parsed.origin === origin && parsed.pathname.startsWith("/")) {
+            return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+        }
+        // Keep the site's real WhatsApp link usable when optional capture is
+        // declined/unavailable. The tracked server destination stays immutable.
+        if (
+            parsed.protocol === "https:" &&
+            parsed.hostname === "wa.me" &&
+            !parsed.port &&
+            !parsed.hash &&
+            /^\/[1-9][0-9]{7,14}$/.test(parsed.pathname) &&
+            Array.from(parsed.searchParams.keys()).every((key) => key === "text") &&
+            parsed.searchParams.getAll("text").length <= 1 &&
+            parsed.href.length <= 2048
+        ) {
+            return parsed.href;
+        }
+        return "";
     }
     return "";
 }

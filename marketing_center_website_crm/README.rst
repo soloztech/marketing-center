@@ -71,3 +71,19 @@ actor and policy version, accepts at most 100 selected intents through the model
 service, and never extends an existing deadline. Review the proposed deadline
 before applying it; already expired sessions are eligible for cleanup. Existing
 completed evidence remains unchanged while awaiting that decision.
+
+Individual consent and explicit manual retention
+------------------------------------------------
+
+Consent-based Website intents keep the server decision reference alongside the
+existing native receipt binding. Recovery and later session assertions recheck
+revocation, expiry and policy scope; they cannot turn an old signed receipt into
+a new visitor decision. Historical correlations and the native lead remain
+unchanged when consent is withdrawn.
+
+An endpoint can explicitly select ``retention_mode=manual``. New events and
+intents snapshot ``retention_manual=True`` with policy/audit fields and no purge
+deadline; scheduled expiry does not delete them. This is separate from a missing
+legacy deadline, which remains blocked until explicit policy assignment. Native
+UTM catalogs and their cookie behavior are unchanged: the bridge stores evidence
+and never creates campaign/source/medium duplicates from textual names.

@@ -8,3 +8,4 @@ from . import (
     test_controller,
     test_js,
 )
+from . import test_individual_consent

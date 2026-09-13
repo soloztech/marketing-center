@@ -73,4 +73,12 @@
         sequence="55"
         groups="marketing_center_base.group_marketing_center_admin"
     />
+  <record id="view_marketing_website_consent_endpoint" model="ir.ui.view">
+    <field name="name">marketing.website.consent.endpoint</field>
+    <field name="model">marketing.web.ingress.endpoint</field>
+    <field name="inherit_id" ref="marketing_center_web_ingress.view_marketing_web_ingress_endpoint_form" />
+    <field name="arch" type="xml">
+      <field name="retention_mode" position="after"><field name="consent_ttl_days" /></field>
+    </field>
+  </record>
 </odoo>

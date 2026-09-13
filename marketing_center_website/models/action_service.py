@@ -327,6 +327,15 @@ class MarketingWebsiteActionService(models.AbstractModel):
                 str(action.binding_id.id),
                 endpoint.public_ref,
                 str(endpoint.config_revision),
+                *(
+                    [
+                        self.env["marketing.website.consent"]
+                        ._current(endpoint)
+                        .public_ref
+                    ]
+                    if endpoint.privacy_legal_basis_code == "consent"
+                    else []
+                ),
                 action.public_ref,
                 action.form_model_name,
                 event_id,

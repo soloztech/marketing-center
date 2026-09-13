@@ -1405,6 +1405,72 @@ class TestMarketingWebsiteCrm(SavepointCase):
         self.assertEqual(intent.session_reconcile_state, "complete")
         self.assertFalse(intent.correlation_id)
 
+    def test_individual_consent_manual_retention_correlation_and_revoke(self):
+        from odoo.addons.marketing_center_website.models.consent import (
+            CONSENT_CONTEXT_TOKEN,
+        )
+
+        self.endpoint.write(
+            {
+                "privacy_legal_basis_code": "consent",
+                "retention_mode": "manual",
+                "identifier_retention_days": 0,
+            }
+        )
+        decision = self.env["marketing.website.consent"]._decide(self.binding, True)
+        self.env = self.env(
+            context=dict(
+                self.env.context,
+                website_consent_internal=CONSENT_CONTEXT_TOKEN,
+                website_consent_id=decision.id,
+            )
+        )
+        self.service = self.service.with_env(self.env)
+        self.endpoint = self.endpoint.with_env(self.env)
+        claim = self._claim()
+        lead = self._lead("Synthetic individual consent lead")
+        landing = self._ingest_entry(claim["session_ref"])
+        result = self._native_result(claim, lead)
+        intent = self.service._capture_native_form_intent(
+            self.website, "crm.lead", claim, self.origin, result
+        )
+        self.assertEqual(intent.state, "done")
+        self.assertEqual(intent.consent_id, decision)
+        self.assertTrue(intent.retention_manual)
+        self.assertFalse(intent.retain_until)
+        correlation = intent.correlation_id
+        self.assertTrue(correlation)
+        self.assertEqual(
+            self.service._capture_native_form_intent(
+                self.website, "crm.lead", claim, self.origin, result
+            ),
+            intent,
+        )
+        self.assertEqual(intent.correlation_id, correlation)
+        self.assertEqual(correlation.event_id.touchpoint_id.consent_state, "granted")
+        with patch.object(
+            fields.Datetime, "now", return_value=datetime.datetime(2040, 1, 1)
+        ):
+            self.assertEqual(intent._cron_expire_session_values(), 0)
+        self.assertTrue(intent.session_ref)
+        decision.with_context(website_consent_internal=CONSENT_CONTEXT_TOKEN).write(
+            {"revoked_at": fields.Datetime.now()}
+        )
+        with self.assertRaises(AccessError):
+            self.service._capture_native_form_intent(
+                self.website, "crm.lead", claim, self.origin, result
+            )
+        with self.assertRaises(AccessError):
+            self.service._append_session_assertions(
+                intent,
+                self.env["marketing.attribution.touchpoint"].browse(
+                    landing.touchpoint_id
+                ),
+            )
+        self.assertTrue(lead.exists())
+        self.assertEqual(intent.correlation_id, correlation)
+        self.assertFalse(correlation.event_id.erased_at)
+
 
 @tagged("-at_install", "post_install")
 class TestMarketingWebsiteCrmHttp(HttpCase):

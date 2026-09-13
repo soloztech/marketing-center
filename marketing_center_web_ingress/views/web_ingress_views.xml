@@ -55,7 +55,7 @@
           <group string="Optional attribution policy">
             <div class="alert alert-info" colspan="2">
               Capture is blocked until an administrator configures a documented
-              non-consent basis and retention. This setting does not record visitor
+              basis and explicit retention mode. This setting does not record visitor
               consent. Consent-based capture requires a trusted decision integration.
             </div>
             <field name="capture_purpose" />
@@ -63,7 +63,8 @@
             <field name="privacy_notice_version" />
             <field name="privacy_legal_basis_code" />
             <field name="privacy_policy_justification" />
-            <field name="identifier_retention_days" />
+            <field name="retention_mode" />
+            <field name="identifier_retention_days" attrs="{'invisible': [('retention_mode', '=', 'manual')]}" />
             <field name="privacy_policy_set_by" />
             <field name="privacy_policy_set_at" />
           </group>

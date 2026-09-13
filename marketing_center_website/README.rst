@@ -72,13 +72,48 @@ Create the Web Ingress endpoint first. Its exact origin and landing-host
 allowlists must include the website. Then open *Marketing Center >
 Configuration > Website Ingress* and bind the website to that endpoint.
 
-Bindings alone no longer enable optional tracking. On the endpoint a Marketing
-Administrator must explicitly configure and enable the documented purpose,
-non-consent basis, policy/notice versions, justification and retention duration.
-The default is blocked. This is not a consent manager: no browser claim becomes
-``granted`` and consent-based capture remains unavailable until a trusted
-individual-decision producer exists. See the Web Ingress README for cleanup and
-the separate, reviewed legacy-retention assignment action.
+Bindings alone do not enable optional tracking. A Marketing Administrator must
+explicitly configure the purpose, policy/notice versions, justification and a
+retention mode. The default remains blocked. ``duration`` requires a positive
+number of days; ``manual`` is an explicit decision to preserve attribution
+history until an operator requests deletion. Zero days alone never means manual
+retention. Each event and CRM intent snapshots that decision; existing legacy
+rows do not inherit it silently.
+
+When the endpoint legal basis is ``consent``, the native Website cookie bar is
+connected to a dedicated individual-decision producer. Its explicit same-origin
+JSON request must agree with the native optional preference and current policy
+versions. The server stores an opaque, website/company/endpoint-scoped decision
+without IP address, user agent, form values or campaign values. A signed,
+host-only Secure/HttpOnly/SameSite=Strict cookie refers to that decision. The
+browser-visible routing key and a JavaScript boolean never authorize capture.
+
+GET ``/marketing/website-consent/config`` writes no decision. Every capture and
+form receipt checks the current decision; public capture/action requests also
+echo the decision reference from their page configuration, so stale pages cannot
+reuse a later decision. Revocation invalidates old cookies and receipts under a
+transactional lock, including pending CRM recovery. Native forms and direct
+WhatsApp links keep working when tracking is refused. Withdrawing consent stops
+new attribution and does not delete historical leads or existing correlations.
+
+``consent_ttl_days`` controls only the receipt's technical validity (default 999
+days, matching Odoo's native banner), independently of history retention. Daily
+bounded maintenance erases expired receipt identifiers but preserves the minimal
+policy audit and historical intent references. Finite event/intent deadlines
+keep their original cleanup behavior; explicitly manual history has no automatic
+purge deadline.
+
+Frontend integration exports ``loadConsent()`` from
+``@marketing_center_website/js/consent.esm`` and emits document events
+``marketing_center:consent-ready`` after a server GET and
+``marketing_center:consent-changed`` after a decision. Consumers may grant only
+``ready.granted === true`` or ``changed.granted === true`` with
+``confirmed === true``. A false value must disable optional measurement at once.
+A control marked ``data-marketing-consent-revoke`` withdraws the decision and
+reopens the native banner. The event ``marketing_center:action-confirmed``
+contains only ``kind`` and opaque ``event_id`` after a successful server exchange.
+Only ``form_submission`` signifies a native form success; ``whatsapp_handoff`` is
+navigation, never a lead or sale. This addon sends no external analytics itself.
 
 When policy is disabled, the config response contains only ``enabled=false``;
 the browser does not prepare optional landing/action identifiers from that
@@ -95,7 +130,8 @@ corresponding native form or link:
 
 * ``data-marketing-form-action="<opaque UUID>"`` on the form or send control;
 * ``data-marketing-whatsapp-action="<opaque UUID>"`` on a link whose ordinary
-  ``href`` is a safe local fallback such as ``/contactus``.
+  ``href`` is a safe local fallback or strict HTTPS ``wa.me/<E164>`` URL. The real
+  link stays usable when optional tracking is refused.
 
 Action identity and destinations cannot be edited after creation. Archive and
 replace an action when its meaning changes so old touchpoints keep a stable

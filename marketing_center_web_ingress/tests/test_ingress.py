@@ -581,8 +581,12 @@ class TestMarketingWebIngress(SavepointCase):
             )
         with self.assertRaises(ValidationError), self.env.cr.savepoint():
             endpoint.write({"capture_enabled": True})
-        with self.assertRaises(ValidationError), self.env.cr.savepoint():
+        if "marketing.website.consent" in self.env:
             self.endpoint.write({"privacy_legal_basis_code": "consent"})
+            self.assertFalse(self.endpoint._capture_policy_allows())
+        else:
+            with self.assertRaises(ValidationError), self.env.cr.savepoint():
+                self.endpoint.write({"privacy_legal_basis_code": "consent"})
         with self.assertRaises(AccessError):
             self.endpoint.write({"privacy_policy_set_at": self.observed_at})
         self.assertFalse(self.env["marketing.web.ingress.event"].search_count([]))
@@ -774,3 +778,29 @@ class TestMarketingWebIngress(SavepointCase):
         self.assertFalse(
             events.search([("public_ref", "=", later.event_ref)]).erased_at
         )
+
+    def test_explicit_manual_retention_preserves_attribution_and_click_values(self):
+        self.endpoint.write(
+            {"retention_mode": "manual", "identifier_retention_days": 0}
+        )
+        result = self._ingest()
+        event = self.env["marketing.web.ingress.event"].search(
+            [("public_ref", "=", result.event_ref)]
+        )
+        self.assertTrue(event.retention_manual)
+        self.assertFalse(event.retain_until)
+        self.assertTrue(event.retention_policy_version)
+        with patch.object(
+            fields.Datetime, "now", return_value=datetime.datetime(2040, 1, 1)
+        ):
+            self.assertEqual(event._cron_expire_retained_values(), 0)
+        self.assertFalse(event.erased_at)
+        self.assertEqual(event.click_value_ids.protected_value, "gclid-private-001")
+        self.assertEqual(event.touchpoint_id.utm_source, "google")
+        self.assertTrue(
+            all(
+                not identifier.retain_until
+                for identifier in event.touchpoint_id.identifier_ids
+            )
+        )
+        self.assertEqual(self._ingest().disposition, "duplicate")

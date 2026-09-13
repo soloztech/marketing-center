@@ -54,6 +54,9 @@ class MarketingWebsiteCrmIntent(models.Model):
         ondelete="restrict",
         check_company=True,
     )
+    consent_id = fields.Many2one(
+        "marketing.website.consent", readonly=True, index=True, ondelete="restrict"
+    )
     lead_id = fields.Many2one(
         "crm.lead",
         readonly=True,
@@ -70,6 +73,7 @@ class MarketingWebsiteCrmIntent(models.Model):
     event_key_hash = fields.Char(
         compute="_compute_event_key_hash", store=True, index=True
     )
+    retention_manual = fields.Boolean(readonly=True, default=False, index=True)
     retain_until = fields.Datetime(readonly=True, index=True, copy=False)
     retention_policy_version = fields.Char(readonly=True, copy=False)
     retention_assigned_by = fields.Many2one("res.users", readonly=True, copy=False)
@@ -156,6 +160,7 @@ class MarketingWebsiteCrmIntent(models.Model):
                 raise AccessError(_("Website CRM retention cannot cross companies."))
             retention_fields = {
                 "retain_until",
+                "retention_manual",
                 "retention_policy_version",
                 "retention_assigned_by",
                 "retention_assigned_at",
@@ -176,7 +181,8 @@ class MarketingWebsiteCrmIntent(models.Model):
                 "session_reconcile_error_message",
             }
             assigning = set(values) == retention_fields and all(
-                not intent.retain_until for intent in self
+                not intent.retain_until and not intent.retention_manual
+                for intent in self
             )
             erasing = (
                 set(values) == erasure_fields
@@ -236,7 +242,15 @@ class MarketingWebsiteCrmIntent(models.Model):
             [self.id],
         )
         self.invalidate_recordset(["retain_until", "privacy_erased_at", "state"])
-        if self.privacy_erased_at or not self.retain_until:
+        if self.privacy_erased_at:
+            return False
+        if (
+            self.retention_manual
+            and self.retention_policy_version
+            and self.retention_assigned_at
+        ):
+            return True
+        if not self.retain_until:
             return False
         now = now or fields.Datetime.now()
         if self.retain_until <= now:
@@ -329,13 +343,18 @@ class MarketingWebsiteCrmIntent(models.Model):
                 [intent.id],
             )
             intent.invalidate_recordset(["retain_until", "privacy_erased_at"])
-            if intent.retain_until or intent.privacy_erased_at:
+            if (
+                intent.retain_until
+                or intent.retention_manual
+                or intent.privacy_erased_at
+            ):
                 continue
             intent.sudo().with_context(
                 marketing_website_crm_retention_token=_WEBSITE_CRM_RETENTION_TOKEN
             ).write(
                 {
                     "retain_until": endpoint._retention_deadline(intent.occurred_at),
+                    "retention_manual": endpoint.retention_mode == "manual",
                     "retention_policy_version": endpoint.privacy_policy_version,
                     "retention_assigned_by": self.env.uid,
                     "retention_assigned_at": fields.Datetime.now(),

@@ -14,6 +14,7 @@ from odoo.addons.marketing_center_web_ingress.services.errors import (
 )
 
 from .tokens import WEBSITE_CRM_WRITE_TOKEN
+from odoo.addons.marketing_center_website.models.consent import CONSENT_CONTEXT_TOKEN
 
 _logger = logging.getLogger(__name__)
 _MAX_NATIVE_RESULT_BYTES = 4096
@@ -199,9 +200,15 @@ class MarketingWebsiteCrmService(models.AbstractModel):
                     "occurred_at": occurred_at,
                     "session_reconcile_until": reconcile_until,
                     "retain_until": endpoint._retention_deadline(occurred_at),
+                    "retention_manual": endpoint.retention_mode == "manual",
                     "retention_policy_version": endpoint.privacy_policy_version,
                     "retention_assigned_by": endpoint.privacy_policy_set_by.id,
                     "retention_assigned_at": fields.Datetime.now(),
+                    "consent_id": (
+                        self.env["marketing.website.consent"]._current(endpoint).id
+                        if endpoint.privacy_legal_basis_code == "consent"
+                        else False
+                    ),
                 }
             )
         )
@@ -304,6 +311,16 @@ class MarketingWebsiteCrmService(models.AbstractModel):
 
     @api.model
     def _process_intent(self, intent):
+        if intent.endpoint_id.privacy_legal_basis_code == "consent":
+            if not intent.consent_id._is_current(intent.endpoint_id):
+                raise AccessError(
+                    _("The individual Website decision is no longer valid.")
+                )
+            self = self.with_context(
+                website_consent_internal=CONSENT_CONTEXT_TOKEN,
+                website_consent_id=intent.consent_id.id,
+            )
+            intent = intent.with_env(self.env)
         if not intent._session_retention_available():
             raise AccessError(
                 _("The Website CRM session has no active retention policy.")
@@ -364,6 +381,11 @@ class MarketingWebsiteCrmService(models.AbstractModel):
 
     @api.model
     def _reconcile_session_now(self, intent):
+        if (
+            intent.endpoint_id.privacy_legal_basis_code == "consent"
+            and not intent.consent_id._is_current(intent.endpoint_id)
+        ):
+            raise AccessError(_("The individual Website decision is no longer valid."))
         now = fields.Datetime.now()
         try:
             with self.env.cr.savepoint():
@@ -456,7 +478,7 @@ class MarketingWebsiteCrmService(models.AbstractModel):
                AND event.origin = %s
                AND event.state = 'done'
                AND event.erased_at IS NULL
-               AND event.retain_until > %s
+               AND (event.retain_until > %s OR (event.retention_manual AND event.retention_policy_version IS NOT NULL AND event.retention_assigned_at IS NOT NULL))
                AND event.occurred_at >= %s
                AND event.occurred_at <= %s
                AND effective.occurred_at >= %s
@@ -513,6 +535,11 @@ class MarketingWebsiteCrmService(models.AbstractModel):
 
     @api.model
     def _append_session_assertions(self, intent, touchpoints):
+        if (
+            intent.endpoint_id.privacy_legal_basis_code == "consent"
+            and not intent.consent_id._is_current(intent.endpoint_id)
+        ):
+            raise AccessError(_("The individual Website decision is no longer valid."))
         if not intent._session_retention_available() or not intent.lead_id:
             return self.env["marketing.attribution.crm.link"]
         authority_ref = self._session_authority_ref(intent)

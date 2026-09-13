@@ -61,5 +61,14 @@ class MarketingWebsiteIngressController(http.Controller):
                 "ingest_path": "/marketing/web-ingress/%s" % endpoint.public_ref,
                 "public_key": endpoint.public_key,
                 "config_revision": endpoint.config_revision,
+                **(
+                    {
+                        "consent_ref": request.env["marketing.website.consent"]
+                        ._current(endpoint)
+                        .public_ref
+                    }
+                    if endpoint.privacy_legal_basis_code == "consent"
+                    else {}
+                ),
             }
         )

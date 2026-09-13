@@ -82,6 +82,7 @@ class MarketingWebIngressEvent(models.Model):
     click_value_ids = fields.One2many(
         "marketing.web.ingress.click.value", "event_id", readonly=True
     )
+    retention_manual = fields.Boolean(readonly=True, default=False, index=True)
     retain_until = fields.Datetime(index=True, readonly=True, copy=False)
     retention_policy_version = fields.Char(readonly=True, copy=False)
     retention_assigned_by = fields.Many2one("res.users", readonly=True, copy=False)
@@ -168,10 +169,13 @@ class MarketingWebIngressEvent(models.Model):
                 return super().write(values)
             if set(values) == {
                 "retain_until",
+                "retention_manual",
                 "retention_policy_version",
                 "retention_assigned_by",
                 "retention_assigned_at",
-            } and all(not event.retain_until for event in self):
+            } and all(
+                not event.retain_until and not event.retention_manual for event in self
+            ):
                 return super().write(values)
             raise AccessError(_("Retention metadata can only be assigned once."))
         if (
@@ -195,7 +199,7 @@ class MarketingWebIngressEvent(models.Model):
             raise AccessError(
                 _("The retention policy belongs to another endpoint/company.")
             )
-        if self.retain_until:
+        if self.retain_until or self.retention_manual:
             return
         if not endpoint._privacy_policy_configured():
             raise AccessError(_("An explicit retention policy is required."))
@@ -204,11 +208,14 @@ class MarketingWebIngressEvent(models.Model):
         ).write(
             {
                 "retain_until": endpoint._retention_deadline(self.observed_at),
+                "retention_manual": endpoint.retention_mode == "manual",
                 "retention_policy_version": endpoint.privacy_policy_version,
                 "retention_assigned_by": assigned_by,
                 "retention_assigned_at": fields.Datetime.now(),
             }
         )
+        if self.retention_manual:
+            return
         self.touchpoint_id.sudo().identifier_ids._assign_retention_deadline(
             token=ATTRIBUTION_ERASURE_TOKEN,
             deadline=self.retain_until.date(),

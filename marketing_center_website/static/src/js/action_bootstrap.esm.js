@@ -24,6 +24,7 @@ const MAX_BODY_BYTES = 2048;
 const CLAIM_TTL_MS = 5 * 60 * 1000;
 const RETRY_DELAYS_MS = Object.freeze([0, 250, 750]);
 let enabled = false;
+let consentRef = "";
 let formClaim = null;
 
 function freshClaim(actionRef) {
@@ -70,6 +71,7 @@ async function postTechnicalAction(path, payload) {
                 headers: {
                     Accept: "application/json",
                     "Content-Type": "application/json",
+                    ...(consentRef ? {"X-Marketing-Consent-Ref": consentRef} : {}),
                 },
                 body,
             });
@@ -89,8 +91,22 @@ async function postTechnicalAction(path, payload) {
     return null;
 }
 
+function notifyAction(kind, eventId) {
+    document.dispatchEvent(
+        new CustomEvent("marketing_center:action-confirmed", {
+            detail: {kind, event_id: eventId},
+        })
+    );
+}
+
 function exchangeForm(payload) {
-    postTechnicalAction(FORM_EXCHANGE_PATH, payload).catch(() => null);
+    postTechnicalAction(FORM_EXCHANGE_PATH, payload)
+        .then((result) => {
+            if (result && result.accepted === true) {
+                notifyAction("form_submission", payload.event_id);
+            }
+        })
+        .catch(() => null);
 }
 
 async function claimWhatsApp(actionRef, fallbackPath) {
@@ -99,6 +115,9 @@ async function claimWhatsApp(actionRef, fallbackPath) {
         ? await postTechnicalAction(WHATSAPP_CLAIM_PATH, payload)
         : null;
     const redirectPath = result && result.redirect_path;
+    if (result && result.accepted === true && validRedirectPath(redirectPath)) {
+        notifyAction("whatsapp_handoff", payload.event_id);
+    }
     window.location.assign(
         validRedirectPath(redirectPath) ? redirectPath : fallbackPath
     );
@@ -137,7 +156,28 @@ document.addEventListener("submit", onActivation, true);
 loadConfig()
     .then((config) => {
         enabled = validConfig(config);
+        consentRef = enabled ? config.consent_ref || "" : "";
     })
     .catch(() => {
         enabled = false;
     });
+
+document.addEventListener("marketing_center:consent-changed", (event) => {
+    enabled = false;
+    consentRef = "";
+    formClaim = null;
+    if (
+        event.detail &&
+        event.detail.granted === true &&
+        event.detail.confirmed === true
+    ) {
+        loadConfig(true)
+            .then((config) => {
+                enabled = validConfig(config);
+                consentRef = enabled ? config.consent_ref || "" : "";
+            })
+            .catch(() => {
+                enabled = false;
+            });
+    }
+});

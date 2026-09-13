@@ -67,8 +67,8 @@ export function newActionEventId() {
     return opaqueUuid(window.crypto);
 }
 
-export async function loadConfig() {
-    if (!configPromise) {
+export async function loadConfig(refresh = false) {
+    if (!configPromise || refresh) {
         configPromise = window
             .fetch(CONFIG_PATH, {
                 method: "GET",
@@ -122,6 +122,9 @@ export async function captureLandingEntry() {
             "Content-Type": "application/json",
             [PUBLIC_KEY_HEADER]: config.public_key,
             [CONFIG_REVISION_HEADER]: String(config.config_revision),
+            ...(config.consent_ref
+                ? {"X-Marketing-Consent-Ref": config.consent_ref}
+                : {}),
         },
         body,
     });
@@ -137,3 +140,14 @@ export async function captureLandingEntry() {
 }
 
 captureLandingEntry().catch(() => false);
+
+document.addEventListener("marketing_center:consent-changed", (event) => {
+    configPromise = null;
+    if (
+        event.detail &&
+        event.detail.granted === true &&
+        event.detail.confirmed === true
+    ) {
+        captureLandingEntry().catch(() => false);
+    }
+});

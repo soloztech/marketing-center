@@ -102,6 +102,14 @@ class MarketingWebIngressEndpoint(models.Model):
         "until a trusted individual-decision producer is integrated.",
     )
     privacy_policy_justification = fields.Text()
+    retention_mode = fields.Selection(
+        [
+            ("duration", "Explicit duration"),
+            ("manual", "Until an explicit deletion decision"),
+        ],
+        default="duration",
+        required=True,
+    )
     identifier_retention_days = fields.Integer(
         default=0,
         help="Explicit policy duration; zero means not configured. No legal duration "
@@ -237,6 +245,7 @@ class MarketingWebIngressEndpoint(models.Model):
             "privacy_legal_basis_code",
             "privacy_policy_justification",
             "identifier_retention_days",
+            "retention_mode",
         }
 
     @api.model
@@ -260,7 +269,7 @@ class MarketingWebIngressEndpoint(models.Model):
             and (self.privacy_notice_version or "").strip()
             and self.privacy_legal_basis_code
             and (self.privacy_policy_justification or "").strip()
-            and self.identifier_retention_days > 0
+            and (self.retention_mode == "manual" or self.identifier_retention_days > 0)
             and self.privacy_legal_basis_code.lower() not in {"consent", "granted"}
         )
 
@@ -276,6 +285,7 @@ class MarketingWebIngressEndpoint(models.Model):
         "privacy_legal_basis_code",
         "privacy_policy_justification",
         "identifier_retention_days",
+        "retention_mode",
     )
     def _check_privacy_policy(self):
         for endpoint in self:
@@ -311,6 +321,8 @@ class MarketingWebIngressEndpoint(models.Model):
 
     def _retention_deadline(self, observed_at):
         self.ensure_one()
+        if self.retention_mode == "manual":
+            return False
         try:
             return fields.Datetime.to_datetime(observed_at) + datetime.timedelta(
                 days=self.identifier_retention_days
@@ -328,6 +340,7 @@ class MarketingWebIngressEndpoint(models.Model):
                 [
                     ("endpoint_id", "=", endpoint.id),
                     ("retain_until", "=", False),
+                    ("retention_manual", "=", False),
                 ]
             )
 
@@ -340,7 +353,11 @@ class MarketingWebIngressEndpoint(models.Model):
             "name": _("Events without a retention policy"),
             "res_model": "marketing.web.ingress.event",
             "view_mode": "tree,form",
-            "domain": [("endpoint_id", "=", self.id), ("retain_until", "=", False)],
+            "domain": [
+                ("endpoint_id", "=", self.id),
+                ("retain_until", "=", False),
+                ("retention_manual", "=", False),
+            ],
         }
 
     def action_apply_legacy_retention(self):
@@ -364,6 +381,7 @@ class MarketingWebIngressEndpoint(models.Model):
             [
                 ("endpoint_id", "=", self.id),
                 ("retain_until", "=", False),
+                ("retention_manual", "=", False),
             ],
             order="id",
             limit=100,
