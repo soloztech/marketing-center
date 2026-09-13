@@ -81,6 +81,12 @@ revocation, expiry and policy scope; they cannot turn an old signed receipt into
 a new visitor decision. Historical correlations and the native lead remain
 unchanged when consent is withdrawn.
 
+OCA's queue worker executes over anonymous local HTTP without a visitor cookie.
+After validating job ownership and the stored decision, the private service uses
+an identity-only Python context token to process that intent. Serialized RPC
+booleans, strings and headers cannot manufacture the token. Scope, policy version,
+expiry and withdrawal are still checked in the database on every retry.
+
 An endpoint can explicitly select ``retention_mode=manual``. New events and
 intents snapshot ``retention_manual=True`` with policy/audit fields and no purge
 deadline; scheduled expiry does not delete them. This is separate from a missing

@@ -1472,6 +1472,74 @@ class TestMarketingWebsiteCrm(SavepointCase):
         self.assertEqual(intent.correlation_id, correlation)
         self.assertFalse(correlation.event_id.erased_at)
 
+    def test_http_queue_worker_uses_validated_intent_without_browser_cookie(self):
+        from types import SimpleNamespace
+        from werkzeug.test import EnvironBuilder
+        from werkzeug.wrappers import Request
+        from odoo.addons.marketing_center_website.models import consent
+
+        self.website.write({"cookies_bar": True})
+        self.endpoint.write(
+            {
+                "privacy_legal_basis_code": "consent",
+                "retention_mode": "manual",
+                "identifier_retention_days": 0,
+            }
+        )
+        decision = self.env["marketing.website.consent"]._decide(self.binding, True)
+        self.env = self.env(
+            context=dict(
+                self.env.context,
+                website_consent_internal=consent.CONSENT_CONTEXT_TOKEN,
+                website_consent_id=decision.id,
+            )
+        )
+        self.service = self.service.with_env(self.env)
+        intent = self._pending_intent("Synthetic HTTP queue intent")
+        revoked_intent = self._pending_intent("Synthetic revoked HTTP queue intent")
+        job_uuid, revoked_uuid = str(uuid.uuid4()), str(uuid.uuid4())
+        intent._internal_write({"queue_job_uuid": job_uuid})
+        revoked_intent._internal_write({"queue_job_uuid": revoked_uuid})
+        # The serialized worker context carries only ownership UUID. The service
+        # must add its private object token only after revalidating the intent.
+        job_intent = intent.with_context(
+            website_consent_internal=False, website_consent_id=False, job_uuid=job_uuid
+        )
+        worker = SimpleNamespace(
+            httprequest=Request(
+                EnvironBuilder(
+                    path="/queue_job/runjob", base_url="http://127.0.0.1:48069"
+                ).get_environ()
+            ),
+            session=SimpleNamespace(uid=False),
+        )
+        with patch.object(consent, "request", worker):
+            self.assertFalse(
+                job_intent.with_context(job_uuid="wrong-owner")._job_process()
+            )
+            self.assertTrue(job_intent._job_process())
+            self.assertEqual(intent.state, "done")
+            self.assertTrue(intent.correlation_id)
+            self.assertEqual(
+                intent.correlation_id.event_id.touchpoint_id.consent_state, "granted"
+            )
+            self.assertTrue(intent.retention_manual)
+            self.assertFalse(intent.retain_until)
+            decision.with_context(
+                website_consent_internal=consent.CONSENT_CONTEXT_TOKEN
+            ).write({"revoked_at": fields.Datetime.now()})
+            self.assertFalse(
+                revoked_intent.with_context(
+                    website_consent_internal=False,
+                    website_consent_id=False,
+                    job_uuid=revoked_uuid,
+                )._job_process()
+            )
+            self.assertEqual(revoked_intent.state, "failed")
+            self.assertFalse(revoked_intent.correlation_id)
+            self.assertTrue(revoked_intent.lead_id.exists())
+            self.assertTrue(intent.correlation_id)
+
 
 @tagged("-at_install", "post_install")
 class TestMarketingWebsiteCrmHttp(HttpCase):

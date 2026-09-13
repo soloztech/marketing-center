@@ -114,6 +114,55 @@ class TestIndividualWebsiteConsent(SavepointCase):
         self.assertEqual((decision.expires_at - decision.decided_at).days, 90)
         self.assertTrue(self._trusted_endpoint(decision)._capture_policy_allows())
 
+    def test_internal_http_worker_requires_real_token_and_current_decision(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from werkzeug.test import EnvironBuilder
+        from werkzeug.wrappers import Request
+        from ..models import consent
+
+        decision = self._granted()
+        other = self.env["marketing.web.ingress.endpoint"].create(
+            {
+                "name": "Worker other endpoint",
+                "allowed_origins": "https://other.test",
+                "allowed_hosts": "other.test",
+            }
+        )
+        worker = SimpleNamespace(
+            httprequest=Request(
+                EnvironBuilder(
+                    path="/queue_job/runjob",
+                    base_url="http://127.0.0.1:48069",
+                    headers={"X-Marketing-Consent-Ref": decision.public_ref},
+                ).get_environ()
+            ),
+            session=SimpleNamespace(uid=False),
+        )
+        trusted = self._trusted_endpoint(decision)
+        with patch.object(consent, "request", worker):
+            self.assertFalse(self.endpoint._capture_policy_allows())
+            for forged in (True, "CONSENT_CONTEXT_TOKEN", {"trusted": True}):
+                self.assertFalse(
+                    self.endpoint.with_context(
+                        website_consent_internal=forged,
+                        website_consent_id=decision.id,
+                    )._capture_policy_allows()
+                )
+            self.assertTrue(trusted._capture_policy_allows())
+            internal = self.consent.with_env(trusted.env)
+            self.assertFalse(internal._current(other))
+            with patch.object(fields.Datetime, "now", return_value=decision.expires_at):
+                self.assertFalse(trusted._capture_policy_allows())
+            self.endpoint.write({"privacy_notice_version": "worker-v2"})
+            self.assertFalse(trusted._capture_policy_allows())
+            current = self._granted()
+            self.assertTrue(self._trusted_endpoint(current)._capture_policy_allows())
+            current.with_context(website_consent_internal=CONSENT_CONTEXT_TOKEN).write(
+                {"revoked_at": fields.Datetime.now()}
+            )
+            self.assertFalse(self._trusted_endpoint(current)._capture_policy_allows())
+
     def _http(self, path, payload=None, *, cookie="", extra_headers=None):
         import contextlib
         import json

@@ -153,10 +153,16 @@ class MarketingWebsiteConsent(models.Model):
     def _current(self, endpoint):
         """Resolve the actual HTTP cookie or an already validated internal intent.
 
-        RPC cannot manufacture the identity-only context token. An HTTP request
-        always uses its own cookie, even if a caller attempts context injection.
+        RPC cannot manufacture the identity-only context token. OCA's worker
+        itself runs over anonymous HTTP, so a server-validated durable intent
+        uses its stored decision before inspecting the worker request cookies.
+        Untrusted HTTP/RPC callers still require their actual browser cookie.
         """
-        if request and getattr(request, "httprequest", None):
+        if self.env.context.get("website_consent_internal") is CONSENT_CONTEXT_TOKEN:
+            decision = self.browse(
+                self.env.context.get("website_consent_id", 0)
+            ).exists()
+        elif request and getattr(request, "httprequest", None):
             if request.session.uid:
                 return self.browse()
             if request.httprequest.scheme != "https":
@@ -192,10 +198,6 @@ class MarketingWebsiteConsent(models.Model):
                     != request.httprequest.host
                 ):
                     return self.browse()
-        elif self.env.context.get("website_consent_internal") is CONSENT_CONTEXT_TOKEN:
-            decision = self.browse(
-                self.env.context.get("website_consent_id", 0)
-            ).exists()
         else:
             return self.browse()
         return decision if decision._is_current(endpoint) else self.browse()
