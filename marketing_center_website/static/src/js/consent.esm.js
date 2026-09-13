@@ -25,7 +25,7 @@ function receiveWithdrawal() {
     pending = null;
     choice = {...(choice || {}), granted: false};
     clearOptionalSession();
-    notify("consent-changed", {granted: false, confirmed: false});
+    notify("consent-changed", {...choice, granted: false, confirmed: false});
     loadConsent(true);
 }
 if (channel) {
@@ -59,6 +59,11 @@ function notify(name, detail) {
 }
 
 function clearOptionalSession() {
+    // An explicit server test mode preserves attribution independently of the
+    // real cookie choice. It never changes that choice or creates a grant.
+    if (choice && choice.tracking_test_mode === true) {
+        return;
+    }
     const hostname = window.location.hostname || "";
     const domains = /^[a-z0-9.-]+$/i.test(hostname)
         ? [hostname, `.${hostname}`]
@@ -93,13 +98,26 @@ export function loadConsent(refresh = false) {
             })
             .then((response) => (response.ok ? response.json() : null))
             .then((value) => {
-                if (generation !== serial || withdrawalPending) {
+                if (generation !== serial) {
                     return choice || {available: false, granted: false};
                 }
                 choice =
-                    value && value.available === true
-                        ? value
-                        : {available: false, granted: false};
+                    value && (value.available === true || value.tracking_test_mode === true)
+                        ? {...value}
+                        : {
+                            available: false,
+                            granted: false,
+                            tracking_test_mode: false,
+                            capture_allowed: false,
+                        };
+                if (withdrawalPending) {
+                    // A cross-tab revocation cannot grant consent through GET.
+                    // The independent operator mode still comes from the server.
+                    choice.granted = false;
+                    choice.capture_allowed = Boolean(
+                        choice.tracking_test_mode && choice.capture_allowed
+                    );
+                }
                 if (!choice.granted) {
                     clearOptionalSession();
                 }
@@ -126,7 +144,7 @@ export async function submitConsent(granted) {
         choice = {...(choice || {}), granted: false};
         clearOptionalSession();
         // Fail closed immediately in this document, even if the request fails.
-        notify("consent-changed", {granted: false, confirmed: false});
+        notify("consent-changed", {...choice, granted: false, confirmed: false});
     }
     const previous = decisionQueue;
     let release;
@@ -164,7 +182,15 @@ export async function submitConsent(granted) {
             withdrawalPending = false;
         }
         const actualGrant = accepted && result.granted === true;
-        choice = {...config, granted: actualGrant};
+        choice = {
+            ...config,
+            granted: actualGrant,
+            tracking_test_mode: accepted && result.tracking_test_mode === true,
+            capture_allowed: accepted && (result.capture_allowed === true || actualGrant),
+        };
+        if (!actualGrant && config.tracking_test_mode === true && !choice.tracking_test_mode) {
+            clearOptionalSession();
+        }
         pending = Promise.resolve(choice);
         notify("consent-changed", {...choice, confirmed: accepted});
         return accepted;

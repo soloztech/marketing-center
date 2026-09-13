@@ -82,6 +82,15 @@ completed evidence remains unchanged while awaiting that decision.
 Individual consent and explicit manual retention
 ------------------------------------------------
 
+The optional endpoint-scoped test mode documented by ``marketing_center_website``
+also permits native-form correlation without manufacturing a consent record.
+The same success receipt, session, company, origin and retention checks apply.
+Once the mode is disabled, pending intents without a valid individual decision
+cannot process or append session assertions; completed history stays unchanged.
+The bridge keeps the five UTM fields in Marketing Center evidence even when
+Odoo's native optional UTM cookies are absent. It does not rewrite native CRM UTM
+catalogs or fabricate browser cookie acceptance.
+
 Consent-based Website intents keep the server decision reference alongside the
 existing native receipt binding. Recovery and later session assertions recheck
 revocation, expiry and policy scope; they cannot turn an old signed receipt into

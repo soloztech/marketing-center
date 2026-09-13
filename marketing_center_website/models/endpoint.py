@@ -1,9 +1,38 @@
+import json
+
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
 
 class MarketingWebIngressEndpoint(models.Model):
     _inherit = "marketing.web.ingress.endpoint"
+
+    def _tracking_test_mode(self):
+        """Explicit server-only endpoint allowlist; never a visitor decision.
+
+        No request/context flag may enable this mode. Malformed configuration
+        fails closed, including booleans accepted as integers by Python.
+        """
+        self.ensure_one()
+        raw = self.env["ir.config_parameter"].sudo().get_param(
+            "marketing_center_website.tracking_test_endpoint_ids", "[]"
+        )
+        if not isinstance(raw, str) or len(raw) > 4096:
+            return False
+        try:
+            endpoint_ids = json.loads(raw)
+        except (ValueError, TypeError, RecursionError):
+            return False
+        return bool(
+            isinstance(endpoint_ids, list)
+            and len(endpoint_ids) <= 128
+            and all(type(value) is int and value > 0 for value in endpoint_ids)
+            and self.id in endpoint_ids
+        )
+
+    def _requires_individual_consent(self):
+        self.ensure_one()
+        return self.privacy_legal_basis_code == "consent" and not self._tracking_test_mode()
 
     consent_ttl_days = fields.Integer(
         default=999,
@@ -69,6 +98,6 @@ class MarketingWebIngressEndpoint(models.Model):
 
     def _capture_policy_allows(self):
         allowed = super()._capture_policy_allows()
-        if allowed and self.privacy_legal_basis_code == "consent":
+        if allowed and self._requires_individual_consent():
             return bool(self.env["marketing.website.consent"]._current(self))
         return allowed

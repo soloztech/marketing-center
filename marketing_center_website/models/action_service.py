@@ -327,13 +327,14 @@ class MarketingWebsiteActionService(models.AbstractModel):
                 str(action.binding_id.id),
                 endpoint.public_ref,
                 str(endpoint.config_revision),
+                "tracking.test" if endpoint._tracking_test_mode() else "tracking.standard",
                 *(
                     [
                         self.env["marketing.website.consent"]
                         ._current(endpoint)
                         .public_ref
                     ]
-                    if endpoint.privacy_legal_basis_code == "consent"
+                    if endpoint._requires_individual_consent()
                     else []
                 ),
                 action.public_ref,

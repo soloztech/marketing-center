@@ -152,6 +152,40 @@ transactional deduplication are enforced by Web Ingress.
 Security and operational notes
 ------------------------------
 
+Temporary operator-controlled capture
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The server-only system parameter
+``marketing_center_website.tracking_test_endpoint_ids`` accepts a JSON array of
+positive integer endpoint IDs, for example ``[3]``. It is disabled by default;
+malformed values, booleans and string IDs fail closed. This explicit temporary
+mode allows attribution without an optional-cookie decision only on the selected
+endpoints. Capture enablement, origin/company checks, public sessions, HTTPS,
+technical-page exclusions, confirmed form results and retention still apply.
+
+This is an operational override, not consent or a new legal basis. No accepted
+cookie or consent receipt is manufactured. Captured touchpoints retain the real
+grant if one exists; otherwise they record ``consent_state=unknown``. The audit
+source is ``operator.test_override`` and the extension
+``web_ingress.tracking_test_mode=true`` identifies these captures.
+
+Ingress and consent configurations expose ``tracking_test_mode`` and
+``capture_allowed`` separately from the actual ``granted`` decision. These flags
+also accompany consent-ready/changed events. Consumers integrating this mode may
+capture when both flags are true while retaining the real granted value. The
+existing consent rules above remain the default. Refusal still records/revokes
+the actual decision but does not clear attribution session data in test mode.
+
+To restore consent gating, remove the endpoint ID or set the parameter to ``[]``.
+Apply the parameter and a same-value endpoint ``name`` ORM write in one database
+transaction: the row update serializes with in-flight capture without changing
+the policy revision or invalidating genuine receipts. Do not bump policy or
+configuration revisions just to toggle this mode. Action receipt signatures
+include the mode and cannot replay across the boundary. The server blocks new
+capture and pending receipt-less CRM intents as soon as the mode is disabled;
+historical evidence is preserved. This mode has no automatic expiration: the
+operator must record its activation and explicitly restore consent gating.
+
 Bindings are available only to Marketing Administrators and are fenced by the
 active-company record rule. Active endpoints cannot be archived while a live
 website binding references them.  Website, endpoint, binding and action changes

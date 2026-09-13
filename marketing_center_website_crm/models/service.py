@@ -311,11 +311,12 @@ class MarketingWebsiteCrmService(models.AbstractModel):
 
     @api.model
     def _process_intent(self, intent):
-        if intent.endpoint_id.privacy_legal_basis_code == "consent":
+        if intent.endpoint_id._requires_individual_consent():
             if not intent.consent_id._is_current(intent.endpoint_id):
                 raise AccessError(
                     _("The individual Website decision is no longer valid.")
                 )
+        if intent.consent_id and intent.consent_id._is_current(intent.endpoint_id):
             self = self.with_context(
                 website_consent_internal=CONSENT_CONTEXT_TOKEN,
                 website_consent_id=intent.consent_id.id,
@@ -382,7 +383,7 @@ class MarketingWebsiteCrmService(models.AbstractModel):
     @api.model
     def _reconcile_session_now(self, intent):
         if (
-            intent.endpoint_id.privacy_legal_basis_code == "consent"
+            intent.endpoint_id._requires_individual_consent()
             and not intent.consent_id._is_current(intent.endpoint_id)
         ):
             raise AccessError(_("The individual Website decision is no longer valid."))
@@ -540,7 +541,7 @@ class MarketingWebsiteCrmService(models.AbstractModel):
     @api.model
     def _append_session_assertions(self, intent, touchpoints):
         if (
-            intent.endpoint_id.privacy_legal_basis_code == "consent"
+            intent.endpoint_id._requires_individual_consent()
             and not intent.consent_id._is_current(intent.endpoint_id)
         ):
             raise AccessError(_("The individual Website decision is no longer valid."))

@@ -80,6 +80,66 @@ class TestMarketingWebsiteCrm(SavepointCase):
             "session_ref": session_ref or str(uuid.uuid4()),
         }
 
+    def test_temporary_mode_correlates_without_consent_and_stops_pending_intents(self):
+        self.endpoint.write({"privacy_legal_basis_code": "consent"})
+        parameter = "marketing_center_website.tracking_test_endpoint_ids"
+        self.env["ir.config_parameter"].sudo().set_param(
+            parameter, json.dumps([self.endpoint.id])
+        )
+        intent = self._pending_intent("Temporary capture")
+        self.assertFalse(intent.consent_id)
+        entry = self._ingest_entry(
+            intent.session_ref,
+            occurred_at=intent.occurred_at - datetime.timedelta(seconds=2),
+        )
+        self.service._attempt_intent(intent)
+        self.assertEqual(intent.state, "done")
+
+        self.assertTrue(intent.correlation_id)
+        self.assertTrue(self.env["marketing.attribution.crm.link"].search_count([
+            ("touchpoint_id", "=", entry.touchpoint_id),
+            ("lead_id", "=", intent.lead_id.id),
+        ]))
+        pending = self._pending_intent("Pending temporary capture")
+        self.env["ir.config_parameter"].sudo().set_param(parameter, "[]")
+        with self.assertRaises(AccessError):
+            self.service._process_intent(pending)
+        with self.assertRaises(AccessError):
+            self.service._reconcile_session_now(pending)
+        self.assertFalse(pending.correlation_id)
+        self.assertEqual(intent.state, "done")
+
+    def test_action_receipts_cannot_cross_temporary_mode_boundary(self):
+        from odoo.addons.marketing_center_website.models.consent import CONSENT_CONTEXT_TOKEN
+
+        self.website.write({"cookies_bar": True})
+        self.endpoint.write({"privacy_legal_basis_code": "consent"})
+        decision = self.env["marketing.website.consent"]._decide(self.binding, True)
+        service = self.env["marketing.website.action.service"].with_context(
+            website_consent_internal=CONSENT_CONTEXT_TOKEN,
+            website_consent_id=decision.id,
+        )
+        claim = self._claim()
+        receipt = service._prepare_form_receipt(
+            self.website, "crm.lead", claim, self.origin
+        )
+        parameter = "marketing_center_website.tracking_test_endpoint_ids"
+        self.env["ir.config_parameter"].sudo().set_param(
+            parameter, json.dumps([self.endpoint.id])
+        )
+        with self.assertRaises(AccessError):
+            service._validate_form_receipt(
+                self.website, dict(claim, receipt=receipt), self.origin
+            )
+        test_receipt = service._prepare_form_receipt(
+            self.website, "crm.lead", claim, self.origin
+        )
+        self.env["ir.config_parameter"].sudo().set_param(parameter, "[]")
+        with self.assertRaises(AccessError):
+            service._validate_form_receipt(
+                self.website, dict(claim, receipt=test_receipt), self.origin
+            )
+
     def _ingest_entry(
         self, session_ref, occurred_at=None, origin=None, observed_at=None
     ):

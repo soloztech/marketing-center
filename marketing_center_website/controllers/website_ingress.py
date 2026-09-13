@@ -61,6 +61,8 @@ class MarketingWebsiteIngressController(http.Controller):
                 "ingest_path": "/marketing/web-ingress/%s" % endpoint.public_ref,
                 "public_key": endpoint.public_key,
                 "config_revision": endpoint.config_revision,
+                "tracking_test_mode": endpoint._tracking_test_mode(),
+                "capture_allowed": True,
                 **(
                     {
                         "consent_ref": request.env["marketing.website.consent"]

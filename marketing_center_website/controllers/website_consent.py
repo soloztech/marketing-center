@@ -32,16 +32,25 @@ def _configuration(binding):
     endpoint = binding.endpoint_id
     if (
         not binding
-        or not binding.website_id.cookies_bar
+        or not endpoint.active
         or not endpoint.capture_enabled
-        or endpoint.privacy_legal_basis_code != "consent"
         or not endpoint._privacy_policy_configured()
     ):
-        return {"available": False, "granted": False}
+        return {
+            "available": False,
+            "granted": False,
+            "tracking_test_mode": False,
+            "capture_allowed": False,
+        }
     decision = request.env["marketing.website.consent"]._current(endpoint)
     return {
-        "available": True,
+        "available": bool(
+            binding.website_id.cookies_bar
+            and endpoint.privacy_legal_basis_code == "consent"
+        ),
         "granted": bool(decision),
+        "tracking_test_mode": endpoint._tracking_test_mode(),
+        "capture_allowed": bool(endpoint._capture_policy_allows()),
         "config_revision": endpoint.config_revision,
         "policy_version": endpoint.privacy_policy_version,
         "notice_version": endpoint.privacy_notice_version,
@@ -128,6 +137,12 @@ class MarketingWebsiteConsentController(http.Controller):
                         "accepted": True,
                         "granted": False,
                         "notice_version": endpoint.privacy_notice_version,
+                        "tracking_test_mode": endpoint._tracking_test_mode(),
+                        "capture_allowed": bool(
+                            endpoint._tracking_test_mode()
+                            and endpoint.capture_enabled
+                            and endpoint._privacy_policy_configured()
+                        ),
                     }
                 )
                 response.delete_cookie(
@@ -170,6 +185,8 @@ class MarketingWebsiteConsentController(http.Controller):
                     "accepted": True,
                     "granted": True,
                     "notice_version": decision.notice_version,
+                    "tracking_test_mode": endpoint._tracking_test_mode(),
+                    "capture_allowed": True,
                 }
             )
             response.set_cookie(

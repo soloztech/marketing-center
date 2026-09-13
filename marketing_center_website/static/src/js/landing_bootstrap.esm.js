@@ -153,8 +153,8 @@ document.addEventListener("marketing_center:consent-changed", (event) => {
     configPromise = null;
     if (
         event.detail &&
-        event.detail.granted === true &&
-        event.detail.confirmed === true
+        (event.detail.tracking_test_mode === true ||
+            (event.detail.granted === true && event.detail.confirmed === true))
     ) {
         captureLandingEntry().catch(() => false);
     }

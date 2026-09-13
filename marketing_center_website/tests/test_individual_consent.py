@@ -1,7 +1,9 @@
 import datetime
+import json
+import uuid
 
 from odoo import fields
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, ValidationError
 from odoo.tests.common import SavepointCase
 
 from ..models.consent import CONSENT_CONTEXT_TOKEN
@@ -113,6 +115,138 @@ class TestIndividualWebsiteConsent(SavepointCase):
         decision = self._granted()
         self.assertEqual((decision.expires_at - decision.decided_at).days, 90)
         self.assertTrue(self._trusted_endpoint(decision)._capture_policy_allows())
+
+    def _test_mode(self, value):
+        self.env["ir.config_parameter"].sudo().set_param(
+            "marketing_center_website.tracking_test_endpoint_ids", value
+        )
+
+    def _test_entry(self, endpoint=None, *, path="/landing", origin="https://example.test"):
+        endpoint = endpoint if endpoint is not None else self.endpoint
+        return self.env["marketing.web.ingress.service"].with_env(endpoint.env)._ingest_payload(
+            endpoint,
+            {
+                "event_id": str(uuid.uuid4()),
+                "event_type": "entry_point",
+                "occurred_at": fields.Datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "landing_url": "https://example.test" + path,
+                "utm_source": "synthetic-source",
+                "utm_medium": "cpc",
+                "utm_campaign": "synthetic-test-mode",
+                "session_ref": str(uuid.uuid4()),
+            },
+            origin=origin,
+            body_size_bytes=512,
+            ingress_provenance="browser_capability",
+        )
+
+    def test_temporary_mode_parameter_is_strict_and_endpoint_scoped(self):
+        for invalid in (
+            "", "true", "null", "{}", "not-json", "[true]", "[0]", "[-1]",
+            '["%s"]' % self.endpoint.id, "[%s.0]" % self.endpoint.id,
+            "[%s, false]" % self.endpoint.id,
+        ):
+            self._test_mode(invalid)
+            self.assertFalse(self.endpoint._tracking_test_mode(), invalid)
+            self.assertFalse(self.endpoint._capture_policy_allows(), invalid)
+        self._test_mode(json.dumps([self.endpoint.id]))
+        self.assertTrue(self.endpoint._tracking_test_mode())
+        self.assertTrue(self.endpoint._capture_policy_allows())
+        other = self.env["marketing.web.ingress.endpoint"].create({
+            "name": "Separate test endpoint",
+            "allowed_origins": "https://other.test",
+            "allowed_hosts": "other.test",
+            **{
+                name: self.endpoint[name]
+                for name in (
+                    "capture_enabled", "capture_purpose", "privacy_policy_version",
+                    "privacy_notice_version", "privacy_legal_basis_code",
+                    "privacy_policy_justification", "identifier_retention_days",
+                )
+            },
+        })
+        self.assertFalse(other._tracking_test_mode())
+        self.assertFalse(other._capture_policy_allows())
+        self.endpoint.write({"capture_enabled": False})
+        self.assertFalse(self.endpoint._capture_policy_allows())
+
+    def test_temporary_mode_audits_unknown_consent_and_restores_denial(self):
+        before = self.consent.search_count([])
+        self._test_mode(json.dumps([self.endpoint.id]))
+        result = self._test_entry()
+        touchpoint = self.env["marketing.attribution.touchpoint"].browse(result.touchpoint_id)
+        self.assertEqual(touchpoint.utm_campaign, "synthetic-test-mode")
+        self.assertEqual(touchpoint.consent_state, "unknown")
+        self.assertEqual(touchpoint.privacy_decision_source, "operator.test_override")
+        self.assertTrue(touchpoint.extensions_json["web_ingress.tracking_test_mode"])
+        self.assertEqual(self.consent.search_count([]), before)
+        self._test_mode("[]")
+        with self.assertRaises(AccessError):
+            self._test_entry()
+        # Disabling capture changes neither the historical event nor its provenance.
+        self.assertEqual(touchpoint.consent_state, "unknown")
+
+    def test_temporary_mode_preserves_real_grant_and_origin_path_constraints(self):
+        decision = self._granted()
+        revision = self.endpoint.config_revision
+        self._test_mode(json.dumps([self.endpoint.id]))
+        result = self._test_entry(self._trusted_endpoint(decision))
+        touchpoint = self.env["marketing.attribution.touchpoint"].browse(result.touchpoint_id)
+        self.assertEqual(touchpoint.consent_state, "granted")
+        self.assertEqual(touchpoint.privacy_decision_source, "operator.test_override")
+        with self.assertRaises(AccessError):
+            self._test_entry(path="/web/login")
+        with self.assertRaises(ValidationError):
+            self._test_entry(origin="https://other.invalid")
+        self._test_mode("[]")
+        self.assertEqual(self.endpoint.config_revision, revision)
+        self.assertTrue(self._trusted_endpoint(decision)._capture_policy_allows())
+
+    def test_temporary_http_config_and_refusal_never_manufacture_acceptance(self):
+        self.website.write({"domain": "https://example.test"})
+        self._test_mode(json.dumps([self.endpoint.id]))
+        before = self.consent.search_count([])
+        with self._http("/marketing/website-consent/config") as controller:
+            config = json.loads(controller.configuration().get_data())
+            self.assertTrue(config["tracking_test_mode"])
+            self.assertTrue(config["capture_allowed"])
+            self.assertFalse(config["granted"])
+        with self._http(
+            "/marketing/website-consent/decision",
+            {
+                "granted": False,
+                "config_revision": self.endpoint.config_revision,
+                "policy_version": "test-v1",
+                "notice_version": "test-v1",
+            },
+        ) as controller:
+            answer = json.loads(controller.decide().get_data())
+            self.assertTrue(answer["accepted"])
+            self.assertTrue(answer["tracking_test_mode"])
+            self.assertTrue(answer["capture_allowed"])
+            self.assertFalse(answer["granted"])
+        self.assertEqual(self.consent.search_count([]), before)
+        self._test_mode("[]")
+        with self._http("/marketing/website-consent/config") as controller:
+            config = json.loads(controller.configuration().get_data())
+            self.assertFalse(config["tracking_test_mode"])
+            self.assertFalse(config["capture_allowed"])
+
+    def test_temporary_mode_still_excludes_authenticated_requests(self):
+        from unittest.mock import patch
+        from ..models import consent, consent_service
+
+        self._test_mode(json.dumps([self.endpoint.id]))
+        with self._http("/marketing/web-ingress/" + self.endpoint.public_ref, {}):
+            fake = consent.request
+            fake.session.uid = self.env.uid
+            with patch.object(consent_service, "request", fake):
+                with self.assertRaises(AccessError):
+                    self._test_entry()
+                fake.session.uid = False
+                fake.httprequest.environ["wsgi.url_scheme"] = "http"
+                with self.assertRaises(AccessError):
+                    self._test_entry()
 
     def test_internal_http_worker_requires_real_token_and_current_decision(self):
         from types import SimpleNamespace
