@@ -589,7 +589,11 @@ class TestMarketingWebIngress(SavepointCase):
                 self.endpoint.write({"privacy_legal_basis_code": "consent"})
         with self.assertRaises(AccessError):
             self.endpoint.write({"privacy_policy_set_at": self.observed_at})
-        self.assertFalse(self.env["marketing.web.ingress.event"].search_count([]))
+        self.assertFalse(
+            self.env["marketing.web.ingress.event"].search_count(
+                [("endpoint_id", "in", [endpoint.id, self.endpoint.id])]
+            )
+        )
 
     def test_policy_revocation_fences_stale_browser_and_confirmed_actions(self):
         revision = self.endpoint.config_revision

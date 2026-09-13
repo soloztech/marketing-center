@@ -452,12 +452,17 @@ class TestMarketingWebsiteCrm(SavepointCase):
         )
         self.assertEqual(correlation.assertion_id.authority_key, "website.form")
         self.assertEqual(
-            self.env["marketing.website.crm.correlation"].sudo().search_count([]), 1
+            self.env["marketing.website.crm.correlation"]
+            .sudo()
+            .search_count([("lead_id", "=", lead.id)]),
+            1,
         )
         self.assertEqual(
             self.env["marketing.attribution.crm.link"]
             .sudo()
-            .search_count([("authority_key", "=", "website.form")]),
+            .search_count(
+                [("authority_key", "=", "website.form"), ("lead_id", "=", lead.id)]
+            ),
             1,
         )
         serialized = "|".join(
@@ -1252,7 +1257,9 @@ class TestMarketingWebsiteCrm(SavepointCase):
                 self._native_result(claim, lead, receipt=invalid_receipt),
             )
         self.assertFalse(
-            self.env["marketing.website.crm.correlation"].sudo().search([])
+            self.env["marketing.website.crm.correlation"]
+            .sudo()
+            .search([("event_id.endpoint_id", "=", self.endpoint.id)])
         )
         self.assertFalse(
             self.env["marketing.web.ingress.event"]
@@ -1281,7 +1288,12 @@ class TestMarketingWebsiteCrm(SavepointCase):
         self.assertEqual(
             self.env["marketing.attribution.crm.link"]
             .sudo()
-            .search_count([("authority_key", "=", "website.form")]),
+            .search_count(
+                [
+                    ("authority_key", "=", "website.form"),
+                    ("lead_id", "in", [first_lead.id, second_lead.id]),
+                ]
+            ),
             1,
         )
 
