@@ -18,6 +18,7 @@ const INGEST_PATH_PATTERN = new RegExp(
     "i"
 );
 let configPromise = null;
+let configGeneration = 0;
 
 function storageGet(key) {
     try {
@@ -69,6 +70,7 @@ export function newActionEventId() {
 
 export async function loadConfig(refresh = false) {
     if (!configPromise || refresh) {
+        const generation = configGeneration;
         configPromise = window
             .fetch(CONFIG_PATH, {
                 method: "GET",
@@ -77,6 +79,7 @@ export async function loadConfig(refresh = false) {
                 headers: {Accept: "application/json"},
             })
             .then((response) => (response.ok ? response.json() : null))
+            .then((config) => generation === configGeneration ? config : null)
             .catch(() => null);
     }
     return configPromise;
@@ -86,8 +89,9 @@ export async function captureLandingEntry() {
     if (!eligibleLandingPath(window.location.pathname)) {
         return false;
     }
+    const generation = configGeneration;
     const config = await loadConfig();
-    if (!validConfig(config)) {
+    if (generation !== configGeneration || !validConfig(config)) {
         return false;
     }
     const endpointRef = config.ingest_path.slice(
@@ -128,6 +132,9 @@ export async function captureLandingEntry() {
         },
         body,
     });
+    if (generation !== configGeneration) {
+        return false;
+    }
     if (response.ok) {
         storageSet(acceptedKey, "1");
         return true;
@@ -142,6 +149,7 @@ export async function captureLandingEntry() {
 captureLandingEntry().catch(() => false);
 
 document.addEventListener("marketing_center:consent-changed", (event) => {
+    configGeneration += 1;
     configPromise = null;
     if (
         event.detail &&
