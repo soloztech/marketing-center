@@ -220,6 +220,14 @@ class TestIndividualWebsiteConsent(SavepointCase):
             self.assertFalse(config["tracking_test_mode"])
             self.assertFalse(config["capture_allowed"])
         with self._http(
+            "/marketing/website-consent/decision", {},
+            base_url="https://legacy.invalid",
+            extra_headers={"Origin": "https://legacy.invalid"},
+        ) as controller:
+            answer = json.loads(controller.decide().get_data())
+            self.assertFalse(answer["accepted"])
+            self.assertFalse(answer.get("tracking_test_mode", False))
+        with self._http(
             "/marketing/website-consent/decision",
             {
                 "granted": False,

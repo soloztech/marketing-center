@@ -13,7 +13,7 @@ from .website_ingress import _config_response, _endpoint_origin_allowed
 def _binding():
     if not request.env.user._is_public() or request.httprequest.scheme != "https":
         return request.env["marketing.website.ingress.binding"]
-    return (
+    binding = (
         request.env["marketing.website.ingress.binding"]
         .sudo()
         .search(
@@ -26,6 +26,9 @@ def _binding():
             limit=1,
         )
     )
+    if binding and _endpoint_origin_allowed(binding.endpoint_id, request.httprequest.host_url):
+        return binding
+    return request.env["marketing.website.ingress.binding"]
 
 
 def _configuration(binding):
