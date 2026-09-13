@@ -474,7 +474,11 @@ class TestMarketingWebsiteCrm(SavepointCase):
         )
         self.assertNotIn("private@example.invalid", serialized)
         self.assertNotIn("Private Person", serialized)
-        intent = self.env["marketing.website.crm.intent"].sudo().search([])
+        intent = (
+            self.env["marketing.website.crm.intent"]
+            .sudo()
+            .search([("lead_id", "=", lead.id)])
+        )
         self.assertEqual(len(intent), 1)
         self.assertEqual(intent.state, "done")
         self.assertEqual(intent.correlation_id, correlation)
