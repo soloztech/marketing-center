@@ -234,6 +234,8 @@ class TestIndividualWebsiteConsent(SavepointCase):
 
     def test_temporary_mode_still_excludes_authenticated_requests(self):
         from unittest.mock import patch
+        from werkzeug.test import EnvironBuilder
+        from werkzeug.wrappers import Request
         from ..models import consent, consent_service
 
         self._test_mode(json.dumps([self.endpoint.id]))
@@ -244,7 +246,13 @@ class TestIndividualWebsiteConsent(SavepointCase):
                 with self.assertRaises(AccessError):
                     self._test_entry()
                 fake.session.uid = False
-                fake.httprequest.environ["wsgi.url_scheme"] = "http"
+                # Request snapshots scheme at construction; mutating environ
+                # alone would leave the fixture HTTPS and test the wrong case.
+                fake.httprequest = Request(EnvironBuilder(
+                    path="/marketing/web-ingress/" + self.endpoint.public_ref,
+                    base_url="http://example.test",
+                    method="POST",
+                ).get_environ())
                 with self.assertRaises(AccessError):
                     self._test_entry()
 
