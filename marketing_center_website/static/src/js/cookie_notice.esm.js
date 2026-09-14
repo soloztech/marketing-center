@@ -77,8 +77,16 @@ publicWidget.registry.cookies_bar.include({
 });
 
 export function startCookieNotice(bar) {
-    if (!informational(bar) || started.has(bar) ||
-        document.body?.classList.contains("editor_enable")) {
+    if (!informational(bar) || document.body?.classList.contains("editor_enable")) {
+        return;
+    }
+    // Previously edited pages may still contain the old preferences shortcut.
+    // Keep their CMS content intact while matching this site's current policy.
+    for (const control of document.querySelectorAll("[data-marketing-consent-revoke]")) {
+        control.hidden = true;
+        control.classList.add("d-none");
+    }
+    if (started.has(bar)) {
         return;
     }
     started.add(bar);

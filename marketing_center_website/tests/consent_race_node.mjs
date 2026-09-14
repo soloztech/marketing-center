@@ -9,9 +9,11 @@ const source = fs.readFileSync(new URL("../static/src/js/consent.esm.js", import
 const ready = {available: true, granted: true, config_revision: 1, policy_version: "test", notice_version: "test"};
 const answer = (value) => ({ok: true, json: async () => value});
 const tick = () => new Promise((resolve) => setImmediate(resolve));
-function tab(fetch, bus = [], cookies = {optional: true}) {
+function tab(fetch, bus = [], cookies = {optional: true}, noticeBar = null) {
     const events = [];
     const deleted = [];
+    const handlers = new Map();
+    const cookieWrites = [];
     let widget;
     class Channel {
         constructor() { this.listeners = []; bus.push(this); }
@@ -24,12 +26,15 @@ function tab(fetch, bus = [], cookies = {optional: true}) {
         publicWidget: {registry: {cookies_bar: {include(value) { widget = value; }}}},
         eligibleLandingPath: () => false,
         deleteCookie: (name) => deleted.push(name),
-        setCookie(_name, value) { cookies.optional = JSON.parse(value).optional; },
-        document: {body: {classList: {contains: () => false}}, addEventListener() {}, dispatchEvent(event) { events.push(event); }},
+        setCookie(name, value) { cookieWrites.push(name); cookies.optional = JSON.parse(value).optional; },
+        document: {body: {classList: {contains: () => false}},
+            getElementById: id => id === "website_cookies_bar" ? noticeBar : null,
+            addEventListener(name, fn) { handlers.set(name, fn); }, dispatchEvent(event) { events.push(event); }},
         window: {fetch, BroadcastChannel: Channel, sessionStorage: {removeItem() {}}, location: {pathname: "/", reload() {}}, addEventListener() {}},
     });
     vm.runInContext(source, context);
-    return {api: context.api, events, widget, cookies, deleted};
+    return {api: context.api, events, widget, cookies, deleted, cookieWrites,
+        clickRevoke() { handlers.get("click")({isTrusted: true, preventDefault() {}, target: {closest: () => ({})}}); }};
 }
 
 // A config response captured before withdrawal must not reactivate consumers.
@@ -110,6 +115,24 @@ function tab(fetch, bus = [], cookies = {optional: true}) {
     assert.equal(posts, 0);
     assert.equal(page.events.some(event => event.detail.granted === true), false);
 }
+// A stale CMS footer shortcut must not write native cookies or submit a decision.
+{
+    let requests = 0;
+    const page = tab(() => { requests++; return Promise.resolve(answer(ready)); }, [],
+        {optional: true}, {dataset: {marketingTrackingNotice: "1"}});
+    page.clickRevoke();
+    await tick();
+    assert.equal(requests, 0);
+    assert.equal(page.cookieWrites.length, 0);
+    assert.equal(page.deleted.length, 0);
+    assert.equal(page.cookies.optional, true);
+    const native = tab((path) => Promise.resolve(answer(path.endsWith("/config") ? ready :
+        {accepted: true, granted: false})), [], {optional: true}, {dataset: {}});
+    native.clickRevoke();
+    await tick();
+    assert.ok(native.cookieWrites.includes("website_cookies_bar"), "individual mode still supports withdrawal");
+    assert.equal(native.cookies.optional, false);
+}
 // The server's informational mode is independent of an absent or refused choice.
 {
     let informational = true;
@@ -149,4 +172,4 @@ function tab(fetch, bus = [], cookies = {optional: true}) {
     assert.equal(second.events.some((event) => event.detail.granted === true), false);
     assert.equal(second.events.every((event) => event.detail.informational_notice === true), true);
 }
-console.log("Consent race tests: 6 scenarios passed, including informational mode, refusal and restoration.");
+console.log("Consent race tests passed, including informational mode, stale CMS shortcuts, refusal and restoration.");

@@ -107,7 +107,8 @@ function fixture(options = {}) {
         body, head: {appendChild: script => scripts.push(script)},
         getElementById: id => id === "marketing_measurement_config" ? (options.noConfig ? null : config) :
             id === "website_cookies_bar" ? (options.noBar ? null : bar) : null,
-        querySelectorAll: selector => selector === "a[href]" ? (options.links || []) : (options.forms || []),
+        querySelectorAll: selector => selector === "[data-marketing-consent-revoke]" ? (options.legacyControls || []) :
+            selector === "a[href]" ? (options.links || []) : (options.forms || []),
         createElement: tag => new Element(tag),
     });
     window.location = new URL(options.url || "https://sales.example.test/contactus?utm_source=google&email=private%40example.com&token=secret#private");
@@ -169,13 +170,16 @@ function fixture(options = {}) {
 }
 
 async function testIndependentNotice() {
-    const f = fixture({authorization: INFORMATIONAL, dataset: {ga4: "", cookieNotice: '<img src=x onerror="alert(1)">', cookieProceedLabel: "Keep browsing"}});
+    const legacy = new Element("button");
+    const f = fixture({authorization: INFORMATIONAL, legacyControls: [legacy], dataset: {ga4: "", cookieNotice: '<img src=x onerror="alert(1)">', cookieProceedLabel: "Keep browsing"}});
     await flush();
     assert.equal(f.scripts.length, 0, "notice works with GA4 disabled");
     assert.equal(f.nativeNotice.textContent, '<img src=x onerror="alert(1)">', "settings are rendered as literal text");
     assert.equal(f.policy.getAttribute("href"), "/privacy");
     assert.equal(f.bar.querySelector(".marketing-cookie-notice-proceed").textContent, "Keep browsing");
     assert.equal(f.controls.length, 0, "native choice controls are absent from server-rendered markup");
+    assert.equal(legacy.hidden, true, "legacy CMS preferences shortcut is hidden under the informational policy");
+    assert.equal(legacy.classList.contains("d-none"), true);
     const originalCookie = f.document.cookie;
     f.clickProceed();
     assert.equal(f.document.cookie, originalCookie);
@@ -187,6 +191,12 @@ async function testIndependentNotice() {
     assert.equal(f.storage.get("marketing_center.website.notice.dismissed.7.copy-v1"), "1");
     f.context.startCookieNotice(f.bar);
     assert.equal(f.bar.listeners.get("click").length, 1);
+    for (const options of [{nativePolicy: true}, {editor: true}]) {
+        const control = new Element("button");
+        fixture({...options, legacyControls: [control]});
+        assert.equal(Boolean(control.hidden), false, "individual mode and editor keep their CMS control");
+        assert.equal(control.classList.contains("d-none"), false);
+    }
 }
 
 async function testNoticeNeverRevertsAfterProceed() {

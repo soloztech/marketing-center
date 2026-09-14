@@ -228,6 +228,11 @@ document.addEventListener("click", (event) => {
         return;
     }
     event.preventDefault();
+    if (document.getElementById("website_cookies_bar")?.dataset.marketingTrackingNotice === "1") {
+        // A stale CMS shortcut cannot change cookies or reload a native choice
+        // on a site whose server-rendered notice is informational.
+        return;
+    }
     setCookie(
         "website_cookies_bar",
         '{"required":true,"optional":false}',
