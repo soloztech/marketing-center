@@ -327,7 +327,7 @@ class MarketingWebsiteActionService(models.AbstractModel):
                 str(action.binding_id.id),
                 endpoint.public_ref,
                 str(endpoint.config_revision),
-                "tracking.test" if endpoint._tracking_test_mode() else "tracking.standard",
+                "tracking.informational" if endpoint._informational_notice() else "tracking.standard",
                 *(
                     [
                         self.env["marketing.website.consent"]

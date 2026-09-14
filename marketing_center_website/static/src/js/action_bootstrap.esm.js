@@ -195,7 +195,7 @@ document.addEventListener("marketing_center:consent-changed", (event) => {
     formClaim = null;
     if (
         event.detail &&
-        (event.detail.tracking_test_mode === true ||
+        (event.detail.informational_notice === true ||
             (event.detail.granted === true && event.detail.confirmed === true))
     ) {
         loadConfig(true)

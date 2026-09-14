@@ -152,39 +152,69 @@ transactional deduplication are enforced by Web Ingress.
 Security and operational notes
 ------------------------------
 
-Temporary operator-controlled capture
+Permanent informational Website policy
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The server-only system parameter
-``marketing_center_website.tracking_test_endpoint_ids`` accepts a JSON array of
-positive integer endpoint IDs, for example ``[3]``. It is disabled by default;
-malformed values, booleans and string IDs fail closed. This explicit temporary
-mode allows attribution without an optional-cookie decision only on the selected
-endpoints. Capture enablement, origin/company checks, public sessions, HTTPS,
-technical-page exclusions, confirmed form results and retention still apply.
+Since 16.0.1.4.0, ``website_tracking_policy`` is a persistent endpoint setting.
+Its default ``individual_consent`` keeps the existing individual consent rules.
+The explicitly selected ``informational_notice`` policy allows documented
+operator-controlled capture without representing a visitor grant. It is part
+of the audited policy field set: changes increment ``config_revision`` and
+record the responsible administrator and timestamp. Purpose, policy and notice
+versions, justification, retention, capture enablement, host/company, anonymous
+session, HTTPS, technical-page and confirmed-event guards still apply.
 
-This is an operational override, not consent or a new legal basis. No accepted
-cookie or consent receipt is manufactured. Captured touchpoints retain the real
-grant if one exists; otherwise they record ``consent_state=unknown``. The audit
-source is ``operator.test_override`` and the extension
-``web_ingress.tracking_test_mode=true`` identifies these captures.
+The Website cookie bar is rendered with one informational text and a Prosseguir
+button. Native choice anchors remain in XML for inherited view compatibility,
+but are not rendered as HTML under this policy. The guard exists before the
+native Odoo popup initializes; no failed/delayed consent request, paused capture,
+old native preference or navigation to login/404 restores choice buttons.
+Prosseguir stores only a dismissal in localStorage, scoped to Website and notice
+content. It creates no native optional-cookie choice or consent receipt. Storage
+failure keeps dismissal in the current page. The notice works without GA4 and
+without a public measurement configuration on the current route.
 
-Ingress and consent configurations expose ``tracking_test_mode`` and
-``capture_allowed`` separately from the actual ``granted`` decision. These flags
-also accompany consent-ready/changed events. Consumers integrating this mode may
-capture when both flags are true while retaining the real granted value. The
-existing consent rules above remain the default. Refusal still records/revokes
-the actual decision but does not clear attribution session data in test mode.
+New evidence records ``consent_state=unknown``,
+``decision_source=operator.website_notice`` and
+``web_ingress.website_tracking_policy=informational_notice``. The migration
+clears an old consent legal-basis label rather than claiming a different legal
+basis. Historical receipts and evidence are not modified or reclassified.
+Public configuration exposes ``informational_notice`` and ``capture_allowed``
+separately from the actual ``granted`` decision. Capturing under this policy
+requires both server flags. It never depends on clicking Prosseguir.
 
-To restore consent gating, remove the endpoint ID or set the parameter to ``[]``.
-Apply the parameter and a same-value endpoint ``name`` ORM write in one database
-transaction: the row update serializes with in-flight capture without changing
-the policy revision or invalidating genuine receipts. Do not bump policy or
-configuration revisions just to toggle this mode. Action receipt signatures
-include the mode and cannot replay across the boundary. The server blocks new
-capture and pending receipt-less CRM intents as soon as the mode is disabled;
-historical evidence is preserved. This mode has no automatic expiration: the
-operator must record its activation and explicitly restore consent gating.
+Upgrade / explicit migration contract
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The old global parameter ``marketing_center_website.tracking_test_endpoint_ids``
+is no longer read. An ordinary module upgrade never promotes its IDs to the
+permanent policy. Before upgrading, the release operator snapshots both old
+Website text fields in every installed language (including ``en_US``), then
+copies the chosen old ``marketing_cookie_test_notice_text`` into
+``marketing_cookie_notice_text`` with the old registry's ORM. This preserves
+custom text and translations when the old field is removed by native upgrade.
+The settings retain just one text, the button label and privacy URL.
+
+After upgrading, use the private ORM helper on the exactly reviewed endpoint::
+
+    endpoint._activate_informational_notice(
+        website_id=reviewed_website_id,
+        binding_id=reviewed_binding_id,
+        company_id=reviewed_company_id,
+        expected_revision=reviewed_revision,
+        policy_version=new_policy_version,
+        notice_version=new_notice_version,
+        justification=reviewed_operator_instruction,
+    )
+
+The helper fences configuration rows, validates exact positive IDs, company,
+active binding/endpoint, enabled native cookie bar, expected revision and new
+policy/notice versions. It writes the policy through the normal audited ORM
+path and returns the resulting identities/revision. No consent history is
+changed. Remove the obsolete parameter only in the reviewed release operation,
+after comparing its exact old value. Preserve snapshots and rollback evidence.
+No public request, context boolean, stale test parameter or default module
+installation can invoke this activation.
 
 Bindings are available only to Marketing Administrators and are fenced by the
 active-company record rule. Active endpoints cannot be archived while a live
@@ -220,11 +250,10 @@ the optional GA4 consumer of confirmed Marketing events. It needs neither
 ``marketing_center_website_crm`` nor any company-specific Website addon. The
 CRM bridge is still required when correlating actual native CRM submissions.
 
-Website → Configuration → Settings → Privacy exposes the normal notice,
-temporary informational notice, continue-button label and policy URL for the
-selected Website. Values are escaped as plain text. Editing them does not grant
-consent or change endpoint policy/revisions. The cookie-bar consumer starts
-independently of GA4 and preserves real choices when the temporary mode ends.
+Website → Configuration → Settings → Privacy exposes one notice text, the
+continue-button label and policy URL for the selected Website. Values are
+escaped as plain text. Editing them does not grant consent or change endpoint
+policy/revisions. The informational bar works independently of GA4.
 
 GA4 reads the native Website ``google_analytics_key``. A configured Marketing
 binding suppresses both native Google scripts, even when paused, so pausing

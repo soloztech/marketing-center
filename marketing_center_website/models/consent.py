@@ -216,7 +216,7 @@ class MarketingWebsiteConsent(models.Model):
         if (
             not endpoint.capture_enabled
             or not endpoint._privacy_policy_configured()
-            or endpoint.privacy_legal_basis_code != "consent"
+            or not endpoint._requires_individual_consent()
         ):
             raise AccessError(_("Individual attribution policy is unavailable."))
         now = now or fields.Datetime.now()

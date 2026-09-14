@@ -90,38 +90,54 @@ function tab(fetch, bus = [], cookies = {optional: true}) {
     const page = tab((path) => Promise.resolve(answer(path.endsWith("/config") ? {...ready, granted: false} : {accepted: true, granted: true})));
     await page.api.loadConsent();
     let nativeTarget;
-    page.widget._onAcceptClick.call({_super(event) { nativeTarget = event.target.id; }}, {target: {id: "icon"}, currentTarget: {id: "cookies-consent-all"}});
+    page.widget._onAcceptClick.call({el: {dataset: {}}, _super(event) { nativeTarget = event.target.id; }}, {target: {id: "icon"}, currentTarget: {id: "cookies-consent-all"}});
     assert.equal(nativeTarget, "cookies-consent-all");
     await tick();
 }
-// The server's temporary mode is independent of an absent or refused choice.
+// Stale native buttons cannot manufacture a decision on a server-rendered notice.
 {
-    let temporary = true;
-    const mode = () => ({...ready, granted: false, tracking_test_mode: temporary, capture_allowed: temporary});
+    let writes = 0, posts = 0;
+    const page = tab((path) => {
+        if (path.endsWith("/decision")) posts++;
+        return Promise.resolve(answer({...ready, available: false, granted: false,
+            informational_notice: true, capture_allowed: true}));
+    });
+    await page.api.loadConsent();
+    page.widget._onAcceptClick.call({el: {dataset: {marketingTrackingNotice: "1"}},
+        _super() { writes++; }}, {target: {id: "cookies-consent-all"}, preventDefault() {}});
+    await tick();
+    assert.equal(writes, 0);
+    assert.equal(posts, 0);
+    assert.equal(page.events.some(event => event.detail.granted === true), false);
+}
+// The server's informational mode is independent of an absent or refused choice.
+{
+    let informational = true;
+    const mode = () => ({...ready, granted: false, informational_notice: informational, capture_allowed: informational});
     const page = tab((path) => Promise.resolve(answer(path.endsWith("/config")
         ? mode() : {...mode(), accepted: true})), [], {optional: false});
     const initial = await page.api.loadConsent();
     assert.equal(initial.granted, false);
-    assert.equal(initial.tracking_test_mode, true);
+    assert.equal(initial.informational_notice, true);
     assert.equal(page.deleted.length, 0);
     await page.api.submitConsent(false);
     assert.equal(page.cookies.optional, false);
     assert.equal(page.deleted.length, 0);
     assert.equal(page.events.some((event) => event.detail.granted === true), false);
     assert.equal(page.events.filter((event) => event.type.endsWith("consent-changed"))
-        .every((event) => event.detail.tracking_test_mode === true), true);
-    temporary = false;
+        .every((event) => event.detail.informational_notice === true), true);
+    informational = false;
     const restored = await page.api.loadConsent(true);
-    assert.equal(restored.tracking_test_mode, false);
+    assert.equal(restored.informational_notice, false);
     assert.equal(restored.capture_allowed, false);
     assert.ok(page.deleted.includes("odoo_utm_source"));
 }
 
-// Cross-tab refusal preserves test attribution but cannot grant real consent.
+// Cross-tab refusal preserves informational attribution but cannot grant real consent.
 {
     const bus = [], cookies = {optional: false};
     const fetch = (path) => Promise.resolve(answer({
-        ...ready, granted: false, tracking_test_mode: true, capture_allowed: true,
+        ...ready, granted: false, informational_notice: true, capture_allowed: true,
         ...(!path.endsWith("/config") ? {accepted: true} : {}),
     }));
     const first = tab(fetch, bus, cookies), second = tab(fetch, bus, cookies);
@@ -131,6 +147,6 @@ function tab(fetch, bus = [], cookies = {optional: true}) {
     await tick();
     assert.equal(second.deleted.length, 0);
     assert.equal(second.events.some((event) => event.detail.granted === true), false);
-    assert.equal(second.events.every((event) => event.detail.tracking_test_mode === true), true);
+    assert.equal(second.events.every((event) => event.detail.informational_notice === true), true);
 }
-console.log("Consent race tests: 6 scenarios passed, including temporary mode, refusal and restoration.");
+console.log("Consent race tests: 6 scenarios passed, including informational mode, refusal and restoration.");

@@ -12,7 +12,7 @@ class MarketingWebIngressService(models.AbstractModel):
 
     @api.model
     def _ingest_payload(self, endpoint, payload, **kwargs):
-        if endpoint.privacy_legal_basis_code == "consent":
+        if endpoint.privacy_legal_basis_code == "consent" or endpoint._informational_notice():
             if (
                 endpoint._requires_individual_consent()
                 and not self.env["marketing.website.consent"]._current(endpoint)
@@ -48,34 +48,23 @@ class MarketingWebIngressService(models.AbstractModel):
     @api.model
     def _touchpoint_dto(self, endpoint, *args, **kwargs):
         dto = super()._touchpoint_dto(endpoint, *args, **kwargs)
+        if endpoint._informational_notice():
+            # This is an operator capture policy, never a visitor's grant. Old
+            # receipts remain immutable, and none is reused for this new policy.
+            return replace(
+                dto,
+                privacy=replace(
+                    dto.privacy,
+                    consent_state="unknown",
+                    decision_source="operator.website_notice",
+                    decided_at=None,
+                ),
+                extensions={**dto.extensions,
+                            "web_ingress.website_tracking_policy": "informational_notice"},
+            )
         if endpoint.privacy_legal_basis_code != "consent":
             return dto
         decision = self.env["marketing.website.consent"]._current(endpoint)
-        if endpoint._tracking_test_mode():
-            # The operator enabled capture, not consent. Record this distinction
-            # durably without inventing a legal basis or an accepted cookie.
-            privacy = (
-                PrivacySnapshotDTO(
-                    policy_version=decision.policy_version,
-                    notice_version=decision.notice_version,
-                    legal_basis_code=endpoint.privacy_legal_basis_code,
-                    consent_state="granted",
-                    decision_source="operator.test_override",
-                    decided_at=decision.decided_at,
-                )
-                if decision
-                else replace(
-                    dto.privacy,
-                    consent_state="unknown",
-                    decision_source="operator.test_override",
-                    decided_at=None,
-                )
-            )
-            return replace(
-                dto,
-                privacy=privacy,
-                extensions={**dto.extensions, "web_ingress.tracking_test_mode": True},
-            )
         if not decision:
             raise AccessError(_("Individual consent is required."))
         return replace(

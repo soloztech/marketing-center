@@ -58,7 +58,6 @@ class MarketingWebsiteCrmFormController(
                     [
                         ("website_id", "=", website.id),
                         ("company_id", "=", website.company_id.id),
-                        ("endpoint_id.privacy_legal_basis_code", "=", "consent"),
                     ],
                     limit=1,
                 )

@@ -26,9 +26,24 @@
         </xpath>
     </template>
     <template id="cookie_notice" inherit_id="website.cookies_bar" priority="105" name="Marketing Website cookie notice">
+        <xpath expr="//div[@id='website_cookies_bar']" position="attributes">
+            <attribute name="t-att-data-marketing-tracking-notice">'1' if website._marketing_informational_notice() else None</attribute>
+            <attribute name="t-att-data-marketing-notice-storage-key">website._marketing_notice_storage_key() if website._marketing_informational_notice() else None</attribute>
+        </xpath>
+        <xpath expr="//*[@id='cookies-consent-essential']" position="attributes">
+            <attribute name="t-if">not website._marketing_informational_notice()</attribute>
+        </xpath>
+        <xpath expr="//*[@id='cookies-consent-all']" position="attributes">
+            <attribute name="t-if">not website._marketing_informational_notice()</attribute>
+        </xpath>
+        <xpath expr="//*[@id='cookies-consent-all']" position="after">
+            <button t-if="website._marketing_informational_notice()" type="button"
+                    class="marketing-cookie-notice-proceed btn btn-primary"
+                    t-out="website.marketing_cookie_proceed_label"/>
+        </xpath>
         <xpath expr="//a[hasclass('o_cookies_bar_text_policy')]/preceding-sibling::span" position="replace">
             <span class="pe-1">
-                <t t-if="website._marketing_measurement_managed()" t-out="website.marketing_cookie_notice_text"/>
+                <t t-if="website._marketing_informational_notice()" t-out="website.marketing_cookie_notice_text"/>
                 <t t-else="">We use cookies to provide you a better user experience on this website.</t>
             </span>
         </xpath>

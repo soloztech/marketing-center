@@ -59,9 +59,9 @@ function notify(name, detail) {
 }
 
 function clearOptionalSession() {
-    // An explicit server test mode preserves attribution independently of the
-    // real cookie choice. It never changes that choice or creates a grant.
-    if (choice && choice.tracking_test_mode === true) {
+    // An explicit server informational policy preserves attribution independently of the
+    // cookie choice. It never changes that choice or creates a grant.
+    if (choice && choice.informational_notice === true) {
         return;
     }
     const hostname = window.location.hostname || "";
@@ -102,12 +102,12 @@ export function loadConsent(refresh = false) {
                     return choice || {available: false, granted: false};
                 }
                 choice =
-                    value && (value.available === true || value.tracking_test_mode === true)
+                    value && (value.available === true || value.informational_notice === true)
                         ? {...value}
                         : {
                             available: false,
                             granted: false,
-                            tracking_test_mode: false,
+                            informational_notice: false,
                             capture_allowed: false,
                         };
                 if (withdrawalPending) {
@@ -115,7 +115,7 @@ export function loadConsent(refresh = false) {
                     // The independent operator mode still comes from the server.
                     choice.granted = false;
                     choice.capture_allowed = Boolean(
-                        choice.tracking_test_mode && choice.capture_allowed
+                        choice.informational_notice && choice.capture_allowed
                     );
                 }
                 if (!choice.granted) {
@@ -185,10 +185,10 @@ export async function submitConsent(granted) {
         choice = {
             ...config,
             granted: actualGrant,
-            tracking_test_mode: accepted && result.tracking_test_mode === true,
+            informational_notice: accepted && result.informational_notice === true,
             capture_allowed: accepted && (result.capture_allowed === true || actualGrant),
         };
-        if (!actualGrant && config.tracking_test_mode === true && !choice.tracking_test_mode) {
+        if (!actualGrant && config.informational_notice === true && !choice.informational_notice) {
             clearOptionalSession();
         }
         pending = Promise.resolve(choice);
@@ -201,6 +201,12 @@ export async function submitConsent(granted) {
 
 publicWidget.registry.cookies_bar.include({
     _onAcceptClick(event) {
+        if (this.el.dataset.marketingTrackingNotice === "1") {
+            // Defensive against stale CMS markup: an informational notice never
+            // delegates to Odoo's optional-cookie grant/persistence handler.
+            event.preventDefault?.();
+            return;
+        }
         const control =
             event.currentTarget ||
             event.target.closest("#cookies-consent-all, #cookies-consent-essential");

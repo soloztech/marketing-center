@@ -18,13 +18,7 @@ class Website(models.Model):
     _inherit = "website"
 
     marketing_cookie_notice_text = fields.Text(
-        string="Aviso com escolha de cookies",
-        translate=True,
-        default="Usamos cookies necessários para o site funcionar. Se você aceitar os opcionais, "
-        "medimos visitas e atribuímos contatos às campanhas.",
-    )
-    marketing_cookie_test_notice_text = fields.Text(
-        string="Aviso informativo temporário",
+        string="Texto do aviso de cookies",
         translate=True,
         default="Usamos cookies e tecnologias semelhantes para melhorar a experiencia do site. "
         "Ao continuar navegando, você está ciente desse uso.",
@@ -37,14 +31,13 @@ class Website(models.Model):
     )
 
     @api.constrains(
-        "marketing_cookie_notice_text", "marketing_cookie_test_notice_text",
+        "marketing_cookie_notice_text",
         "marketing_cookie_proceed_label", "marketing_cookie_policy_url",
     )
     def _check_marketing_cookie_notice(self):
         for website in self:
             for name, limit in (
                 ("marketing_cookie_notice_text", 4000),
-                ("marketing_cookie_test_notice_text", 4000),
                 ("marketing_cookie_proceed_label", 80),
             ):
                 value = website[name] or ""
@@ -74,6 +67,23 @@ class Website(models.Model):
         return self.env["marketing.website.ingress.binding"].sudo().with_context(
             active_test=False,
         ).search(domain, limit=1)
+
+    def _marketing_informational_notice(self):
+        """The notice remains informational when capture is paused.
+
+        This server-rendered flag precedes Odoo's popup startup, so a delayed
+        authorization request cannot turn the notice into native choice buttons.
+        """
+        binding = self._marketing_measurement_binding(active=False)
+        return bool(binding and binding.endpoint_id._informational_notice())
+
+    def _marketing_notice_storage_key(self):
+        self.ensure_one()
+        text = "\n".join((self.marketing_cookie_notice_text or "",
+                          self.marketing_cookie_proceed_label or "",
+                          self.marketing_cookie_policy_url or ""))
+        digest = hashlib.sha256(text.encode()).hexdigest()[:16]
+        return "marketing_center.website.notice.dismissed.%s.%s" % (self.id, digest)
 
     def _marketing_measurement_managed(self):
         """Do not revive OCB's Google loader when a configured binding is paused."""
@@ -111,7 +121,7 @@ class Website(models.Model):
         result = {
             "form": "", "whatsapp": "", "whatsapp_link_hash": "", "ga4": "",
             "path": path, "website_id": self.id,
-            "cookie_notice": self.marketing_cookie_test_notice_text or "",
+            "cookie_notice": self.marketing_cookie_notice_text or "",
             "cookie_proceed_label": self.marketing_cookie_proceed_label or "",
             "cookie_policy_url": self.marketing_cookie_policy_url or "/cookie-policy",
         }

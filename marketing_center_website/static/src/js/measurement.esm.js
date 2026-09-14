@@ -41,7 +41,7 @@ export function referrerOrigin(value) {
 
 export function measurementAllowed(value, confirmed = true) {
     return confirmed === true && (value?.granted === true ||
-        (value?.tracking_test_mode === true && value?.capture_allowed === true));
+        (value?.informational_notice === true && value?.capture_allowed === true));
 }
 
 export async function annotateWebsiteActions(config) {

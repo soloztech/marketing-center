@@ -9,18 +9,25 @@
                 <div class="col-12 o_setting_box" id="marketing_cookie_notice_setting"
                      attrs="{'invisible': [('website_cookies_bar', '=', False)]}">
                     <div class="o_setting_right_pane">
-                        <span class="o_form_label">Textos do aviso de cookies</span>
-                        <div class="text-muted">Personalize o aviso do site selecionado. Alterar o texto não muda a regra de rastreamento.</div>
+                        <span class="o_form_label">Aviso de cookies</span>
+                        <div class="text-muted">Personalize o aviso do site selecionado. Prosseguir fecha o aviso; não registra consentimento.</div>
                         <div class="content-group mt16">
-                            <label for="marketing_cookie_notice_text"/>
-                            <field name="marketing_cookie_notice_text" class="w-100"/>
-                            <label for="marketing_cookie_test_notice_text"/>
-                            <field name="marketing_cookie_test_notice_text" class="w-100"/>
-                            <div class="text-muted mb8">O aviso informativo aparece enquanto o modo temporário estiver ativo.</div>
-                            <label for="marketing_cookie_proceed_label"/>
-                            <field name="marketing_cookie_proceed_label"/>
-                            <label for="marketing_cookie_policy_url"/>
-                            <field name="marketing_cookie_policy_url" placeholder="/cookie-policy"/>
+                            <div class="row mb16">
+                                <div class="col-12">
+                                    <label for="marketing_cookie_notice_text"/>
+                                    <field name="marketing_cookie_notice_text" class="w-100"/>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-12 col-lg-4 mb8">
+                                    <label for="marketing_cookie_proceed_label"/>
+                                    <field name="marketing_cookie_proceed_label" class="w-100"/>
+                                </div>
+                                <div class="col-12 col-lg-8 mb8">
+                                    <label for="marketing_cookie_policy_url"/>
+                                    <field name="marketing_cookie_policy_url" class="w-100" placeholder="/cookie-policy"/>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

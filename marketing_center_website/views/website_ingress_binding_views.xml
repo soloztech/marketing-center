@@ -78,7 +78,10 @@
     <field name="model">marketing.web.ingress.endpoint</field>
     <field name="inherit_id" ref="marketing_center_web_ingress.view_marketing_web_ingress_endpoint_form" />
     <field name="arch" type="xml">
-      <field name="retention_mode" position="after"><field name="consent_ttl_days" /></field>
+      <field name="retention_mode" position="after">
+        <field name="website_tracking_policy"/>
+        <field name="consent_ttl_days" attrs="{'invisible': [('website_tracking_policy', '=', 'informational_notice')]}"/>
+      </field>
     </field>
   </record>
 </odoo>

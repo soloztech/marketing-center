@@ -73,7 +73,7 @@ class MarketingWebsiteIngressController(http.Controller):
             or endpoint.company_id != website.company_id
             or not _endpoint_origin_allowed(endpoint, request.httprequest.host_url)
             or (
-                endpoint.privacy_legal_basis_code == "consent"
+                (endpoint._requires_individual_consent() or endpoint._informational_notice())
                 and request.httprequest.scheme != "https"
             )
         ):
@@ -84,7 +84,7 @@ class MarketingWebsiteIngressController(http.Controller):
                 "ingest_path": "/marketing/web-ingress/%s" % endpoint.public_ref,
                 "public_key": endpoint.public_key,
                 "config_revision": endpoint.config_revision,
-                "tracking_test_mode": endpoint._tracking_test_mode(),
+                "informational_notice": endpoint._informational_notice(),
                 "capture_allowed": True,
                 **(
                     {
@@ -92,7 +92,7 @@ class MarketingWebsiteIngressController(http.Controller):
                         ._current(endpoint)
                         .public_ref
                     }
-                    if endpoint.privacy_legal_basis_code == "consent"
+                    if endpoint._requires_individual_consent()
                     else {}
                 ),
             }

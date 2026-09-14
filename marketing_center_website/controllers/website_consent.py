@@ -43,17 +43,18 @@ def _configuration(binding):
         return {
             "available": False,
             "granted": False,
-            "tracking_test_mode": False,
+            "informational_notice": False,
             "capture_allowed": False,
         }
-    decision = request.env["marketing.website.consent"]._current(endpoint)
+    decision = (request.env["marketing.website.consent"] if endpoint._informational_notice()
+                else request.env["marketing.website.consent"]._current(endpoint))
     return {
         "available": bool(
             binding.website_id.cookies_bar
-            and endpoint.privacy_legal_basis_code == "consent"
+            and endpoint._requires_individual_consent()
         ),
         "granted": bool(decision),
-        "tracking_test_mode": endpoint._tracking_test_mode(),
+        "informational_notice": endpoint._informational_notice(),
         "capture_allowed": bool(endpoint._capture_policy_allows()),
         "config_revision": endpoint.config_revision,
         "policy_version": endpoint.privacy_policy_version,
@@ -141,9 +142,9 @@ class MarketingWebsiteConsentController(http.Controller):
                         "accepted": True,
                         "granted": False,
                         "notice_version": endpoint.privacy_notice_version,
-                        "tracking_test_mode": endpoint._tracking_test_mode(),
+                        "informational_notice": endpoint._informational_notice(),
                         "capture_allowed": bool(
-                            endpoint._tracking_test_mode()
+                            endpoint._informational_notice()
                             and endpoint.capture_enabled
                             and endpoint._privacy_policy_configured()
                         ),
@@ -189,7 +190,7 @@ class MarketingWebsiteConsentController(http.Controller):
                     "accepted": True,
                     "granted": True,
                     "notice_version": decision.notice_version,
-                    "tracking_test_mode": endpoint._tracking_test_mode(),
+                    "informational_notice": endpoint._informational_notice(),
                     "capture_allowed": True,
                 }
             )
