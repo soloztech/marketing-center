@@ -9,7 +9,11 @@ from odoo.addons.meta_api_base.services.credentials import MetaRuntimeApp
 from odoo.addons.meta_api_base.services.errors import MetaApiError
 
 from ..services.adapter import MetaMarketingReadAdapter
-from ..services.lead_ads import fetch_meta_lead, fetch_meta_lead_page
+from ..services.lead_ads import (
+    fetch_meta_lead,
+    fetch_meta_lead_page,
+    normalize_meta_lead,
+)
 
 
 class TestMetaLeadAdsAdapter(SavepointCase):
@@ -125,6 +129,130 @@ class TestMetaLeadAdsAdapter(SavepointCase):
                 since=datetime.datetime(2026, 9, 1),
                 after="same",
             )
+
+    def test_free_text_answer_preserves_internal_multiline_whitespace(self):
+        answer = "\t Primeira\tlinha\nSegunda linha\r\nTerceira\rlinha\r "
+        payload = self._payload(
+            field_data=[{"name": "comments", "values": [answer]}]
+        )
+        lead = normalize_meta_lead(payload)
+        self.assertEqual(lead.fields[0].values, (answer.strip(),))
+        self.assertEqual(
+            lead.payload_sha256, normalize_meta_lead(payload).payload_sha256
+        )
+        changed = normalize_meta_lead(
+            self._payload(
+                field_data=[{"name": "comments", "values": [answer.strip()]}]
+            )
+        )
+        self.assertEqual(lead.payload_sha256, changed.payload_sha256)
+
+    def test_previously_accepted_value_keeps_normalization_and_hash(self):
+        plain = self._payload(
+            field_data=[{"name": "comments", "values": ["answer"]}]
+        )
+        padded = self._payload(
+            field_data=[{"name": "comments", "values": ["\t answer\r\n"]}]
+        )
+        lead = normalize_meta_lead(padded)
+        self.assertEqual(lead.fields[0].values, ("answer",))
+        self.assertEqual(
+            lead.payload_sha256, normalize_meta_lead(plain).payload_sha256
+        )
+
+    def test_free_text_answer_rejects_other_controls_and_keeps_value_bounds(self):
+        for codepoint in set(range(32)) - {9, 10, 13}:
+            answer = "before" + chr(codepoint) + "after"
+            with self.subTest(codepoint=codepoint):
+                with self.assertRaisesRegex(
+                    MetaApiError, "Meta lead field value is invalid"
+                ):
+                    normalize_meta_lead(
+                        self._payload(
+                            field_data=[{"name": "comments", "values": [answer]}]
+                        )
+                    )
+        for answer in ("a" * 4097, "a\n" + "a" * 4095, 42, {}, []):
+            with self.subTest(answer_type=type(answer).__name__):
+                with self.assertRaisesRegex(
+                    MetaApiError, "Meta lead field value is invalid"
+                ):
+                    normalize_meta_lead(
+                        self._payload(
+                            field_data=[{"name": "comments", "values": [answer]}]
+                        )
+                    )
+        boundary = "a\n" + "a" * 4094
+        lead = normalize_meta_lead(
+            self._payload(field_data=[{"name": "comments", "values": [boundary]}])
+        )
+        self.assertEqual(lead.fields[0].values, (boundary,))
+
+    def test_multiline_answers_do_not_relax_identifiers_names_or_cursors(self):
+        for control in ("\t", "\n", "\r"):
+            for key in ("id", "form_id", "ad_id", "campaign_id"):
+                with self.subTest(control=repr(control), identifier=key):
+                    with self.assertRaises(MetaApiError):
+                        normalize_meta_lead(
+                            self._payload(**{key: "123" + control + "456"})
+                        )
+            with self.subTest(control=repr(control), field="name"):
+                with self.assertRaises(MetaApiError):
+                    normalize_meta_lead(
+                        self._payload(
+                            field_data=[
+                                {
+                                    "name": "first" + control + "name",
+                                    "values": ["answer"],
+                                }
+                            ]
+                        )
+                    )
+            cursor = "before" + control + "after"
+            with self.subTest(control=repr(control), cursor="request"):
+                with patch(
+                    "odoo.addons.marketing_center_meta.services.lead_ads.graph_request"
+                ) as request, self.assertRaises(MetaApiError):
+                    fetch_meta_lead_page(
+                        self.runtime_app,
+                        "synthetic-token",
+                        "300000000000001",
+                        after=cursor,
+                    )
+                request.assert_not_called()
+            with self.subTest(control=repr(control), cursor="response"):
+                payload = {
+                    "data": [self._payload()],
+                    "paging": {
+                        "next": "https://graph.facebook.com/private",
+                        "cursors": {"after": cursor},
+                    },
+                }
+                with patch(
+                    "odoo.addons.marketing_center_meta.services.lead_ads.graph_request",
+                    return_value=payload,
+                ), self.assertRaises(MetaApiError):
+                    fetch_meta_lead_page(
+                        self.runtime_app, "synthetic-token", "300000000000001"
+                    )
+
+    def test_one_multiline_answer_does_not_abort_a_full_reconciliation_page(self):
+        rows = [self._payload(id=str(200000000000001 + i)) for i in range(85)]
+        answer = "linha\nlinha"
+        rows[42]["field_data"] = [{"name": "comments", "values": [answer]}]
+        with patch(
+            "odoo.addons.marketing_center_meta.services.lead_ads.graph_request",
+            return_value={"data": rows},
+        ):
+            page = fetch_meta_lead_page(
+                self.runtime_app, "synthetic-token", "300000000000001"
+            )
+        self.assertEqual(len(page.leads), 85)
+        self.assertEqual(
+            [lead.leadgen_id for lead in page.leads], [row["id"] for row in rows]
+        )
+        self.assertEqual(page.leads[42].fields[0].values, (answer,))
+        self.assertFalse(page.has_more)
 
     def test_lead_reader_validation_does_not_require_ads_read(self):
         app = Mock()

@@ -153,7 +153,13 @@ def _lead_field(value):
     if not isinstance(raw_values, list) or len(raw_values) > _MAX_VALUES_PER_FIELD:
         raise MetaApiError("Meta lead field values are invalid")
     values = tuple(
-        _bounded_text(item, "lead field value", _MAX_VALUE_LENGTH, required=False)
+        _bounded_text(
+            item,
+            "lead field value",
+            _MAX_VALUE_LENGTH,
+            required=False,
+            allow_multiline=True,
+        )
         for item in raw_values
     )
     return MetaLeadField(name=name, values=values)
@@ -213,7 +219,7 @@ def _optional_identifier(value, label):
     return _identifier(value, label)
 
 
-def _bounded_text(value, label, limit, required=True):
+def _bounded_text(value, label, limit, required=True, *, allow_multiline=False):
     if value is None:
         value = ""
     if not isinstance(value, str):
@@ -221,7 +227,11 @@ def _bounded_text(value, label, limit, required=True):
     value = value.strip()
     if required and not value:
         raise MetaApiError("Meta %s is unavailable" % label)
-    if len(value) > limit or any(ord(character) < 32 for character in value):
+    # Free-text answers may contain line breaks; identifiers and cursors may not.
+    if len(value) > limit or any(
+        ord(character) < 32 and not (allow_multiline and character in "\t\n\r")
+        for character in value
+    ):
         raise MetaApiError("Meta %s is invalid" % label)
     return value
 
