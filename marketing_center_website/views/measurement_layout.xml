@@ -30,6 +30,9 @@
             <attribute name="t-att-data-marketing-tracking-notice">'1' if website._marketing_informational_notice() else None</attribute>
             <attribute name="t-att-data-marketing-notice-storage-key">website._marketing_notice_storage_key() if website._marketing_informational_notice() else None</attribute>
         </xpath>
+        <xpath expr="//div[hasclass('modal')]" position="attributes">
+            <attribute name="t-att-aria-label">'Aviso de cookies' if website._marketing_informational_notice() else 'Preferências de cookies'</attribute>
+        </xpath>
         <xpath expr="//*[@id='cookies-consent-essential']" position="attributes">
             <attribute name="t-if">not website._marketing_informational_notice()</attribute>
         </xpath>
