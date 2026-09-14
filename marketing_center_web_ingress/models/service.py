@@ -388,7 +388,7 @@ class MarketingWebIngressService(models.AbstractModel):
             privacy=PrivacySnapshotDTO(
                 policy_version=endpoint.privacy_policy_version,
                 notice_version=endpoint.privacy_notice_version,
-                legal_basis_code=endpoint.privacy_legal_basis_code,
+                legal_basis_code=endpoint.privacy_legal_basis_code or "",
                 consent_state=payload.consent_state,
                 decision_source=(
                     "server_internal" if payload.consent_state != "unknown" else ""

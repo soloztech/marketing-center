@@ -192,11 +192,15 @@ class TestIndividualWebsiteConsent(SavepointCase):
         before = decision.read()[0]
         count = self.consent.search_count([])
         self._informational_policy()
+        # Odoo represents an empty Char as False; the DTO boundary must accept
+        # the absence of a legal-basis assertion without inventing one.
+        self.assertIs(self.endpoint.privacy_legal_basis_code, False)
         result = self._test_entry(self._trusted_endpoint(decision))
         touchpoint = self.env["marketing.attribution.touchpoint"].browse(result.touchpoint_id)
         self.assertEqual(touchpoint.consent_state, "unknown")
         self.assertFalse(touchpoint.legal_basis_code)
         self.assertEqual(touchpoint.privacy_decision_source, "operator.website_notice")
+        self.assertFalse(touchpoint.privacy_decided_at)
         self.assertEqual(touchpoint.extensions_json["web_ingress.website_tracking_policy"], "informational_notice")
         self.assertNotIn("web_ingress.tracking_test_mode", touchpoint.extensions_json)
         self.assertEqual(self.consent.search_count([]), count)
