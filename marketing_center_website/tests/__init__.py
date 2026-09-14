@@ -9,3 +9,4 @@ from . import (
     test_js,
 )
 from . import test_individual_consent
+from . import test_measurement_config

@@ -211,3 +211,39 @@ they are transport capabilities, not attribution evidence. Their lifecycle is
 one-way (``issued`` to ``consumed`` or ``revoked``) in both ORM and database
 constraints. Grant lookup is
 scoped to the resolved Website and company before any cross-model row is locked.
+
+Website notice and optional Google measurement
+---------------------------------------------
+
+Since 16.0.1.3.0 this adapter also owns the native cookie-bar integration and
+the optional GA4 consumer of confirmed Marketing events. It needs neither
+``marketing_center_website_crm`` nor any company-specific Website addon. The
+CRM bridge is still required when correlating actual native CRM submissions.
+
+Website → Configuration → Settings → Privacy exposes the normal notice,
+temporary informational notice, continue-button label and policy URL for the
+selected Website. Values are escaped as plain text. Editing them does not grant
+consent or change endpoint policy/revisions. The cookie-bar consumer starts
+independently of GA4 and preserves real choices when the temporary mode ends.
+
+GA4 reads the native Website ``google_analytics_key``. A configured Marketing
+binding suppresses both native Google scripts, even when paused, so pausing
+capture cannot accidentally revive another loader. Unmanaged Websites retain
+their native behavior. The public configuration is rendered outside QWeb's
+shared cache and is restricted to the active Website/company, HTTPS host,
+anonymous user and published unrestricted page. Server consent/capture checks
+remain authoritative; DOM metadata is not an authorization capability.
+
+The optional consumer sends one page view, ``generate_lead`` after a confirmed
+form receipt and ``whatsapp_handoff`` after a confirmed handoff. It does not
+read form values or treat a thank-you page as proof. Google query/referrer data
+is filtered more narrowly than the first-party ingress, and advertising
+storage/user data/personalization remain denied. Keep automatic Google form
+tracking and duplicate Google/GTM loaders disabled for this event contract.
+
+Existing explicit action markers are preserved. Automatic form annotation
+requires exactly one eligible native CRM form and one configured action.
+WhatsApp annotation requires a SHA-256 match of the existing public link's
+destination and message against the configured action; special document-request
+messages continue normally instead of being replaced by a generic handoff.
+Administrative destinations/messages are not advertised in configuration.

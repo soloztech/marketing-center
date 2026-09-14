@@ -7,3 +7,4 @@ from . import (
     website_ingress_binding,
 )
 from . import consent, consent_service
+from . import res_config_settings

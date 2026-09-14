@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="measurement_layout" inherit_id="website.layout" priority="105" name="Marketing Website measurement">
+        <xpath expr="//script[@id='tracking_code']" position="attributes">
+            <attribute name="t-if">not website._marketing_measurement_managed()</attribute>
+        </xpath>
+        <xpath expr="//script[@id='tracking_code_config']" position="attributes">
+            <attribute name="t-if">not website._marketing_measurement_managed()</attribute>
+        </xpath>
+        <xpath expr="//div[@id='wrapwrap']" position="before">
+            <t t-nocache="Measurement configuration is specific to the request, host and public user.">
+                <t t-if="website and not editable">
+                    <t t-set="marketing_measurement" t-value="website._marketing_measurement_config()"/>
+                    <div t-if="marketing_measurement" id="marketing_measurement_config" hidden="hidden"
+                         t-att-data-ga4="marketing_measurement['ga4']"
+                         t-att-data-path="marketing_measurement['path']"
+                         t-att-data-website-id="marketing_measurement['website_id']"
+                         t-att-data-form="marketing_measurement['form']"
+                         t-att-data-whatsapp="marketing_measurement['whatsapp']"
+                         t-att-data-whatsapp-link-hash="marketing_measurement['whatsapp_link_hash']"
+                         t-att-data-cookie-notice="marketing_measurement['cookie_notice']"
+                         t-att-data-cookie-proceed-label="marketing_measurement['cookie_proceed_label']"
+                         t-att-data-cookie-policy-url="marketing_measurement['cookie_policy_url']"/>
+                </t>
+            </t>
+        </xpath>
+    </template>
+    <template id="cookie_notice" inherit_id="website.cookies_bar" priority="105" name="Marketing Website cookie notice">
+        <xpath expr="//a[hasclass('o_cookies_bar_text_policy')]/preceding-sibling::span" position="replace">
+            <span class="pe-1">
+                <t t-if="website._marketing_measurement_managed()" t-out="website.marketing_cookie_notice_text"/>
+                <t t-else="">We use cookies to provide you a better user experience on this website.</t>
+            </span>
+        </xpath>
+        <xpath expr="//a[hasclass('o_cookies_bar_text_policy')]" position="attributes">
+            <attribute name="t-att-href">website.marketing_cookie_policy_url if website._marketing_measurement_managed() else '/cookie-policy'</attribute>
+        </xpath>
+    </template>
+</odoo>
