@@ -98,11 +98,17 @@ class TestMarketingWebsiteCrm(SavepointCase):
             ("lead_id", "=", intent.lead_id.id),
         ]))
         pending = self._pending_intent("Pending informational capture")
+        links_before = self.env["marketing.attribution.crm.link"].search([]).ids
         self.endpoint.capture_enabled = False
         with self.assertRaises(AccessError):
             self.service._process_intent(pending)
         with self.assertRaises(AccessError):
             self.service._reconcile_session_now(pending)
+        with self.assertRaises(AccessError):
+            self.service._append_session_assertions(
+                pending, self.env["marketing.attribution.touchpoint"].browse(entry.touchpoint_id),
+            )
+        self.assertEqual(self.env["marketing.attribution.crm.link"].search([]).ids, links_before)
         self.assertFalse(pending.correlation_id)
         self.assertEqual(intent.state, "done")
 

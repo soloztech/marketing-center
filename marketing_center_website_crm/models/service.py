@@ -381,12 +381,19 @@ class MarketingWebsiteCrmService(models.AbstractModel):
         return correlation
 
     @api.model
+    def _require_session_capture_policy(self, intent):
+        # Durable intents may supply their validated receipt without a browser
+        # cookie. Informational policies still honor the endpoint pause switch.
+        endpoint = intent.endpoint_id.with_context(
+            website_consent_internal=CONSENT_CONTEXT_TOKEN,
+            website_consent_id=intent.consent_id.id,
+        )
+        if not endpoint._capture_policy_allows():
+            raise AccessError(_("The Website capture policy is no longer available."))
+
+    @api.model
     def _reconcile_session_now(self, intent):
-        if (
-            intent.endpoint_id._requires_individual_consent()
-            and not intent.consent_id._is_current(intent.endpoint_id)
-        ):
-            raise AccessError(_("The individual Website decision is no longer valid."))
+        self._require_session_capture_policy(intent)
         now = fields.Datetime.now()
         try:
             with self.env.cr.savepoint():
@@ -540,11 +547,7 @@ class MarketingWebsiteCrmService(models.AbstractModel):
 
     @api.model
     def _append_session_assertions(self, intent, touchpoints):
-        if (
-            intent.endpoint_id._requires_individual_consent()
-            and not intent.consent_id._is_current(intent.endpoint_id)
-        ):
-            raise AccessError(_("The individual Website decision is no longer valid."))
+        self._require_session_capture_policy(intent)
         if not intent._session_retention_available() or not intent.lead_id:
             return self.env["marketing.attribution.crm.link"]
         authority_ref = self._session_authority_ref(intent)
