@@ -10,3 +10,4 @@ from . import (
 )
 from . import test_individual_consent
 from . import test_measurement_config
+from . import test_native_utm_policy

@@ -64,10 +64,15 @@ class MarketingWebsiteCrmFormController(
             )
             if binding and not binding.endpoint_id._capture_policy_allows():
                 # Native utm.mixin.default_get reads residual cookies without a
-                # consent check. Explicit False prevents those defaults during
-                # this Website form only, before any native lead is created.
+                # consent check. Discard attribution while retaining the native
+                # Website channel, which describes this form rather than cookies.
+                # Do not reuse medium_id: the native input filter may already
+                # have resolved a residual cookie into that value.
                 values = dict(
-                    values, campaign_id=False, source_id=False, medium_id=False
+                    values,
+                    campaign_id=False,
+                    source_id=False,
+                    medium_id=request.env.ref("utm.utm_medium_website").id,
                 )
         return super().insert_record(request, model, values, custom, meta=meta)
 

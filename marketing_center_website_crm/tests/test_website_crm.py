@@ -1637,6 +1637,7 @@ class TestMarketingWebsiteCrm(SavepointCase):
         medium = self.env["utm.medium"].create(
             {"name": "Native medium " + uuid.uuid4().hex}
         )
+        website_medium = self.env.ref("utm.utm_medium_website")
         cookies = "; ".join(
             [
                 "odoo_utm_campaign=" + campaign.name,
@@ -1650,7 +1651,7 @@ class TestMarketingWebsiteCrm(SavepointCase):
         public_env = self.env(user=self.website.user_id.id)
         controller = MarketingWebsiteCrmFormController()
 
-        def insert(cookie):
+        def insert(cookie, supplied_medium=None):
             fake = SimpleNamespace(
                 httprequest=Request(
                     EnvironBuilder(
@@ -1669,6 +1670,8 @@ class TestMarketingWebsiteCrm(SavepointCase):
                 "name": "Synthetic native insert " + uuid.uuid4().hex,
                 "phone": "+55 19 99999-9999",
             }
+            if supplied_medium is not None:
+                values["medium_id"] = supplied_medium
             with patch.object(consent, "request", fake), patch.object(
                 utm_mixin, "request", fake
             ), patch.object(
@@ -1680,8 +1683,17 @@ class TestMarketingWebsiteCrm(SavepointCase):
             return self.env["crm.lead"].browse(record_id)
 
         refused = insert(cookies)
-        self.assertFalse(refused.campaign_id or refused.source_id or refused.medium_id)
+        self.assertFalse(refused.campaign_id or refused.source_id)
+        self.assertEqual(refused.medium_id, website_medium)
         self.assertEqual(refused.phone, "+55 19 99999-9999")
+        # The native input filter runs before insert_record and may have read a
+        # residual medium cookie. Suppression must replace that resolved value.
+        prefiltered = insert(cookies, supplied_medium=medium.id)
+        self.assertFalse(prefiltered.campaign_id or prefiltered.source_id)
+        self.assertEqual(prefiltered.medium_id, website_medium)
+        native_fallback = insert("", supplied_medium=website_medium.id)
+        self.assertFalse(native_fallback.campaign_id or native_fallback.source_id)
+        self.assertEqual(native_fallback.medium_id, website_medium)
         granted = insert(cookies + "; mc_website_consent=" + decision._cookie())
         self.assertEqual(granted.campaign_id, campaign)
         self.assertEqual(granted.source_id, source)
@@ -1690,19 +1702,22 @@ class TestMarketingWebsiteCrm(SavepointCase):
             website_consent_internal=consent.CONSENT_CONTEXT_TOKEN
         ).write({"revoked_at": fields.Datetime.now()})
         revoked = insert(cookies + "; mc_website_consent=" + decision._cookie())
-        self.assertFalse(revoked.campaign_id or revoked.source_id or revoked.medium_id)
+        self.assertFalse(revoked.campaign_id or revoked.source_id)
+        self.assertEqual(revoked.medium_id, website_medium)
         self.endpoint.write({"website_tracking_policy": "informational_notice",
                              "privacy_legal_basis_code": False})
         informational = insert(cookies)
         self.assertEqual(informational.campaign_id, campaign)
         self.endpoint.capture_enabled = False
-        paused = insert(cookies)
-        self.assertFalse(paused.campaign_id or paused.source_id or paused.medium_id,
+        paused = insert(cookies, supplied_medium=medium.id)
+        self.assertFalse(paused.campaign_id or paused.source_id,
                          "A paused informational endpoint must suppress residual native UTM defaults")
+        self.assertEqual(paused.medium_id, website_medium)
 
         self.assertEqual(
             self.env["marketing.website.crm.intent"].search_count(
-                [("lead_id", "in", [refused.id, granted.id, revoked.id])]
+                [("lead_id", "in", [refused.id, prefiltered.id, native_fallback.id,
+                                    granted.id, revoked.id, informational.id, paused.id])]
             ),
             0,
         )

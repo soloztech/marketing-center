@@ -8,3 +8,4 @@ from . import (
 )
 from . import consent, consent_service
 from . import res_config_settings
+from . import ir_http
