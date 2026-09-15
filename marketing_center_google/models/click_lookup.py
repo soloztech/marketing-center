@@ -1,4 +1,5 @@
 import datetime
+import json
 import logging
 import uuid
 
@@ -106,6 +107,70 @@ class MarketingGoogleClickLookup(models.Model):
     result_json = fields.Json(
         readonly=True, groups="marketing_center_base.group_marketing_center_admin"
     )
+
+    confirmed_campaign = fields.Char(
+        string="Campanha", compute="_compute_confirmed_details",
+        groups="marketing_center_base.group_marketing_center_admin",
+    )
+    confirmed_ad_group = fields.Char(
+        string="Grupo de anúncios", compute="_compute_confirmed_details",
+        groups="marketing_center_base.group_marketing_center_admin",
+    )
+    confirmed_network = fields.Char(
+        string="Rede", compute="_compute_confirmed_details",
+        groups="marketing_center_base.group_marketing_center_admin",
+    )
+    confirmed_device = fields.Char(
+        string="Dispositivo", compute="_compute_confirmed_details",
+        groups="marketing_center_base.group_marketing_center_admin",
+    )
+    confirmed_keyword = fields.Char(
+        string="Palavra-chave do anúncio", compute="_compute_confirmed_details",
+        groups="marketing_center_base.group_marketing_center_admin",
+    )
+    confirmed_match_type = fields.Char(
+        string="Correspondência", compute="_compute_confirmed_details",
+        groups="marketing_center_base.group_marketing_center_admin",
+    )
+    confirmed_response_text = fields.Text(
+        string="Resposta técnica", compute="_compute_confirmed_details",
+        groups="marketing_center_base.group_marketing_center_admin",
+    )
+
+    @api.depends("result_json")
+    def _compute_confirmed_details(self):
+        networks = {
+            "SEARCH": _("Pesquisa Google"),
+            "SEARCH_PARTNERS": _("Parceiros de pesquisa"),
+            "CONTENT": _("Rede de Display"),
+            "YOUTUBE_SEARCH": _("Pesquisa do YouTube"),
+            "YOUTUBE_WATCH": _("Vídeos do YouTube"),
+        }
+        devices = {
+            "DESKTOP": _("Computador"), "MOBILE": _("Celular"),
+            "TABLET": _("Tablet"), "CONNECTED_TV": _("TV conectada"),
+        }
+        matches = {
+            "BROAD": _("Ampla"), "PHRASE": _("Frase"), "EXACT": _("Exata"),
+        }
+        for lookup in self:
+            result = lookup.result_json if isinstance(lookup.result_json, dict) else {}
+            details = result.get("details")
+            details = details if isinstance(details, dict) else {}
+            def text(key):
+                value = details.get(key)
+                return value if isinstance(value, str) else False
+            lookup.confirmed_campaign = text("campaign_name")
+            lookup.confirmed_ad_group = text("ad_group_name")
+            lookup.confirmed_network = networks.get(text("network"), text("network"))
+            lookup.confirmed_device = devices.get(text("device"), text("device"))
+            lookup.confirmed_keyword = text("keyword_text")
+            lookup.confirmed_match_type = matches.get(
+                text("keyword_match_type"), text("keyword_match_type")
+            )
+            lookup.confirmed_response_text = (
+                json.dumps(result, ensure_ascii=False, indent=2) if result else False
+            )
 
     _sql_constraints = [
         (

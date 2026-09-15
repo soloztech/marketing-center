@@ -46,9 +46,26 @@
                             <field name="next_attempt_at"/>
                         </group>
                     </group>
-                    <group string="Confirmed response fields">
-                        <field name="result_json" widget="json" nolabel="1"/>
+                    <group string="Informações do clique confirmado" groups="marketing_center_base.group_marketing_center_admin">
+                        <group>
+                            <field name="confirmed_campaign"/>
+                            <field name="confirmed_ad_group"/>
+                            <field name="confirmed_network"/>
+                        </group>
+                        <group>
+                            <field name="confirmed_device"/>
+                            <field name="confirmed_keyword"/>
+                            <field name="confirmed_match_type"/>
+                        </group>
                     </group>
+                    <div class="text-muted" groups="marketing_center_base.group_marketing_center_admin">
+                        A palavra-chave do anúncio não é necessariamente o termo exato pesquisado pela pessoa.
+                    </div>
+                    <notebook groups="marketing_center_base.group_marketing_center_admin">
+                        <page string="Resposta técnica">
+                            <field name="confirmed_response_text" nolabel="1"/>
+                        </page>
+                    </notebook>
                 </sheet>
             </form>
         </field>
