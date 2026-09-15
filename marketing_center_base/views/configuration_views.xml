@@ -44,6 +44,17 @@
                         </group>
                     </group>
                     <notebook>
+                        <page string="Native UTM">
+                            <group>
+                                <field name="native_utm_mode" />
+                                <field name="native_utm_source_id" attrs="{'required': [('native_utm_mode', '!=', 'disabled')]}" />
+                                <field name="native_utm_medium_id" attrs="{'required': [('native_utm_mode', '!=', 'disabled')]}" />
+                                <field name="native_utm_auto_create_campaign" />
+                            </group>
+                            <p>Simulation reports the proposed classification without creating native campaigns.
+                            Apply can create a missing native campaign and classify linked CRM records.
+                            Campaign names are display labels; only explicit catalog identities establish associations.</p>
+                        </page>
                         <page string="Connections">
                             <field name="connection_ids" nolabel="1">
                                 <tree create="false" edit="false" delete="false">

@@ -14,6 +14,9 @@ but does not require `marketing_center_base` or any functional Marketing Center 
 
 ## Shared provider foundations
 
+For native CRM campaign classification, configuration, diagrams and technical
+fields, see [Campanhas externas e atribuição nativa](docs/native-campaign-attribution.md).
+
 - `meta_api_base` — bounded Meta Graph transport, external-secret resolution,
   application identity and neutral provider errors;
 - `meta_webhook_base` — authenticated Meta webhook ingress, sanitized technical

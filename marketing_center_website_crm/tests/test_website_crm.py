@@ -80,9 +80,15 @@ class TestMarketingWebsiteCrm(SavepointCase):
             "session_ref": session_ref or str(uuid.uuid4()),
         }
 
-    def test_informational_policy_correlates_without_consent_and_pause_stops_intents(self):
-        self.endpoint.write({"website_tracking_policy": "informational_notice",
-                             "privacy_legal_basis_code": False})
+    def test_informational_policy_correlates_without_consent_and_pause_stops_intents(
+        self,
+    ):
+        self.endpoint.write(
+            {
+                "website_tracking_policy": "informational_notice",
+                "privacy_legal_basis_code": False,
+            }
+        )
         intent = self._pending_intent("Informational capture")
         self.assertFalse(intent.consent_id)
         entry = self._ingest_entry(
@@ -93,10 +99,14 @@ class TestMarketingWebsiteCrm(SavepointCase):
         self.assertEqual(intent.state, "done")
 
         self.assertTrue(intent.correlation_id)
-        self.assertTrue(self.env["marketing.attribution.crm.link"].search_count([
-            ("touchpoint_id", "=", entry.touchpoint_id),
-            ("lead_id", "=", intent.lead_id.id),
-        ]))
+        self.assertTrue(
+            self.env["marketing.attribution.crm.link"].search_count(
+                [
+                    ("touchpoint_id", "=", entry.touchpoint_id),
+                    ("lead_id", "=", intent.lead_id.id),
+                ]
+            )
+        )
         pending = self._pending_intent("Pending informational capture")
         links_before = self.env["marketing.attribution.crm.link"].search([]).ids
         self.endpoint.capture_enabled = False
@@ -106,14 +116,21 @@ class TestMarketingWebsiteCrm(SavepointCase):
             self.service._reconcile_session_now(pending)
         with self.assertRaises(AccessError):
             self.service._append_session_assertions(
-                pending, self.env["marketing.attribution.touchpoint"].browse(entry.touchpoint_id),
+                pending,
+                self.env["marketing.attribution.touchpoint"].browse(
+                    entry.touchpoint_id
+                ),
             )
-        self.assertEqual(self.env["marketing.attribution.crm.link"].search([]).ids, links_before)
+        self.assertEqual(
+            self.env["marketing.attribution.crm.link"].search([]).ids, links_before
+        )
         self.assertFalse(pending.correlation_id)
         self.assertEqual(intent.state, "done")
 
     def test_action_receipts_cannot_cross_informational_policy_boundary(self):
-        from odoo.addons.marketing_center_website.models.consent import CONSENT_CONTEXT_TOKEN
+        from odoo.addons.marketing_center_website.models.consent import (
+            CONSENT_CONTEXT_TOKEN,
+        )
 
         self.website.write({"cookies_bar": True})
         self.endpoint.write({"privacy_legal_basis_code": "consent"})
@@ -126,8 +143,12 @@ class TestMarketingWebsiteCrm(SavepointCase):
         receipt = service._prepare_form_receipt(
             self.website, "crm.lead", claim, self.origin
         )
-        self.endpoint.write({"website_tracking_policy": "informational_notice",
-                             "privacy_legal_basis_code": False})
+        self.endpoint.write(
+            {
+                "website_tracking_policy": "informational_notice",
+                "privacy_legal_basis_code": False,
+            }
+        )
         with self.assertRaises(AccessError):
             service._validate_form_receipt(
                 self.website, dict(claim, receipt=receipt), self.origin
@@ -135,8 +156,12 @@ class TestMarketingWebsiteCrm(SavepointCase):
         test_receipt = service._prepare_form_receipt(
             self.website, "crm.lead", claim, self.origin
         )
-        self.endpoint.write({"website_tracking_policy": "individual_consent",
-                             "privacy_legal_basis_code": "consent"})
+        self.endpoint.write(
+            {
+                "website_tracking_policy": "individual_consent",
+                "privacy_legal_basis_code": "consent",
+            }
+        )
         with self.assertRaises(AccessError):
             service._validate_form_receipt(
                 self.website, dict(claim, receipt=test_receipt), self.origin
@@ -1552,8 +1577,10 @@ class TestMarketingWebsiteCrm(SavepointCase):
 
     def test_http_queue_worker_uses_validated_intent_without_browser_cookie(self):
         from types import SimpleNamespace
+
         from werkzeug.test import EnvironBuilder
         from werkzeug.wrappers import Request
+
         from odoo.addons.marketing_center_website.models import consent
 
         self.website.write({"cookies_bar": True})
@@ -1621,8 +1648,10 @@ class TestMarketingWebsiteCrm(SavepointCase):
 
     def test_native_insert_ignores_residual_utm_cookies_without_current_consent(self):
         from types import SimpleNamespace
+
         from werkzeug.test import EnvironBuilder
         from werkzeug.wrappers import Request
+
         from odoo.addons.marketing_center_website.models import consent
         from odoo.addons.utm.models import utm_mixin
 
@@ -1651,7 +1680,7 @@ class TestMarketingWebsiteCrm(SavepointCase):
         public_env = self.env(user=self.website.user_id.id)
         controller = MarketingWebsiteCrmFormController()
 
-        def insert(cookie, supplied_medium=None):
+        def insert(cookie, supplied_medium=None, submitted=None):
             fake = SimpleNamespace(
                 httprequest=Request(
                     EnvironBuilder(
@@ -1665,6 +1694,7 @@ class TestMarketingWebsiteCrm(SavepointCase):
                 website=self.website,
                 context=dict(public_env.context),
                 session=SimpleNamespace(uid=False),
+                params=submitted or {},
             )
             values = {
                 "name": "Synthetic native insert " + uuid.uuid4().hex,
@@ -1704,20 +1734,56 @@ class TestMarketingWebsiteCrm(SavepointCase):
         revoked = insert(cookies + "; mc_website_consent=" + decision._cookie())
         self.assertFalse(revoked.campaign_id or revoked.source_id)
         self.assertEqual(revoked.medium_id, website_medium)
-        self.endpoint.write({"website_tracking_policy": "informational_notice",
-                             "privacy_legal_basis_code": False})
+        self.endpoint.write(
+            {
+                "website_tracking_policy": "informational_notice",
+                "privacy_legal_basis_code": False,
+            }
+        )
         informational = insert(cookies)
         self.assertEqual(informational.campaign_id, campaign)
+        self.assertFalse(informational.marketing_utm_default_json)
+        proven = insert("", supplied_medium=website_medium.id)
+        self.assertEqual(
+            proven.marketing_utm_default_json,
+            {
+                "campaign_id": False,
+                "source_id": False,
+                "medium_id": website_medium.id,
+            },
+        )
+        explicit = insert(
+            "",
+            supplied_medium=website_medium.id,
+            submitted={"medium_id": str(website_medium.id)},
+        )
+        self.assertFalse(explicit.marketing_utm_default_json)
+        self.assertFalse(refused.marketing_utm_default_json)
         self.endpoint.capture_enabled = False
         paused = insert(cookies, supplied_medium=medium.id)
-        self.assertFalse(paused.campaign_id or paused.source_id,
-                         "A paused informational endpoint must suppress residual native UTM defaults")
+        self.assertFalse(
+            paused.campaign_id or paused.source_id,
+            "A paused informational endpoint must suppress residual native UTM defaults",
+        )
         self.assertEqual(paused.medium_id, website_medium)
 
         self.assertEqual(
             self.env["marketing.website.crm.intent"].search_count(
-                [("lead_id", "in", [refused.id, prefiltered.id, native_fallback.id,
-                                    granted.id, revoked.id, informational.id, paused.id])]
+                [
+                    (
+                        "lead_id",
+                        "in",
+                        [
+                            refused.id,
+                            prefiltered.id,
+                            native_fallback.id,
+                            granted.id,
+                            revoked.id,
+                            informational.id,
+                            paused.id,
+                        ],
+                    )
+                ]
             ),
             0,
         )

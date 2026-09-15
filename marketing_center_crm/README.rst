@@ -4,6 +4,18 @@ Marketing Center CRM
 Links immutable marketing touchpoints to CRM leads and projects auditable CRM
 lifecycle changes into the provider-neutral Marketing Center business-event ledger.
 
+Native campaign classification
+------------------------------
+
+An optional asynchronous classifier fills the standard CRM campaign, source and
+medium from resolved external campaigns. Configure each Marketing Center source
+as Disabled (default), Simulation or Apply. Missing native campaigns can be
+created automatically; manual CRM classifications remain protected. The
+Acquisition tab provides preview, reconciliation, audit receipts and safe undo.
+
+See the `configuration and flow guide <../docs/native-campaign-attribution.md>`_
+for module responsibilities, diagrams, technical fields and upgrade guidance.
+
 Touchpoint/lead links use an append-only authority ledger.  Every producer adds
 its own immutable assertion with an idempotency reference; removing a producer's
 source record appends an immutable revocation.  The effective SQL projection

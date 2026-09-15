@@ -384,12 +384,15 @@ only through the optional bridge addon.</p>
 <p><strong>Table of contents</strong></p>
 <div class="contents local topic" id="contents">
 <ul class="simple">
-<li><a class="reference internal" href="#usage" id="toc-entry-1">Usage</a></li>
-<li><a class="reference internal" href="#bug-tracker" id="toc-entry-2">Bug Tracker</a></li>
-<li><a class="reference internal" href="#credits" id="toc-entry-3">Credits</a><ul>
-<li><a class="reference internal" href="#authors" id="toc-entry-4">Authors</a></li>
-<li><a class="reference internal" href="#contributors" id="toc-entry-5">Contributors</a></li>
-<li><a class="reference internal" href="#maintainers" id="toc-entry-6">Maintainers</a></li>
+<li><a class="reference internal" href="#usage" id="toc-entry-1">Usage</a><ul>
+<li><a class="reference internal" href="#native-campaign-classification" id="toc-entry-2">Native campaign classification</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#bug-tracker" id="toc-entry-3">Bug Tracker</a></li>
+<li><a class="reference internal" href="#credits" id="toc-entry-4">Credits</a><ul>
+<li><a class="reference internal" href="#authors" id="toc-entry-5">Authors</a></li>
+<li><a class="reference internal" href="#contributors" id="toc-entry-6">Contributors</a></li>
+<li><a class="reference internal" href="#maintainers" id="toc-entry-7">Maintainers</a></li>
 </ul>
 </li>
 </ul>
@@ -400,9 +403,47 @@ only through the optional bridge addon.</p>
 <tt class="docutils literal">marketing.attribution.service._ingest_touchpoint</tt>.  The leading underscore keeps
 the Python service outside the public RPC surface. Ledger models reject direct
 create, write and unlink operations, including from administrators.</p>
+<div class="section" id="native-campaign-classification">
+<h2><a class="toc-backref" href="#toc-entry-2">Native campaign classification</a></h2>
+<p>In a marketing source’s <strong>Native UTM</strong> tab, select a native source and medium,
+then choose <strong>Simulation</strong> or <strong>Apply</strong>. The default is <strong>Disabled</strong>. Simulation
+resolves existing associations and reports missing campaigns without creating
+campaigns or associations. Downstream integrations may record their own simulation
+reports; the base resolution service itself performs no business writes.</p>
+<p>In Apply mode, <tt class="docutils literal">Create Missing Native Campaigns</tt> permits automatic creation of
+<tt class="docutils literal">utm.campaign</tt> for a resolved external campaign. Its human-readable title comes
+from the external campaign. Its unique native identifier contains the catalog
+entity UUID. Campaign names are never used to discover or merge associations.
+Renaming the external campaign preserves the native record and its title.</p>
+<p>Administrators can instead select an existing native campaign on the external
+campaign’s <strong>Native UTM</strong> tab. Several external campaigns may share the same
+native campaign. The origin, time and user of the current association are stored.
+Clearing an association also enables <strong>Block Native Classification</strong>; explicitly
+unblock it to permit automatic replacement. Linked native campaigns cannot be
+deleted while their association exists. Removed, archived or missing external
+campaigns retain their association but are not applied to new classifications.</p>
+<p><tt class="docutils literal">marketing.native.utm.service._resolve_touchpoint(touchpoint, apply=False)</tt> reads
+only the accepted effective revision and its catalog resolutions. Raw URL text,
+UTM labels and campaign names are not evidence of an external identity. Campaigns
+can be resolved directly or through an ad’s catalog parent chain. Ambiguous or
+conflicting campaign identities are reported without choosing one. Company scope
+is checked before automatic creation, and row locks force stale concurrent
+requests to retry instead of creating duplicate campaigns.</p>
+<p>The result contains <tt class="docutils literal">state</tt>, <tt class="docutils literal">reason</tt>, <tt class="docutils literal">source_id</tt> (the Marketing Center
+source), <tt class="docutils literal">entity_id</tt>, <tt class="docutils literal">campaign_id</tt> (native), <tt class="docutils literal">utm_source_id</tt>, <tt class="docutils literal">medium_id</tt>,
+<tt class="docutils literal">source_mode</tt> and <tt class="docutils literal">created</tt>. States are <tt class="docutils literal">ready</tt>, <tt class="docutils literal">would_create</tt>, <tt class="docutils literal">missing</tt>,
+<tt class="docutils literal">conflict</tt> or <tt class="docutils literal">disabled</tt>. Consumers must honor <tt class="docutils literal">source_mode</tt> before writing.
+The optional CRM bridge owns CRM classification, writer provenance and preservation
+of manual CRM values. This base module does not write CRM fields.</p>
+<p>Configuration, mapping and asset-resolution changes invoke the private extension
+hook <tt class="docutils literal">_after_native_utm_change(source_ids=None, entity_ids=None,
+touchpoint_ids=None)</tt>. Downstream modules should schedule work rather than write
+business records inside this callback. The complete architecture is documented in
+<a class="reference external" href="../docs/crm-intake-and-attribution.md">CRM intake and attribution</a>.</p>
+</div>
 </div>
 <div class="section" id="bug-tracker">
-<h1><a class="toc-backref" href="#toc-entry-2">Bug Tracker</a></h1>
+<h1><a class="toc-backref" href="#toc-entry-3">Bug Tracker</a></h1>
 <p>Bugs are tracked on <a class="reference external" href="https://github.com/soloztech/marketing-center/issues">GitHub Issues</a>.
 In case of trouble, please check there if your issue has already been reported.
 If you spotted it first, help us to smash it by providing a detailed and welcomed
@@ -410,21 +451,21 @@ If you spotted it first, help us to smash it by providing a detailed and welcome
 <p>Do not contact contributors directly about support or help with technical issues.</p>
 </div>
 <div class="section" id="credits">
-<h1><a class="toc-backref" href="#toc-entry-3">Credits</a></h1>
+<h1><a class="toc-backref" href="#toc-entry-4">Credits</a></h1>
 <div class="section" id="authors">
-<h2><a class="toc-backref" href="#toc-entry-4">Authors</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-5">Authors</a></h2>
 <ul class="simple">
 <li>Soloz Technologies</li>
 </ul>
 </div>
 <div class="section" id="contributors">
-<h2><a class="toc-backref" href="#toc-entry-5">Contributors</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-6">Contributors</a></h2>
 <ul class="simple">
 <li>Soloz Technologies</li>
 </ul>
 </div>
 <div class="section" id="maintainers">
-<h2><a class="toc-backref" href="#toc-entry-6">Maintainers</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-7">Maintainers</a></h2>
 <p>This module is part of the <a class="reference external" href="https://github.com/soloztech/marketing-center/tree/16.0/marketing_center_base">soloztech/marketing-center</a> project on GitHub.</p>
 <p>You are welcome to contribute.</p>
 </div>

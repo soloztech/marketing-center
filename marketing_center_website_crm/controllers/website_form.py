@@ -48,6 +48,7 @@ class MarketingWebsiteCrmFormController(
     """
 
     def insert_record(self, request, model, values, custom, meta=None):
+        native_default = False
         if model.sudo().model == "crm.lead" and getattr(request, "website", None):
             website = request.website
             binding = (
@@ -74,7 +75,35 @@ class MarketingWebsiteCrmFormController(
                     source_id=False,
                     medium_id=request.env.ref("utm.utm_medium_website").id,
                 )
-        return super().insert_record(request, model, values, custom, meta=meta)
+            elif binding:
+                # Prove this is the native fallback at insertion. Equality with
+                # Website on an old CRM record cannot establish provenance.
+                incoming = getattr(request, "params", {})
+                cookies = request.httprequest.cookies
+                native_default = (
+                    values.get("medium_id")
+                    == request.env.ref("utm.utm_medium_website").id
+                    and not values.get("campaign_id")
+                    and not values.get("source_id")
+                    and not any(
+                        incoming.get(key)
+                        for key in ("campaign_id", "source_id", "medium_id")
+                    )
+                    and not any(
+                        cookies.get(key)
+                        for key in (
+                            "odoo_utm_campaign",
+                            "odoo_utm_source",
+                            "odoo_utm_medium",
+                        )
+                    )
+                )
+        result = super().insert_record(request, model, values, custom, meta=meta)
+        if native_default and result:
+            request.env["crm.lead"].sudo().browse(
+                result
+            )._mark_native_utm_website_default()
+        return result
 
     @http.route()
     def website_form(self, model_name, **kwargs):

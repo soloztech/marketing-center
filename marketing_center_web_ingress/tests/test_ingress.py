@@ -108,6 +108,56 @@ class TestMarketingWebIngress(SavepointCase):
         self.assertNotIn("gclid-private-001", safe_records)
         self.assertNotIn("session-private-001", safe_records)
 
+    def _ingested_google_click(self, *, observed_at=None):
+        observed_at = observed_at or fields.Datetime.now()
+        result = self._ingest(
+            self._payload(occurred_at=observed_at.isoformat() + "Z"),
+            observed_at=observed_at,
+        )
+        self.assertEqual(result.disposition, "accepted")
+        event = self.env["marketing.web.ingress.event"].search(
+            [("public_ref", "=", result.event_ref)]
+        )
+        identifier = event.touchpoint_id.identifier_ids.filtered(
+            lambda item: item.namespace == "google.gclid"
+        )
+        self.assertEqual(len(identifier), 1)
+        return event, identifier
+
+    def test_google_click_input_returns_genuine_unexpired_ingested_value(self):
+        event, identifier = self._ingested_google_click()
+        self.assertGreater(event.retain_until, fields.Datetime.now())
+        self.assertEqual(
+            self.service._google_click_input(identifier, lock=True),
+            "gclid-private-001",
+        )
+        self.assertEqual(identifier.value_ref, event.click_value_ids.value_ref)
+
+    def test_google_click_input_rejects_paused_endpoint(self):
+        event, identifier = self._ingested_google_click()
+        self.endpoint.write({"capture_enabled": False})
+        self.assertIsNone(self.service._google_click_input(identifier, lock=True))
+        self.assertFalse(event.erased_at)
+        self.assertEqual(event.click_value_ids.protected_value, "gclid-private-001")
+
+    def test_google_click_input_rejects_expired_value_before_cleanup(self):
+        event, identifier = self._ingested_google_click(
+            observed_at=fields.Datetime.now() - datetime.timedelta(days=31)
+        )
+        self.assertLess(event.retain_until, fields.Datetime.now())
+        self.assertFalse(event.erased_at)
+        self.assertEqual(event.click_value_ids.protected_value, "gclid-private-001")
+        self.assertIsNone(self.service._google_click_input(identifier, lock=True))
+
+    def test_google_click_input_rejects_erased_ingested_value(self):
+        event, identifier = self._ingested_google_click()
+        with patch.object(fields.Datetime, "now", return_value=event.retain_until):
+            self.assertEqual(event._cron_expire_retained_values(), 1)
+        self.assertTrue(event.erased_at)
+        self.assertTrue(identifier.erased_at)
+        self.assertEqual(event.click_value_ids.protected_value, "[erased]")
+        self.assertIsNone(self.service._google_click_input(identifier, lock=True))
+
     def test_action_events_project_v2_schema_mapping_and_technical_assets(self):
         form_result = self._ingest(
             self._payload(

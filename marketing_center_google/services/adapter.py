@@ -324,6 +324,18 @@ class GoogleMarketingReadAdapter:
         self._facades[login_customer_id] = facade
         return facade
 
+    def fetch_click(
+        self, customer_id, gclid, *, occurred_at, report_timezone, now=None
+    ):
+        from .click import click_local_date, click_query, normalize_click_page
+
+        customer_id = normalize_customer_id(customer_id)
+        local_date = click_local_date(occurred_at, report_timezone, now=now)
+        page = self._facade.search_page(customer_id, click_query(gclid, local_date))
+        return normalize_click_page(
+            page, customer_id, gclid, local_date, report_timezone
+        )
+
     def fetch_catalog_pages(
         self,
         customer_id,

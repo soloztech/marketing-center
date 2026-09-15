@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_google_click_lookup_tree" model="ir.ui.view">
+        <field name="name">marketing.center.google.click.lookup.tree</field>
+        <field name="model">marketing.center.google.click.lookup</field>
+        <field name="arch" type="xml">
+            <tree create="false" edit="false" delete="false">
+                <field name="public_ref"/>
+                <field name="touchpoint_id"/>
+                <field name="source_id"/>
+                <field name="state"/>
+                <field name="run_state"/>
+                <field name="attempt_count"/>
+                <field name="last_attempted_at"/>
+                <field name="next_attempt_at"/>
+            </tree>
+        </field>
+    </record>
+    <record id="view_google_click_lookup_form" model="ir.ui.view">
+        <field name="name">marketing.center.google.click.lookup.form</field>
+        <field name="model">marketing.center.google.click.lookup</field>
+        <field name="arch" type="xml">
+            <form create="false" edit="false" delete="false">
+                <header>
+                    <button name="action_retry" type="object" string="Retry this occurrence" attrs="{'invisible': [('state', 'in', ['found', 'pending', 'waiting'])]}"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="public_ref"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="touchpoint_id"/>
+                            <field name="enriched_touchpoint_id"/>
+                            <field name="source_id"/>
+                            <field name="source_candidate_count"/>
+                        </group>
+                        <group>
+                            <field name="reason"/>
+                            <field name="sync_run_id"/>
+                            <field name="run_state"/>
+                            <field name="local_date"/>
+                            <field name="report_timezone"/>
+                            <field name="attempt_count"/>
+                            <field name="last_attempted_at"/>
+                            <field name="next_attempt_at"/>
+                        </group>
+                    </group>
+                    <group string="Confirmed response fields">
+                        <field name="result_json" widget="json" nolabel="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="action_google_click_lookup" model="ir.actions.act_window">
+        <field name="name">Google Click Lookups</field>
+        <field name="res_model">marketing.center.google.click.lookup</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+    <menuitem id="menu_google_click_lookup" name="Google Click Lookups" parent="marketing_center_base.menu_marketing_center_attribution" action="action_google_click_lookup" groups="marketing_center_base.group_marketing_center_admin" sequence="80"/>
+</odoo>

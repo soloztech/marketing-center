@@ -2,6 +2,7 @@ from . import (
     test_adapter,
     test_catalog_contract,
     test_catalog_sync,
+    test_click_lookup,
     test_google_profile,
     test_observability_contract,
     test_observability_sync,

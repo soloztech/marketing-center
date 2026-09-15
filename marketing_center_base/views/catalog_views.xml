@@ -6,7 +6,7 @@
         <field name="arch" type="xml">
             <tree create="false" edit="false" delete="false">
                 <field name="name" />
-                <field name="source_id" />
+                <field name="source_id" readonly="1" />
                 <field name="entity_type" />
                 <field name="group_type" />
                 <field name="external_ref" />
@@ -23,13 +23,13 @@
         <field name="name">marketing.center.external.entity.form</field>
         <field name="model">marketing.center.external.entity</field>
         <field name="arch" type="xml">
-            <form create="false" edit="false" delete="false">
+            <form create="false" delete="false">
                 <sheet>
                     <group>
                         <group>
                             <field name="name" />
                             <field name="company_id" />
-                            <field name="source_id" />
+                            <field name="source_id" readonly="1" />
                             <field name="entity_type" />
                             <field name="group_type" />
                             <field name="external_ref" />
@@ -46,6 +46,19 @@
                         </group>
                     </group>
                     <notebook>
+                        <page string="Native UTM" attrs="{'invisible': [('entity_type', '!=', 'campaign')]}">
+                            <group>
+                                <field name="native_utm_campaign_id" groups="marketing_center_base.group_marketing_center_admin" />
+                                <field name="native_utm_campaign_id" readonly="1" groups="!marketing_center_base.group_marketing_center_admin" />
+                                <field name="native_utm_blocked" groups="marketing_center_base.group_marketing_center_admin" />
+                                <field name="native_utm_mapping_origin" />
+                                <field name="native_utm_mapped_at" />
+                                <field name="native_utm_mapped_by_id" />
+                            </group>
+                            <p>Link an existing native campaign or let the source policy create one.
+                            Clearing an association blocks automatic replacement until explicitly unblocked.
+                            Renaming a remote campaign preserves its native association.</p>
+                        </page>
                         <page string="Revisions">
                             <field name="current_revision_id" invisible="1" />
                             <field name="revision_ids" nolabel="1">
@@ -85,7 +98,7 @@
             <search>
                 <field name="name" />
                 <field name="external_ref" />
-                <field name="source_id" />
+                <field name="source_id" readonly="1" />
                 <field name="entity_type" />
                 <filter
                     name="remote_missing"

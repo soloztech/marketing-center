@@ -10,6 +10,8 @@ from . import (  # noqa: F401
     test_catalog_service,
     test_effective_touchpoint,
     test_ingestion_concurrency,
+    test_native_utm,
+    test_native_utm_concurrency,
     test_operational_security,
     test_performance_dto,
     test_performance_service,

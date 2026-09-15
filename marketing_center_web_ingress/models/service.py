@@ -413,3 +413,82 @@ class MarketingWebIngressService(models.AbstractModel):
         if value.tzinfo:
             value = value.astimezone(datetime.timezone.utc).replace(tzinfo=None)
         return value.replace(microsecond=0)
+
+    @api.model
+    def _google_click_input(self, identifier, *, lock=False):
+        """Private optional vault seam: return GCLID only while policy is valid.
+
+        No manifest dependency on a provider is introduced. Callers must keep
+        this value in memory; only its existing record reference belongs in jobs.
+        """
+        identifier.ensure_one()
+        if (
+            identifier.company_id not in self.env.companies
+            or identifier.namespace != "google.gclid"
+            or identifier.role != "click"
+            or not identifier.value_ref
+        ):
+            return None
+        values = (
+            self.env["marketing.web.ingress.click.value"]
+            .sudo()
+            .search(
+                [
+                    ("company_id", "=", identifier.company_id.id),
+                    ("namespace", "=", "google.gclid"),
+                    ("value_ref", "=", identifier.value_ref),
+                ],
+                limit=2,
+            )
+        )
+        if len(values) != 1:
+            return None
+        event = values.event_id
+        endpoint = event.endpoint_id
+        if lock:
+            # Capture and expiry use endpoint -> event -> canonical evidence.
+            # Serialize consent-policy edits/retention with the provider read.
+            self.env.cr.execute(
+                "SELECT id FROM marketing_web_ingress_endpoint WHERE id = %s FOR SHARE",
+                [endpoint.id],
+            )
+            self.env.cr.execute(
+                "SELECT id FROM marketing_web_ingress_event WHERE id = %s FOR SHARE",
+                [event.id],
+            )
+            from odoo.addons.marketing_center_base.services.serialization import (
+                acquire_advisory_xact_lock,
+            )
+
+            acquire_advisory_xact_lock(
+                self.env.cr,
+                "marketing_attribution:%s:%s"
+                % (event.company_id.id, identifier.touchpoint_id.canonical_key),
+                "Concurrent click privacy update needs a fresh snapshot",
+            )
+        values.invalidate_recordset()
+        event.invalidate_recordset()
+        endpoint.invalidate_recordset()
+        identifier.invalidate_recordset()
+        point = identifier.touchpoint_id
+        point.invalidate_recordset()
+        now = datetime.datetime.utcnow()
+        if (
+            event.state != "done"
+            or event.erased_at
+            or values.erased_at
+            or identifier.erased_at
+            or point.privacy_erased_at
+            or point.consent_state == "denied"
+            or not endpoint.active
+            or not endpoint._capture_policy_allows()
+            or endpoint.capture_purpose != identifier.purpose
+            or event.touchpoint_id.canonical_key != point.canonical_key
+            or event.company_id != identifier.company_id
+            or values.comparison_hash != identifier.comparison_hash
+            or (event.retain_until and event.retain_until <= now)
+            or (identifier.retain_until and identifier.retain_until < now.date())
+            or not (event.retention_manual or event.retain_until)
+        ):
+            return None
+        return values.protected_value

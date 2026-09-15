@@ -7,6 +7,13 @@ short-lived Website receipt after the native form has returned its record ID.
 It then stores an immutable processing intent before creating or
 replaying the canonical form touchpoint and appending one CRM assertion.
 
+When capture is permitted, insertion also records whether the native Website
+medium was a genuine fallback without submitted or cookie UTMs. This provenance
+allows optional campaign classification to replace that fallback safely.
+Existing Website values without this provenance remain protected. See the
+`native campaign guide <../docs/native-campaign-attribution.md>`_ for configuration
+and the full flow diagram.
+
 The bridge depends explicitly on ``website_crm`` and composes its final public
 controller cooperatively. The Marketing Center route wrapper remains outside the
 native controller in the MRO, while Odoo's native phone, geo, visitor-to-lead and

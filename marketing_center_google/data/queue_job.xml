@@ -76,4 +76,10 @@
             eval="{1: 10, 2: 30, 3: 60, 4: 120, 5: 300, 6: 600, 7: 1200, 8: 1800}"
         />
     </record>
+    <record id="queue_job_function_google_click_lookup" model="queue.job.function">
+        <field name="model_id" ref="marketing_center_base.model_marketing_center_sync_run"/>
+        <field name="method">_job_lookup_google_click</field>
+        <field name="channel_id" ref="queue_job_channel_marketing_google"/>
+        <field name="retry_pattern" eval="{1: 60, 2: 300, 3: 900, 4: 1800, 5: 3600, 6: 7200, 7: 14400, 8: 21600}"/>
+    </record>
 </odoo>

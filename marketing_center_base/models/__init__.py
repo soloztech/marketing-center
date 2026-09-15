@@ -19,3 +19,5 @@ from . import (
 # their import order explicit even when the repository runs isort.
 from . import attribution_resolution  # isort: skip  # noqa: E402
 from . import attribution_resolution_service  # isort: skip  # noqa: E402
+
+from . import native_utm  # isort: skip  # noqa: E402

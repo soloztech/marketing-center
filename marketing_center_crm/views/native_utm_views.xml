@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_crm_native_utm" model="ir.ui.view">
+        <field name="name">crm.lead.native.utm.classification</field>
+        <field name="model">crm.lead</field>
+        <field name="inherit_id" ref="crm.crm_lead_view_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page name="native_marketing_classification" string="Acquisition">
+                    <group>
+                        <field name="marketing_utm_state" />
+                        <field name="marketing_utm_reason" />
+                        <field name="marketing_utm_manual" />
+                    </group>
+                    <p>Campaign, Source and Medium remain in the standard Marketing fields. This history explains how acquisition evidence classified them.</p>
+                    <group groups="marketing_center_base.group_marketing_center_admin">
+                        <button name="action_preview_native_utm" type="object" string="Preview classification" />
+                        <button name="action_reconcile_native_utm" type="object" string="Reconcile classification" />
+                        <button name="action_revert_native_utm" type="object" string="Undo automatic classification"
+                            attrs="{'invisible': ['|', ('marketing_utm_receipt_id', '=', False), ('marketing_utm_manual', '=', True)]}" />
+                        <field name="marketing_utm_receipt_id" invisible="1" />
+                    </group>
+                    <field name="marketing_utm_application_ids" readonly="1">
+                        <tree create="0" edit="0" delete="0">
+                            <field name="create_date" />
+                            <field name="state" />
+                            <field name="reason" />
+                            <field name="entity_id" />
+                        </tree>
+                        <form create="0" edit="0" delete="0">
+                            <group>
+                                <field name="create_date" />
+                                <field name="state" />
+                                <field name="reason" />
+                                <field name="source_id" />
+                                <field name="entity_id" />
+                            </group>
+                            <group string="Values before and after">
+                                <field name="before_json" />
+                                <field name="after_json" />
+                            </group>
+                            <group string="Evidence" groups="marketing_center_base.group_marketing_center_admin">
+                                <field name="evidence_json" />
+                            </group>
+                        </form>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

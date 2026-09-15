@@ -83,6 +83,15 @@ valid only inside the run that received them.
 No credential value, access token, service-account document, developer token,
 or raw provider response is stored by this addon.
 
+Exact click lookup is separately opt-in per Google Ads source through
+**Resolve captured Google clicks**. It uses an eligible protected GCLID, one
+account-local day and one unambiguous enabled account. Native classification
+can remain in Simulation while lookup is enabled. Missing catalog entities
+resolve when the existing catalog synchronization receives them.
+
+See the `native campaign guide <../docs/native-campaign-attribution.md>`_ for
+privacy, retry, retention, CRM mapping and rollout details.
+
 Bug Tracker
 ===========
 
