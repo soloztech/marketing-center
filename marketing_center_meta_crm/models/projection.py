@@ -66,7 +66,7 @@ class MarketingCenterMetaCrmProjection(models.Model):
             ("processing", "Processing"),
             ("done", "Done"),
             ("failed", "Failed"),
-            ("skipped", "Disabled"),
+            ("skipped", "Skipped"),
         ],
         required=True,
         default="pending",
@@ -225,25 +225,47 @@ class MarketingCenterMetaCrmProjection(models.Model):
             )
         )
 
+    def _mark_skipped(self):
+        """Invalidate old jobs without changing a completed CRM projection."""
+
+        self.ensure_one()
+        self.flush_recordset(["state"])
+        self.env.cr.execute(
+            "SELECT state FROM marketing_center_meta_crm_projection "
+            "WHERE id = %s FOR UPDATE",
+            [self.id],
+        )
+        row = self.env.cr.fetchone()
+        self.invalidate_recordset(["state"])
+        if not row or row[0] == "done":
+            return False
+        self._internal_write(
+            {
+                "state": "skipped",
+                "queue_job_uuid": False,
+                "processed_at": fields.Datetime.now(),
+                "last_error_class": False,
+                "last_error_message": False,
+            }
+        )
+        return True
+
     def _enqueue(self, retry_terminal=False):
         for projection in self.sudo().exists().sorted("id"):
             if projection.state == "done":
                 continue
-            if not projection.route_id.crm_auto_create_lead:
-                projection._internal_write(
-                    {
-                        "state": "skipped",
-                        "queue_job_uuid": False,
-                        "last_error_class": False,
-                        "last_error_message": False,
-                    }
-                )
+            if not projection.route_id._crm_accepts_submission(
+                projection.submission_id
+            ):
+                projection._mark_skipped()
                 continue
             if projection.state in {"failed", "skipped"} and not retry_terminal:
                 continue
             active = projection._active_job()
             if active:
-                projection._internal_write({"queue_job_uuid": active.uuid})
+                projection._internal_write(
+                    {"state": "pending", "queue_job_uuid": active.uuid}
+                )
                 continue
             projection._internal_write(
                 {
@@ -323,6 +345,7 @@ class MarketingCenterMetaCrmProjection(models.Model):
         job_uuid = self.env.context.get("job_uuid")
         if not isinstance(job_uuid, str) or not job_uuid:
             return 0
+        self.route_id._lock_crm_configuration()
         self.flush_recordset(["state", "attempts", "queue_job_uuid"])
         self.env.cr.execute(
             "SELECT state, attempts, queue_job_uuid "

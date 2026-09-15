@@ -85,12 +85,28 @@ class MarketingCenterMetaCrmService(models.AbstractModel):
             raise ValidationError(_("Valid Meta lead submissions are required."))
         projections = self.env["marketing.center.meta.crm.projection"]
         for submission in submissions.sorted("id"):
+            if submission.company_id not in self.env.companies:
+                raise AccessError(_("The Meta lead submission company is unavailable."))
             if (
                 submission.state == "ingested"
                 and submission.touchpoint_id
-                and submission.route_id.crm_auto_create_lead
+                and submission.route_id._crm_accepts_submission(submission)
             ):
                 projections |= self._ensure_projection(submission)
+            else:
+                existing = (
+                    self.env["marketing.center.meta.crm.projection"]
+                    .sudo()
+                    .search(
+                        [
+                            ("submission_id", "=", submission.id),
+                            ("state", "!=", "done"),
+                        ],
+                        limit=1,
+                    )
+                )
+                if existing:
+                    existing._mark_skipped()
         projections._enqueue(retry_terminal=retry_terminal)
         return projections
 
@@ -132,7 +148,7 @@ class MarketingCenterMetaCrmService(models.AbstractModel):
         values = {
             "name": title[:255],
             "company_id": projection.company_id.id,
-            "type": route.crm_lead_type,
+            "type": route._crm_record_type(),
             "team_id": route.crm_team_id.id or False,
             "user_id": route.crm_user_id.id or False,
             # Never inherit a partner from the caller's default context.  The
@@ -159,6 +175,7 @@ class MarketingCenterMetaCrmService(models.AbstractModel):
             or len(projection) != 1
         ):
             raise ValidationError(_("A single valid Meta CRM projection is required."))
+        projection.route_id._lock_crm_configuration()
         self.env.cr.execute(
             "SELECT id FROM marketing_center_meta_crm_projection "
             "WHERE id = %s FOR UPDATE",
@@ -171,16 +188,8 @@ class MarketingCenterMetaCrmService(models.AbstractModel):
             return True
         submission = self._validated_submission(projection.submission_id)
         route = submission.route_id
-        if not route.crm_auto_create_lead:
-            projection._internal_write(
-                {
-                    "state": "skipped",
-                    "queue_job_uuid": False,
-                    "processed_at": fields.Datetime.now(),
-                    "last_error_class": False,
-                    "last_error_message": False,
-                }
-            )
+        if not route._crm_accepts_submission(submission):
+            projection._mark_skipped()
             return True
         lead = (
             self.env["crm.lead"]
@@ -223,7 +232,9 @@ class MarketingCenterMetaCrmService(models.AbstractModel):
         return True
 
     @api.model
-    def _enqueue_backfill(self, company=None, after_submission_id=0, limit=200):
+    def _enqueue_backfill(
+        self, company=None, after_submission_id=0, limit=200, route_ids=None
+    ):
         if company is None:
             company = self.env.company
         if (
@@ -234,17 +245,21 @@ class MarketingCenterMetaCrmService(models.AbstractModel):
             raise AccessError(_("The Meta CRM backfill company is unavailable."))
         after_submission_id = max(int(after_submission_id or 0), 0)
         limit = min(max(int(limit or 200), 1), 1000)
+        route_ids = company._crm_backfill_route_ids(route_ids)
+        domain = [
+            ("company_id", "=", company.id),
+            ("id", ">", after_submission_id),
+            ("state", "=", "ingested"),
+            ("touchpoint_id", "!=", False),
+            ("route_id.crm_auto_create_lead", "=", True),
+        ]
+        if route_ids is not None:
+            domain.append(("route_id", "in", route_ids))
         submissions = (
             self.env["marketing.center.meta.lead.submission"]
             .sudo()
             .search(
-                [
-                    ("company_id", "=", company.id),
-                    ("id", ">", after_submission_id),
-                    ("state", "=", "ingested"),
-                    ("touchpoint_id", "!=", False),
-                    ("route_id.crm_auto_create_lead", "=", True),
-                ],
+                domain,
                 order="id asc",
                 limit=limit,
             )

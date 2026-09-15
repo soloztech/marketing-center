@@ -30,24 +30,69 @@
                         >
                             <field
                                 name="crm_team_id"
+                                placeholder="No sales team"
                                 options="{'no_create': True, 'no_create_edit': True}"
                                 domain="['|', ('company_id', '=', False), ('company_id', '=', company_id)]"
                             />
                             <field
                                 name="crm_user_id"
+                                placeholder="Unassigned"
                                 options="{'no_create': True, 'no_create_edit': True}"
                             />
                             <field name="crm_tag_ids" widget="many2many_tags" />
+                            <div class="text-muted" colspan="2">
+                                Leave the team and salesperson empty to create
+                                records without an assignment.
+                            </div>
                         </group>
+                    </group>
+                    <div
+                        class="text-muted mb-3"
+                        attrs="{'invisible': ['|', ('crm_auto_create_lead', '=', False), ('crm_lead_type', '!=', 'native')]}"
+                    >
+                        Follow CRM settings uses the selected team's Leads setting,
+                        or the global CRM Leads setting when no team is selected.
+                    </div>
+                    <group
+                        string="Submissions to include"
+                        attrs="{'invisible': [('crm_auto_create_lead', '=', False)]}"
+                    >
+                        <field name="crm_history_policy" />
+                        <field
+                            name="crm_create_from"
+                            string="Created on Meta from"
+                            attrs="{'invisible': [('crm_history_policy', '!=', 'since')]}"
+                        />
+                        <div
+                            class="text-muted"
+                            colspan="2"
+                            attrs="{'invisible': [('crm_history_policy', '!=', 'since')]}"
+                        >
+                            An empty date is set at first activation and kept when
+                            re-enabled. Choose an earlier date to include older
+                            submissions. This uses the verified creation time on
+                            Meta; submissions without that time are excluded.
+                        </div>
+                        <div
+                            class="text-muted"
+                            colspan="2"
+                            attrs="{'invisible': [('crm_history_policy', '!=', 'all')]}"
+                        >
+                            All authenticated submissions are included, regardless
+                            of when they were created on Meta.
+                        </div>
                     </group>
                     <div class="alert alert-info" role="alert">
                         Only authenticated Lead Ads submissions create CRM records.
                         Custom answers remain private and are not copied to the CRM.
+                        Configuration changes and reconciliation apply only to
+                        submissions that have not yet created a CRM record.
+                        Existing CRM records are preserved.
                     </div>
                     <button
                         name="action_enqueue_crm_backfill"
                         type="object"
-                        string="Reconcile CRM leads"
+                        string="Reconcile CRM records"
                         class="btn-secondary"
                         attrs="{'invisible': [('crm_auto_create_lead', '=', False)]}"
                     />

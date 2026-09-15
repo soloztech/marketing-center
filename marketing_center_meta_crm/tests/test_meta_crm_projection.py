@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from psycopg2 import OperationalError
 
-from odoo import Command
+from odoo import Command, fields
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests.common import SavepointCase
 
@@ -191,7 +191,7 @@ class TestMarketingCenterMetaCrmProjection(SavepointCase):
         )
         return self.env["marketing.attribution.touchpoint"].browse(result.touchpoint_id)
 
-    def _authenticate(self, submission, field_count=None):
+    def _authenticate(self, submission, field_count=None, provider_created_at=None):
         touchpoint = self._touchpoint(submission)
         submission.with_context(
             marketing_meta_lead_internal_token=MARKETING_META_LEAD_INTERNAL_TOKEN
@@ -199,7 +199,10 @@ class TestMarketingCenterMetaCrmProjection(SavepointCase):
             {
                 "state": "ingested",
                 "processed_at": datetime.datetime(2026, 9, 1, 12, 1),
-                "provider_created_at": datetime.datetime(2026, 9, 1, 12, 0),
+                "provider_created_at": (
+                    datetime.datetime(2026, 9, 1, 12, 0)
+                    if provider_created_at is None else provider_created_at
+                ),
                 "provider_payload_sha256": "a" * 64,
                 "field_count": (
                     len(submission.field_ids) if field_count is None else field_count
@@ -210,8 +213,14 @@ class TestMarketingCenterMetaCrmProjection(SavepointCase):
         return touchpoint
 
     def _enable_route(self):
+        # These legacy scenarios explicitly opt into their historical fixture.
+        with trap_jobs():
+            self.route.write({
+                "crm_auto_create_lead": True,
+                "crm_history_policy": "all",
+            })
         with trap_jobs() as jobs:
-            self.route.write({"crm_auto_create_lead": True})
+            self.company._job_marketing_meta_crm_backfill()
         return jobs
 
     def _projection_for(self, submission):
@@ -254,12 +263,11 @@ class TestMarketingCenterMetaCrmProjection(SavepointCase):
         self.assertLess(first.id, second.id)
         self.assertFalse(self._projection_for(first))
         self.assertFalse(self._projection_for(second))
-        with patch.object(
-            type(self.service),
-            "_ensure_and_enqueue",
-            return_value=self.env["marketing.center.meta.crm.projection"],
-        ):
-            self.route.write({"crm_auto_create_lead": True})
+        with trap_jobs():
+            self.route.write({
+                "crm_auto_create_lead": True,
+                "crm_history_policy": "all",
+            })
 
         with trap_jobs() as jobs:
             first_page = self.company._job_marketing_meta_crm_backfill(limit=1)
@@ -535,3 +543,262 @@ class TestMarketingCenterMetaCrmProjection(SavepointCase):
         )
         with self.assertRaises(AccessError):
             self.route.with_user(viewer).write({"crm_auto_create_lead": True})
+
+    def test_first_activation_excludes_history_and_late_old_submissions(self):
+        cutoff = datetime.datetime(2026, 9, 15, 12, 0)
+        old = self._new_submission(authenticate=True)
+        self.assertEqual(self.route.crm_history_policy, "since")
+        self.assertFalse(self.route.crm_create_from)
+        with patch.object(fields.Datetime, "now", return_value=cutoff), trap_jobs() as jobs:
+            self.route.write({"crm_auto_create_lead": True})
+        self.assertEqual(self.route.crm_create_from, cutoff)
+        jobs.assert_jobs_count(1)
+        jobs.assert_enqueued_job(
+            self.company._job_marketing_meta_crm_backfill, args=(0, 200),
+            kwargs={"route_ids": (self.route.id,)},
+        )
+        self.assertFalse(self._projection_for(old))
+        with trap_jobs() as jobs:
+            page = self.company._job_marketing_meta_crm_backfill(limit=1)
+        self.assertEqual(page["last_submission_id"], old.id)
+        self.assertFalse(self._projection_for(old))
+        # Arrival time is not the cutoff: a later sync can fetch an old Meta lead.
+        with trap_jobs() as jobs:
+            late_old = self._new_submission(authenticate=True)
+        jobs.assert_jobs_count(0)
+        self.assertFalse(self._projection_for(late_old))
+        current = self._new_submission()
+        with trap_jobs() as jobs:
+            self._authenticate(current, provider_created_at=cutoff)
+        jobs.assert_jobs_count(1)
+        projection = self._projection_for(current).ensure_one()
+        self.assertTrue(self._run_projection_job(projection))
+        self.assertTrue(projection.lead_id)
+
+    def test_cutoff_is_preserved_on_reactivation_and_manual_reconcile(self):
+        cutoff = datetime.datetime(2026, 9, 15, 12, 0)
+        old = self._new_submission(authenticate=True)
+        with trap_jobs():
+            self.route.write({
+                "crm_auto_create_lead": True,
+                "crm_create_from": cutoff,
+            })
+            self.route.write({"crm_auto_create_lead": False})
+            self.route.write({"crm_auto_create_lead": True})
+        self.assertEqual(self.route.crm_create_from, cutoff)
+        with trap_jobs() as jobs:
+            self.route.action_enqueue_crm_backfill()
+        jobs.assert_jobs_count(1)
+        with trap_jobs():
+            self.company._job_marketing_meta_crm_backfill()
+        self.assertFalse(self._projection_for(old))
+        # Retroactive inclusion is an explicit operator choice.
+        with trap_jobs():
+            self.route.write({"crm_create_from": datetime.datetime(2026, 9, 1, 0, 0)})
+            self.company._job_marketing_meta_crm_backfill()
+        self.assertTrue(self._projection_for(old))
+
+    def test_missing_provider_date_is_excluded_by_cutoff(self):
+        with trap_jobs():
+            self.route.write({"crm_auto_create_lead": True})
+            submission = self._new_submission()
+            self._authenticate(submission, provider_created_at=False)
+        self.assertFalse(self._projection_for(submission))
+        with trap_jobs():
+            self.route.write({"crm_history_policy": "all"})
+            self.company._job_marketing_meta_crm_backfill()
+        self.assertTrue(self._projection_for(submission))
+
+    def test_policy_change_fences_queued_job_and_preserves_done_lead(self):
+        self._enable_route()
+        with trap_jobs():
+            done_submission = self._new_submission(authenticate=True)
+            pending_submission = self._new_submission(authenticate=True)
+        done = self._projection_for(done_submission)
+        pending = self._projection_for(pending_submission)
+        pending_uuid = pending.queue_job_uuid
+        self.assertTrue(self._run_projection_job(done))
+        lead = done.lead_id
+        original_type = lead.type
+        lead_count = self.env["crm.lead"].search_count([])
+        with trap_jobs():
+            self.route.write({
+                "crm_history_policy": "since",
+                "crm_create_from": datetime.datetime(2026, 9, 15, 12, 0),
+                "crm_lead_type": "opportunity" if original_type == "lead" else "lead",
+            })
+        self.assertEqual(pending.state, "skipped")
+        self.assertFalse(pending.with_context(job_uuid=pending_uuid)._job_project_to_crm())
+        with trap_jobs() as jobs:
+            pending.action_retry()
+        jobs.assert_jobs_count(0)
+        self.assertTrue(self.service._project(pending))
+        self.assertFalse(pending.lead_id)
+        self.assertEqual(done.state, "done")
+        self.assertEqual(done.lead_id, lead)
+        self.assertEqual(lead.type, original_type)
+        self.assertEqual(self.env["crm.lead"].search_count([]), lead_count)
+
+    def test_native_record_type_follows_global_setting_without_owner(self):
+        self.route.write({"crm_team_id": False, "crm_user_id": False})
+        self.assertEqual(self.route.crm_lead_type, "native")
+        self._enable_route()
+        root = self.env.ref("base.user_root")
+        group = self.env.ref("crm.group_use_lead")
+        for enabled, expected in ((True, "lead"), (False, "opportunity")):
+            root.write({"groups_id": [Command.link(group.id) if enabled else Command.unlink(group.id)]})
+            with trap_jobs():
+                submission = self._new_submission(authenticate=True)
+            projection = self._projection_for(submission)
+            self.assertTrue(self._run_projection_job(projection))
+            self.assertEqual(projection.lead_id.type, expected)
+            self.assertFalse(projection.lead_id.team_id)
+            self.assertFalse(projection.lead_id.user_id)
+            self.assertEqual(projection.lead_id.company_id, self.company)
+
+    def test_native_record_type_follows_configured_team(self):
+        self._enable_route()
+        for enabled, expected in ((True, "lead"), (False, "opportunity")):
+            self.team.write({"use_leads": enabled})
+            with trap_jobs():
+                submission = self._new_submission(authenticate=True)
+            projection = self._projection_for(submission)
+            self.assertTrue(self._run_projection_job(projection))
+            self.assertEqual(projection.lead_id.type, expected)
+            self.assertEqual(projection.lead_id.team_id, self.team)
+
+    def test_explicit_record_type_overrides_team_setting(self):
+        self._enable_route()
+        for requested in ("lead", "opportunity"):
+            self.team.write({"use_leads": requested != "lead"})
+            with trap_jobs():
+                self.route.write({"crm_lead_type": requested})
+                submission = self._new_submission(authenticate=True)
+            projection = self._projection_for(submission)
+            self.assertTrue(self._run_projection_job(projection))
+            self.assertEqual(projection.lead_id.type, requested)
+
+    def test_enabled_route_create_initializes_cutoff_without_onchange(self):
+        cutoff = datetime.datetime(2026, 9, 15, 12, 0)
+        values = {
+            "name": "New community CRM route",
+            "webhook_page_id": self.page.id,
+            "lead_profile_id": self.profile.id,
+            "source_id": self.source.id,
+            "external_form_id": "98%014d" % (uuid.uuid4().int % 10**14),
+            "crm_auto_create_lead": True,
+        }
+        with patch.object(fields.Datetime, "now", return_value=cutoff), trap_jobs():
+            route = self.env["marketing.center.meta.lead.route"].create(values)
+        self.assertEqual(route.crm_create_from, cutoff)
+        self.assertEqual(route.crm_history_policy, "since")
+        self.assertEqual(route.crm_lead_type, "native")
+        self.assertFalse(route.crm_team_id)
+        self.assertFalse(route.crm_user_id)
+
+    def test_batch_activation_preserves_each_existing_cutoff(self):
+        cutoff = datetime.datetime(2026, 9, 15, 12, 0)
+        earlier = datetime.datetime(2026, 9, 14, 12, 0)
+        second = self.env["marketing.center.meta.lead.route"].create({
+            "name": "Second community CRM route",
+            "webhook_page_id": self.page.id,
+            "lead_profile_id": self.profile.id,
+            "source_id": self.source.id,
+            "external_form_id": "98%014d" % (uuid.uuid4().int % 10**14),
+            "crm_create_from": earlier,
+        })
+        with patch.object(fields.Datetime, "now", return_value=cutoff), trap_jobs():
+            (self.route | second).write({"crm_auto_create_lead": True})
+        self.assertEqual(self.route.crm_create_from, cutoff)
+        self.assertEqual(second.crm_create_from, earlier)
+
+    def test_context_default_activation_also_initializes_cutoff(self):
+        cutoff = datetime.datetime(2026, 9, 15, 12, 0)
+        with patch.object(fields.Datetime, "now", return_value=cutoff), trap_jobs():
+            route = self.env["marketing.center.meta.lead.route"].with_context(
+                default_crm_auto_create_lead=True,
+            ).create({
+                "name": "Context-enabled CRM route",
+                "webhook_page_id": self.page.id,
+                "lead_profile_id": self.profile.id,
+                "source_id": self.source.id,
+                "external_form_id": "98%014d" % (uuid.uuid4().int % 10**14),
+            })
+        self.assertTrue(route.crm_auto_create_lead)
+        self.assertEqual(route.crm_create_from, cutoff)
+
+    def test_team_and_salesperson_can_be_selected_independently(self):
+        self._enable_route()
+        for team_id, user_id in ((False, self.salesperson.id), (self.team.id, False)):
+            with trap_jobs():
+                self.route.write({"crm_team_id": team_id, "crm_user_id": user_id})
+                submission = self._new_submission(authenticate=True)
+            projection = self._projection_for(submission)
+            self.assertTrue(self._run_projection_job(projection))
+            self.assertEqual(projection.lead_id.team_id.id, team_id)
+            self.assertEqual(projection.lead_id.user_id.id, user_id)
+            self.assertEqual(projection.lead_id.company_id, self.company)
+
+    def test_reconciliation_does_not_retry_other_routes(self):
+        first_route = self.route
+        with trap_jobs():
+            first_route.write({"crm_auto_create_lead": True, "crm_history_policy": "all"})
+            first_submission = self._new_submission(authenticate=True)
+        second_route = self.env["marketing.center.meta.lead.route"].create({
+            "name": "Independent CRM route",
+            "webhook_page_id": self.page.id,
+            "lead_profile_id": self.profile.id,
+            "source_id": self.source.id,
+            "external_form_id": "98%014d" % (uuid.uuid4().int % 10**14),
+            "crm_auto_create_lead": True,
+            "crm_history_policy": "all",
+        })
+        self.route = second_route
+        try:
+            with trap_jobs():
+                second_submission = self._new_submission(authenticate=True)
+        finally:
+            self.route = first_route
+        first = self._projection_for(first_submission)
+        second = self._projection_for(second_submission)
+        (first | second)._internal_write({"state": "failed", "queue_job_uuid": False})
+        with trap_jobs() as jobs:
+            first_route.action_enqueue_crm_backfill()
+        jobs.assert_jobs_count(1)
+        jobs.assert_enqueued_job(
+            self.company._job_marketing_meta_crm_backfill, args=(0, 200),
+            kwargs={"route_ids": (first_route.id,)},
+        )
+        with trap_jobs() as jobs:
+            self.company._job_marketing_meta_crm_backfill(route_ids=(first_route.id,))
+        jobs.assert_jobs_count(1)
+        self.assertEqual(first.state, "pending")
+        self.assertEqual(second.state, "failed")
+        self.assertFalse(second.queue_job_uuid)
+
+    def test_persisted_scoped_job_roundtrip_and_pagination(self):
+        with trap_jobs():
+            self.route.write({"crm_auto_create_lead": True, "crm_history_policy": "all"})
+        first = self._new_submission()
+        second = self._new_submission()
+        with trap_jobs():
+            self._authenticate(first)
+            self._authenticate(second)
+        # Simulate a failed attempt so that only this reconciliation revives it.
+        self._projection_for(first)._internal_write({"state": "failed", "queue_job_uuid": False})
+        original = Job(
+            self.company._job_marketing_meta_crm_backfill,
+            args=(0, 1), kwargs={"route_ids": (self.route.id,)},
+        )
+        original.store()
+        loaded = Job.load(self.env, original.uuid)
+        self.assertEqual(list(loaded.kwargs["route_ids"]), [self.route.id])
+        with trap_jobs() as jobs:
+            result = loaded.perform()
+        self.assertFalse(result["done"])
+        self.assertEqual(result["last_submission_id"], first.id)
+        self.assertEqual(self._projection_for(first).state, "pending")
+        jobs.assert_enqueued_job(
+            self.company._job_marketing_meta_crm_backfill, args=(first.id, 1),
+            kwargs={"route_ids": (self.route.id,)},
+        )
