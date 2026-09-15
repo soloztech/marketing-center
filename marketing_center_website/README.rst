@@ -65,6 +65,19 @@ Resolution to Odoo's native ``utm.campaign``, ``utm.source`` and ``utm.medium``
 belongs to the optional native bridge and its explicit first-trusted/fill-only
 policy.
 
+Native UTM cookies on informational landing pages
+------------------------------------------------
+
+For public HTTPS GET requests to a published page with one active CRM form
+action, an active same-company binding and an eligible informational policy,
+the adapter lets Odoo's native ``ir.http._set_utm`` persist its three standard
+UTM cookies. Odoo retains the cookie values, lifetime and later CRM defaults.
+An existing native optional-cookie choice retains native behavior, including refusal;
+paused capture, individual consent, other pages and extended tracking fields
+receive no exception. The temporary permission ends with the native UTM writer:
+other optional cookies remain subject to Odoo's normal decision. The adapter
+does not create consent, modify the native preference cookie or write CRM UTMs.
+
 Configuration
 -------------
 
