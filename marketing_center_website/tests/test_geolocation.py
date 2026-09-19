@@ -241,7 +241,7 @@ class TestWebsiteGeolocation(SavepointCase):
             "geoip_lookup",
             return_value={"country_code": "BR", "region": "SP", "city": "Current city"},
         ) as lookup:
-            fake.session["_geoip"] = {"country_code": "US", "city": "Old city"}
+            fake.session._geoip = {"country_code": "US", "city": "Old city"}
             values = self.env["website.visitor"]._marketing_request_observation()
             self.assertEqual(values["marketing_geo_city"], "Current city")
             self.assertEqual(values["marketing_geo_source"], "geoip")

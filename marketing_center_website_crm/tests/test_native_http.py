@@ -267,6 +267,11 @@ class TestNativeWebsiteSubmissionHttp(HttpCase):
         self,
     ):
         headers = self._enable_geolocation()
+        # This synthetic form explicitly offers native address inputs; standard
+        # contactus does not expose all of them in its default whitelist.
+        self.env["ir.model.fields"].formbuilder_whitelist(
+            "crm.lead", ["country_id", "state_id", "city"]
+        )
         usa = self.env.ref("base.us")
         texas = self.env["res.country.state"].search(
             [("country_id", "=", usa.id), ("code", "=", "TX")], limit=1
