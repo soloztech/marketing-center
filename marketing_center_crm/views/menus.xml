@@ -3,8 +3,17 @@
     <record id="action_marketing_leads" model="ir.actions.act_window">
         <field name="name">Leads</field>
         <field name="res_model">crm.lead</field>
-        <field name="view_mode">kanban,tree,form,calendar,activity</field>
+        <field name="view_mode">tree,form,kanban,calendar,activity</field>
+        <field name="view_id" ref="crm.crm_case_tree_view_leads" />
+        <field name="domain">[('type', '=', 'lead')]</field>
         <field name="context">{'default_type': 'lead'}</field>
+    </record>
+    <record id="action_marketing_opportunities" model="ir.actions.act_window">
+        <field name="name">Oportunidades</field>
+        <field name="res_model">crm.lead</field>
+        <field name="view_mode">kanban,tree,form,calendar,activity</field>
+        <field name="domain">[('type', '=', 'opportunity')]</field>
+        <field name="context">{'default_type': 'opportunity'}</field>
     </record>
     <menuitem
         id="menu_marketing_leads"
@@ -12,6 +21,14 @@
         parent="marketing_center_base.menu_marketing_center_root"
         action="action_marketing_leads"
         sequence="10"
+        groups="sales_team.group_sale_salesman"
+    />
+    <menuitem
+        id="menu_marketing_opportunities"
+        name="Oportunidades"
+        parent="marketing_center_base.menu_marketing_center_root"
+        action="action_marketing_opportunities"
+        sequence="15"
         groups="sales_team.group_sale_salesman"
     />
 </odoo>

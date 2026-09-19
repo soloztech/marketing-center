@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="automation_record_company" model="ir.rule">
+        <field name="name">Automation records: company</field>
+        <field name="model_id" ref="automation_oca.model_automation_record" />
+        <field
+            name="domain_force"
+        >['|', ('configuration_id.company_id', '=', False), ('configuration_id.company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="automation_step_company" model="ir.rule">
+        <field name="name">Automation record steps: company</field>
+        <field name="model_id" ref="automation_oca.model_automation_record_step" />
+        <field
+            name="domain_force"
+        >['|', ('configuration_id.company_id', '=', False), ('configuration_id.company_id', 'in', company_ids)]</field>
+    </record>
+</odoo>

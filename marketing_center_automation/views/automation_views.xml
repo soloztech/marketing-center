@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="configuration_form" model="ir.ui.view">
+        <field name="model">automation.configuration</field>
+        <field
+            name="inherit_id"
+            ref="automation_oca.automation_configuration_form_view"
+        />
+        <field name="arch" type="xml">
+            <xpath expr="//sheet/group" position="after">
+                <group string="Comunicação com leads">
+                    <field name="cc_lead_entry" />
+                    <field name="cc_execution_user_id" />
+                    <field name="cc_send_enabled" />
+                    <field name="cc_entry_after" />
+                    <div
+                        class="text-muted"
+                        colspan="2"
+                    >Os envios começam desativados. Ao habilitar, somente leads criados depois da data acima podem entrar. Use o domínio para selecionar a origem ou o formulário.</div>
+                </group>
+            </xpath>
+        </field>
+    </record>
+    <record id="configuration_step_form" model="ir.ui.view">
+        <field name="model">automation.configuration.step</field>
+        <field
+            name="inherit_id"
+            ref="automation_oca.automation_configuration_step_form_view"
+        />
+        <field name="arch" type="xml">
+            <xpath expr="//sheet/group" position="after">
+                <group
+                    string="Mensagem no Contact Center"
+                    attrs="{'invisible': [('step_type', '!=', 'contact_center')]}"
+                >
+                    <field name="cc_account_id" />
+                    <field
+                        name="cc_body"
+                        placeholder="Olá, {{nome}}! Recebemos seu interesse."
+                    />
+                    <field name="cc_responsible_id" />
+                    <field name="cc_stop_on_reply" />
+                    <field name="cc_stop_on_human" />
+                </group>
+            </xpath>
+        </field>
+    </record>
+    <record id="lead_form" model="ir.ui.view">
+        <field name="model">crm.lead</field>
+        <field name="inherit_id" ref="crm.crm_lead_view_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//sheet/notebook" position="before">
+                <group string="Comunicação">
+                    <field name="cc_automation_paused" />
+                </group>
+            </xpath>
+        </field>
+    </record>
+    <record id="record_step_form" model="ir.ui.view">
+        <field name="model">automation.record.step</field>
+        <field
+            name="inherit_id"
+            ref="automation_oca.automation_record_step_form_view"
+        />
+        <field name="arch" type="xml">
+            <xpath expr="//sheet/group[1]" position="after">
+                <group
+                    string="Mensagem no Contact Center"
+                    attrs="{'invisible': [('step_type', '!=', 'contact_center')]}"
+                >
+                    <field name="cc_status" string="Resultado" />
+                    <field name="cc_channel_id" string="Conversa" />
+                    <field name="cc_message_id" string="Mensagem" />
+                    <field
+                        name="cc_request_uuid"
+                        string="Identificador de envio"
+                        groups="base.group_system"
+                    />
+                    <div
+                        class="text-muted"
+                        colspan="2"
+                    >Enfileirada significa que o Contact Center aceitou o envio. Consulte a conversa para confirmar a entrega.</div>
+                </group>
+            </xpath>
+        </field>
+    </record>
+    <record id="action_communication" model="ir.actions.act_window">
+        <field name="name">Automações de comunicação</field>
+        <field name="res_model">automation.configuration</field>
+        <field name="view_mode">kanban,tree,form</field>
+        <field name="domain">[('model', '=', 'crm.lead')]</field>
+        <field
+            name="context"
+            eval="{'default_model_id': ref('crm.model_crm_lead'), 'default_cc_lead_entry': True, 'default_is_periodic': True}"
+        />
+    </record>
+    <menuitem
+        id="menu_communication"
+        name="Automações"
+        parent="marketing_center_base.menu_marketing_center_root"
+        action="action_communication"
+        groups="automation_oca.group_automation_manager"
+        sequence="45"
+    />
+</odoo>
