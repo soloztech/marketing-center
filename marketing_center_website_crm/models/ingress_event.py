@@ -19,8 +19,8 @@ class MarketingWebIngressEvent(models.Model):
                     ]
                 )
                 .mapped("lead_id")
-                .filtered("marketing_native_snapshot")
             )
+            leads._erase_marketing_ip_observation()
             leads.with_context(marketing_native_submission_token=_TOKEN).write(
                 {
                     "marketing_native_snapshot": False,

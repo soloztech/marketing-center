@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="crm_lead_ip_observation" model="ir.ui.view">
+        <field name="name">crm.lead.ip.observation</field>
+        <field name="model">crm.lead</field>
+        <field name="inherit_id" ref="crm.crm_lead_view_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Localização por IP" groups="base.group_user">
+                    <p
+                        class="text-muted"
+                    >Estimativa da conexão no envio do formulário. Os dados informados pelo cliente permanecem no cadastro.</p>
+                    <group>
+                        <group>
+                            <field name="marketing_ip_address" />
+                            <field name="marketing_ip_observed_at" />
+                            <field name="marketing_geo_source" />
+                        </group>
+                        <group>
+                            <field name="marketing_geo_country_id" />
+                            <field name="marketing_geo_state_id" />
+                            <field name="marketing_geo_city" />
+                            <field name="marketing_geo_timezone" />
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="website_visitor_ip_observation" model="ir.ui.view">
+        <field name="name">website.visitor.ip.observation</field>
+        <field name="model">website.visitor</field>
+        <field name="inherit_id" ref="website.website_visitor_view_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//group[@id='general_info']" position="after">
+                <group string="Última localização por IP" groups="base.group_user">
+                    <group>
+                        <field name="marketing_ip_address" />
+                        <field name="marketing_ip_observed_at" />
+                        <field name="marketing_geo_source" />
+                    </group>
+                    <group>
+                        <field name="marketing_geo_country_id" />
+                        <field name="marketing_geo_state_id" />
+                        <field name="marketing_geo_city" />
+                        <field name="marketing_geo_timezone" />
+                    </group>
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>

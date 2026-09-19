@@ -18,6 +18,7 @@ from odoo.addons.marketing_center_website.controllers.website_action import (
     _response_text,
     _same_origin,
 )
+from odoo.addons.marketing_center_website.models.website_visitor import GEO_FIELDS
 from odoo.addons.marketing_center_website.services.contracts import FORM_QUERY_FIELDS
 from odoo.addons.website_crm.controllers.website_form import (
     WebsiteForm as NativeWebsiteCrmFormController,
@@ -101,6 +102,15 @@ class MarketingWebsiteCrmFormController(
     dispatched by Odoo's native ``WebsiteForm`` implementation.
     """
 
+    def extract_data(self, model, values):
+        if model.sudo().model == "crm.lead":
+            # Never accept an observation from the form, including as a custom
+            # description field if the native form whitelist rejects it.
+            values = {
+                key: value for key, value in values.items() if key not in GEO_FIELDS
+            }
+        return super().extract_data(model, values)
+
     def insert_record(self, request, model, values, custom, meta=None):
         native_default = False
         utm_values = {}
@@ -156,6 +166,7 @@ class MarketingWebsiteCrmFormController(
         native = getattr(request, "_marketing_native_submission", None)
         if native and model.sudo().model == "crm.lead":
             values = dict(values, **native["values"])
+            values.update(native.get("geo_values", {}))
             try:
                 with request.env.cr.savepoint():
                     utm_values = (
@@ -342,6 +353,8 @@ class MarketingWebsiteCrmFormController(
         if not existing and not native_binding:
             return None
         snapshot = {}
+        geo_values = {}
+        visitor = None
         if not existing:
             try:
                 with request.env.cr.savepoint():
@@ -362,9 +375,12 @@ class MarketingWebsiteCrmFormController(
                 _logger.warning(
                     "Native acquisition snapshot unavailable (%s)", type(error).__name__
                 )
+            if snapshot:
+                geo_values = self._prepare_ip_observation(visitor)
         return {
             "existing": existing,
             "event_id": event_id,
+            "geo_values": geo_values,
             "values": {
                 "marketing_native_website_id": website.id,
                 "marketing_native_event_id": event_id,
@@ -376,6 +392,27 @@ class MarketingWebsiteCrmFormController(
                 else "acquisition_unavailable",
             },
         }
+
+    def _prepare_ip_observation(self, visitor):
+        try:
+            with request.env.cr.savepoint():
+                visitor_model = request.env["website.visitor"]
+                observation = visitor_model._marketing_request_observation()
+                if observation:
+                    if not visitor:
+                        visitor = visitor_model._get_visitor_from_request(
+                            force_create=True
+                        )
+                    if visitor:
+                        visitor._marketing_observe(observation)
+                return observation
+        except (SerializationFailure, DeadlockDetected):
+            raise
+        except Exception as error:
+            _logger.warning(
+                "Native submission IP enrichment unavailable (%s)", type(error).__name__
+            )
+            return {}
 
     def _capture_native_lead(self, lead):
         try:

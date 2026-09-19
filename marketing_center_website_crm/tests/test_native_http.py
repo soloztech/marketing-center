@@ -4,6 +4,8 @@ import uuid
 from unittest.mock import patch
 from urllib.parse import urlsplit, urlunsplit
 
+from odoo import fields
+from odoo.exceptions import AccessError
 from odoo.tests import tagged
 from odoo.tests.common import HttpCase
 from odoo.tools import config
@@ -93,7 +95,7 @@ class TestNativeWebsiteSubmissionHttp(HttpCase):
             "description": "Synthetic acquisition regression",
         }
 
-    def _post_form(self, *, query=None, values=None):
+    def _post_form(self, *, query=None, values=None, headers=None):
         referrer_query = query or (
             "utm_source=HTTPSource&utm_medium=email&utm_campaign=HTTPSeptember"
             "&gad_campaignid=23172115632&gclid=http-original-click"
@@ -107,6 +109,7 @@ class TestNativeWebsiteSubmissionHttp(HttpCase):
                 "X-Forwarded-Host": self.proxy_host,
                 "X-Forwarded-Proto": "https",
                 "Sec-Fetch-Site": "same-origin",
+                **(headers or {}),
             },
             allow_redirects=False,
         )
@@ -246,3 +249,113 @@ class TestNativeWebsiteSubmissionHttp(HttpCase):
             [("event_id", "=", events.id), ("namespace", "=", "google.gclid")]
         )
         self.assertEqual(click.protected_value, "new-click")
+
+    def _enable_geolocation(self):
+        params = self.env["ir.config_parameter"].sudo()
+        params.set_param("marketing_center_website.ip_enrichment_enabled", True)
+        params.set_param("marketing_center_website.geo_proxy_networks", "127.0.0.1/32")
+        return {
+            "X-MC-Visitor-IP": "8.8.8.8",
+            "X-MC-Geo-Source": "cloudflare",
+            "X-MC-Geo-Country": "BR",
+            "X-MC-Geo-Region": "SP",
+            "X-MC-Geo-City": "S%C3%A3o%20Paulo",
+            "X-MC-Geo-Timezone": "America/Sao_Paulo",
+        }
+
+    def test_real_form_ip_snapshot_native_link_and_retry_preserve_customer_address(
+        self,
+    ):
+        headers = self._enable_geolocation()
+        usa = self.env.ref("base.us")
+        texas = self.env["res.country.state"].search(
+            [("country_id", "=", usa.id), ("code", "=", "TX")], limit=1
+        )
+        self.form_values.update(
+            {
+                "country_id": str(usa.id),
+                "state_id": str(texas.id),
+                "city": "Customer city",
+                "marketing_ip_address": "1.1.1.1",
+                "marketing_geo_city": "Injected city",
+            }
+        )
+        first, lead = self._post_form(headers=headers)
+        self.assertEqual(lead.marketing_ip_address, "8.8.8.8")
+        self.assertTrue(lead.marketing_ip_observed_at)
+        self.assertEqual(lead.marketing_geo_country_id, self.env.ref("base.br"))
+        self.assertEqual(lead.marketing_geo_state_id.code, "SP")
+        self.assertEqual(lead.marketing_geo_city, "São Paulo")
+        self.assertEqual(lead.marketing_geo_timezone, "America/Sao_Paulo")
+        self.assertEqual(lead.marketing_geo_source, "cloudflare")
+        self.assertEqual(lead.country_id, usa)
+        self.assertEqual(lead.state_id, texas)
+        self.assertEqual(lead.city, "Customer city")
+        self.assertNotIn("Injected city", lead.description or "")
+        self.assertEqual(len(lead.visitor_ids), 1)
+        visitor = lead.visitor_ids
+        self.assertEqual(visitor.marketing_ip_address, lead.marketing_ip_address)
+        self.assertEqual(visitor.marketing_geo_city, "São Paulo")
+        observed_at = lead.marketing_ip_observed_at
+        second, lead = self._post_form(
+            headers=dict(
+                headers, **{"X-MC-Visitor-IP": "1.1.1.1", "X-MC-Geo-City": "Later city"}
+            )
+        )
+        self.assertEqual(second["id"], first["id"])
+        self.assertEqual(lead.marketing_ip_address, "8.8.8.8")
+        self.assertEqual(lead.marketing_geo_city, "São Paulo")
+        self.assertEqual(lead.marketing_ip_observed_at, observed_at)
+        with self.assertRaises(AccessError):
+            lead.write({"marketing_ip_address": "1.1.1.1"})
+        self.assertFalse(lead.copy().marketing_ip_address)
+        event = (
+            self.env["marketing.website.crm.correlation"]
+            .search([("lead_id", "=", lead.id)])
+            .event_id
+        )
+        event._erase_related_private_values(now=fields.Datetime.now())
+        self.assertFalse(lead.marketing_ip_address)
+        self.assertFalse(lead.marketing_geo_city)
+        self.assertFalse(visitor.marketing_ip_address)
+        self.assertFalse(visitor.marketing_geo_city)
+        self.assertEqual(lead.city, "Customer city")
+
+    def test_real_form_untrusted_headers_cannot_set_geo(self):
+        headers = self._enable_geolocation()
+        self.env["ir.config_parameter"].sudo().set_param(
+            "marketing_center_website.geo_proxy_networks", "192.168.2.14/32"
+        )
+        headers["X-Forwarded-For"] = "8.8.8.8"
+        _, lead = self._post_form(headers=headers)
+        self.assertEqual(lead.marketing_ip_address, "127.0.0.1")
+        self.assertFalse(lead.marketing_geo_source)
+        self.assertFalse(lead.marketing_geo_city)
+
+    def test_real_form_geo_failure_does_not_block_lead_or_acquisition(self):
+        headers = self._enable_geolocation()
+        with patch.object(
+            type(self.env["website.visitor"]),
+            "_marketing_request_observation",
+            side_effect=RuntimeError("Synthetic optional enrichment failure"),
+        ):
+            _, lead = self._post_form(headers=headers)
+        self.assertTrue(lead)
+        self.assertEqual(lead.marketing_native_capture_state, "done")
+        self.assertFalse(lead.marketing_ip_address)
+
+    def test_real_form_capture_pause_and_disabled_option_do_not_store_ip(self):
+        headers = self._enable_geolocation()
+        self.env["ir.config_parameter"].sudo().set_param(
+            "marketing_center_website.ip_enrichment_enabled", False
+        )
+        _, lead = self._post_form(headers=headers)
+        self.assertFalse(lead.marketing_ip_address)
+        self.env["ir.config_parameter"].sudo().set_param(
+            "marketing_center_website.ip_enrichment_enabled", True
+        )
+        self.endpoint.capture_enabled = False
+        self.submission_id = str(uuid.uuid4())
+        _, lead = self._post_form(headers=headers)
+        self.assertFalse(lead.marketing_ip_address)
+        self.assertEqual(lead.marketing_native_capture_state, "skipped")
