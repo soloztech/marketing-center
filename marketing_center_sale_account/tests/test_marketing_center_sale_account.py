@@ -1,5 +1,6 @@
 import decimal
 import uuid
+from unittest.mock import patch
 
 from odoo import Command, fields
 from odoo.exceptions import AccessError, ValidationError
@@ -16,6 +17,7 @@ class TestMarketingCenterSaleAccount(SavepointCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        cls.env.company.marketing_business_events_enabled = True
         suffix = uuid.uuid4().hex[:8]
         cls.receivable = cls.env["account.account"].create(
             {
@@ -107,6 +109,70 @@ class TestMarketingCenterSaleAccount(SavepointCase):
     def _account_link(self, event, invoice):
         return event.account_move_link_ids.filtered(
             lambda link: link.move_id == invoice and link.role == "source"
+        )
+
+    def test_disabled_bridge_keeps_native_invoice_links_without_projections(self):
+        self.env.company.marketing_business_events_enabled = False
+        counts = {
+            name: self.env[name].search_count([])
+            for name in (
+                "marketing.business.event",
+                "marketing.account.move.sale.link",
+                "marketing.sale.account.projection",
+            )
+        }
+        service = self.env["marketing.account.service"]
+        with patch.object(
+            type(service),
+            "_validate_projection_source",
+            side_effect=AssertionError("Disabled projection was validated"),
+        ):
+            order = self._order(80)
+            invoice = order._create_invoices()
+            invoice.action_post()
+            self.assertEqual(invoice.state, "posted")
+            self.assertEqual(invoice.invoice_line_ids.sale_line_ids.order_id, order)
+            self.assertFalse(service._link_typed_move_order(invoice, order))
+            projection, created = service._project_event_move_sale_links(
+                self.env["marketing.business.event"],
+                invoice,
+                "source",
+                self.env["marketing.business.event.account.move.link"],
+            )
+            self.assertFalse(projection)
+            self.assertFalse(created)
+            result = service._backfill_sale_account_projections(self.env.company)
+            self.assertTrue(result["disabled"])
+            self.assertEqual(result["processed"], 0)
+        self.assertEqual(
+            {name: self.env[name].search_count([]) for name in counts}, counts
+        )
+
+    def test_disabled_bridge_preserves_historical_projections(self):
+        order = self._order(80)
+        invoice = order._create_invoices()
+        invoice.action_post()
+        event = self._invoice_event(invoice)
+        link = self._account_link(event, invoice)
+        Projection = self.env["marketing.sale.account.projection"]
+        projection = Projection.search([("account_link_id", "=", link.id)])
+        self.assertTrue(projection)
+        self.env.company.marketing_business_events_enabled = False
+        service = self.env["marketing.account.service"]
+        with patch.object(
+            type(service),
+            "_claim_sale_account_projection",
+            side_effect=AssertionError("Disabled projection acquired a claim"),
+        ):
+            self.assertFalse(
+                service._project_event_move_sale_links(event, invoice, "source", link)[
+                    1
+                ]
+            )
+            invoice.button_draft()
+        self.assertEqual(self._invoice_event(invoice), event)
+        self.assertEqual(
+            Projection.search([("account_link_id", "=", link.id)]), projection
         )
 
     def _create_legacy_event_link(self, invoice):

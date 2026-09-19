@@ -23,6 +23,7 @@ from odoo.addons.marketing_center_base.services.dto import (
 
 from ..services.click import (
     GoogleClickMatch,
+    click_acquisition_at,
     click_local_date,
     click_query,
     normalize_click_page,
@@ -98,6 +99,18 @@ class TestGoogleClickContract(TestCase):
             with self.assertRaises(GoogleApiError):
                 click_local_date(instant, "America/Sao_Paulo", now=now)
 
+    def test_acquisition_date_is_preserved_instead_of_form_date(self):
+        submitted = datetime.datetime(2026, 9, 19, 13)
+        acquired = datetime.datetime(2026, 9, 18, 12)
+        self.assertEqual(
+            click_acquisition_at(submitted, {"acquisition_at": "2026-09-18T12:00:00Z"}),
+            acquired,
+        )
+        self.assertEqual(click_acquisition_at(submitted, {}), submitted)
+        for invalid in ("not-a-date", "2026-09-18T12:00:00", "2026-09-20T12:00:00Z"):
+            with self.assertRaises(GoogleApiError):
+                click_acquisition_at(submitted, {"acquisition_at": invalid})
+
     def test_normalization_keeps_assets_and_discards_identifier(self):
         match = self._normalize(self._page(self._row()))
         self.assertEqual(match.assets["google.campaign_id"], _CAMPAIGN)
@@ -143,7 +156,17 @@ class TestGoogleClickLookup(SavepointCase):
         cls.service = cls.env["marketing.center.google.click.service"]
         cls.ingestion = cls.env["marketing.attribution.service"]
 
-    def _point(self, namespace="google.gclid", *, occurred_at=None, consent="unknown"):
+    def _point(
+        self,
+        namespace="google.gclid",
+        *,
+        occurred_at=None,
+        consent="unknown",
+        linked=True,
+        schedule=True,
+        assets=None,
+        point_type="entry_point"
+    ):
         from odoo.addons.marketing_center_base.services.dto import PrivacySnapshotDTO
 
         dto = MarketingTouchpointDTO(
@@ -153,8 +176,9 @@ class TestGoogleClickLookup(SavepointCase):
             occurred_at=occurred_at or fields.Datetime.now(),
             platform="web",
             channel="website",
-            touchpoint_type="entry_point",
+            touchpoint_type=point_type,
             evidence_level="first_party",
+            asset_refs=assets or {},
             privacy=PrivacySnapshotDTO(consent_state=consent),
             identifiers=(
                 MarketingIdentifierDTO(
@@ -170,10 +194,34 @@ class TestGoogleClickLookup(SavepointCase):
         point = self.env["marketing.attribution.touchpoint"].browse(
             result.touchpoint_id
         )
+        self.assertFalse(
+            self.service._lookups().search(
+                [("canonical_key", "=", point.canonical_key)]
+            ),
+            "Capturing a browser event must not schedule a Google API lookup",
+        )
+        if linked:
+            self._link(point)
+        if schedule:
+            self.service._schedule_touchpoint(point)
         lookup = self.service._lookups().search(
             [("canonical_key", "=", result.canonical_key)]
         )
         return point, lookup
+
+    def _link(self, point):
+        if "marketing.crm.service" not in self.env.registry.models:
+            self.skipTest("The optional CRM integration is not installed.")
+        lead = self.env["crm.lead"].create(
+            {
+                "name": "Linked Google acquisition",
+                "company_id": self.env.company.id,
+            }
+        )
+        self.env["marketing.crm.service"]._link_touchpoint_lead(
+            point, lead, source_ref="google-daily-lookup-test"
+        )
+        return lead
 
     def _match(self):
         return GoogleClickMatch(
@@ -185,7 +233,7 @@ class TestGoogleClickLookup(SavepointCase):
             },
         )
 
-    def _web_point(self):
+    def _web_point(self, *, linked=True):
         if "marketing.web.ingress.service" not in self.env.registry.models:
             self.skipTest("The optional web ingress integration is not installed.")
         endpoint = self.env["marketing.web.ingress.endpoint"].create(
@@ -221,11 +269,15 @@ class TestGoogleClickLookup(SavepointCase):
         point = self.env["marketing.attribution.touchpoint"].browse(
             result.touchpoint_id
         )
+        if linked:
+            self._link(point)
+            self.service._schedule_touchpoint(point)
         lookup = self.service._lookups().search(
             [("canonical_key", "=", point.canonical_key)]
         )
-        self.assertEqual(lookup.state, "pending")
-        self.assertTrue(lookup.sync_run_id)
+        if linked:
+            self.assertEqual(lookup.state, "pending")
+            self.assertTrue(lookup.sync_run_id)
         return point, lookup
 
     def _execute(self, lookup, match, *, before_return=None):
@@ -288,6 +340,172 @@ class TestGoogleClickLookup(SavepointCase):
         self.assertEqual(lookup.enriched_touchpoint_id.id, before)
         self.assertEqual(adapter.return_value.fetch_click.call_count, 1)
 
+    def test_daily_cron_waits_for_a_real_crm_link(self):
+        point, lookup = self._point(linked=False)
+        self.assertFalse(lookup)
+        self.assertFalse(self.service._schedule_touchpoint(point, explicit=True))
+        self._link(point)
+        result = self.service._cron_enqueue_linked_clicks()
+        self.assertEqual(result["failed"], 0)
+        lookup = self.service._lookups().search(
+            [("canonical_key", "=", point.canonical_key)]
+        )
+        self.assertEqual(lookup.state, "pending")
+        run = lookup.sync_run_id
+        self.assertEqual(run.trigger_kind, "scheduled")
+        self.service._cron_enqueue_linked_clicks()
+        self.assertEqual(lookup.sync_run_id, run)
+
+    def test_url_campaign_id_awaits_catalog_without_click_lookup(self):
+        point, lookup = self._point(
+            assets={"campaign_id": "10", "campaign_provider": "google"}
+        )
+        self.assertFalse(lookup)
+        resolution = self.env["marketing.attribution.asset.resolution"].search(
+            [
+                ("canonical_key", "=", point.canonical_key),
+                ("asset_namespace", "=", "campaign_id"),
+            ]
+        )
+        self.assertEqual(resolution.state, "unresolved")
+        self.assertEqual(resolution.source_id, self.source)
+        self.env["marketing.center.catalog.service"]._upsert_entity(
+            self.env.company,
+            self.source,
+            ExternalEntityDTO(
+                entity_type="campaign",
+                external_ref=_CAMPAIGN,
+                external_id="10",
+                name="Campaign label can change",
+                remote_status="enabled",
+                observed_at=fields.Datetime.now(),
+            ),
+        )
+        self.assertEqual(resolution.state, "resolved")
+        self.assertEqual(resolution.entity_id.external_ref, _CAMPAIGN)
+        self.service._cron_enqueue_linked_clicks()
+        self.assertFalse(
+            self.service._lookups().search(
+                [("canonical_key", "=", point.canonical_key)]
+            )
+        )
+
+    def test_campaign_id_does_not_guess_among_accounts_or_names(self):
+        _c, other, _connection = project_google_source(
+            self.env, self.profile, customer_id="9999999999"
+        )
+        point, lookup = self._point(
+            assets={"campaign_id": "10", "campaign_provider": "google"}
+        )
+        resolution = self.env["marketing.attribution.asset.resolution"].search(
+            [
+                ("canonical_key", "=", point.canonical_key),
+                ("asset_namespace", "=", "campaign_id"),
+            ]
+        )
+        self.assertEqual(resolution.state, "ambiguous")
+        self.assertFalse(lookup)
+
+        scoped, lookup = self._point(
+            assets={
+                "campaign_id": "10",
+                "campaign_provider": "google",
+                "google.customer_id": _CUSTOMER,
+            }
+        )
+        scoped_resolution = self.env["marketing.attribution.asset.resolution"].search(
+            [
+                ("canonical_key", "=", scoped.canonical_key),
+                ("asset_namespace", "=", "campaign_id"),
+            ]
+        )
+        self.assertEqual(scoped_resolution.source_id, self.source)
+        self.assertEqual(scoped_resolution.reason, "entity_not_found")
+        self.assertFalse(lookup)
+
+    def test_generic_id_without_google_provider_is_not_google_evidence(self):
+        point, lookup = self._point(assets={"campaign_id": "10"}, linked=False)
+        resolution = self.env["marketing.attribution.asset.resolution"].search(
+            [
+                ("canonical_key", "=", point.canonical_key),
+                ("asset_namespace", "=", "campaign_id"),
+            ]
+        )
+        self.assertEqual(resolution.state, "unsupported")
+        self.assertFalse(resolution.source_id)
+        self.assertFalse(lookup)
+
+    def test_empty_json_assets_use_unique_account_without_crashing(self):
+        resolver = self.env["marketing.attribution.asset.resolution.service"]
+        self.assertEqual(
+            resolver._google_source_candidates(self.env.company, False), self.source
+        )
+        point, _lookup = self._point(linked=False, schedule=False, assets={})
+        self.assertEqual(
+            self.service._source_candidates(self.env.company, point), self.source
+        )
+
+    def test_daily_batch_does_not_spend_limit_on_known_campaign_ids(self):
+        self._point(
+            assets={"campaign_id": "10", "campaign_provider": "google"},
+            schedule=False,
+        )
+        point, _lookup = self._point(schedule=False)
+        result = self.service._cron_enqueue_linked_clicks(limit=1)
+        self.assertEqual(result["failed"], 0)
+        self.assertEqual(result["scheduled"], 1)
+        self.assertTrue(
+            self.service._lookups()
+            .search([("canonical_key", "=", point.canonical_key)])
+            .sync_run_id
+        )
+
+    def test_queued_lookup_is_blocked_when_crm_link_disappears(self):
+        point, lookup = self._point()
+        links = self.env["marketing.attribution.crm.effective.link"].search(
+            [("canonical_key", "=", point.canonical_key)]
+        )
+        links.lead_id.unlink()
+        result, adapter = self._execute(lookup, self._match())
+        self.assertEqual(result, {"state": "blocked"})
+        self.assertEqual(lookup.reason, "crm_lead_required")
+        adapter.assert_not_called()
+
+    def test_lookup_uses_prior_visit_date(self):
+        acquired = fields.Datetime.now().replace(microsecond=0) - datetime.timedelta(
+            days=2
+        )
+        point, lookup = self._point(
+            assets={"acquisition_at": acquired.isoformat() + "Z"},
+            point_type="form_submission",
+        )
+        result, adapter = self._execute(lookup, self._match())
+        self.assertEqual(result, {"state": "found"})
+        self.assertEqual(
+            adapter.return_value.fetch_click.call_args.kwargs["occurred_at"], acquired
+        )
+        self.assertEqual(
+            lookup.local_date, click_local_date(acquired, self.source.timezone)
+        )
+
+    def test_form_without_acquisition_date_does_not_guess_submission_day(self):
+        point, lookup = self._point(point_type="form_submission")
+        self.assertFalse(lookup)
+        self.assertEqual(
+            self.service._fallback_reason(point), "acquisition_date_required"
+        )
+
+    def test_explicit_account_selects_click_source_without_guessing(self):
+        _c, other, _connection = project_google_source(
+            self.env, self.profile, customer_id="9999999999"
+        )
+        other.write({"google_click_lookup_enabled": True})
+        _point, lookup = self._point(assets={"google.customer_id": _CUSTOMER})
+        self.assertEqual(lookup.source_id, self.source)
+        result, adapter = self._execute(lookup, self._match())
+        self.assertEqual(result, {"state": "found"})
+        adapter.return_value.fetch_click.assert_called_once()
+
     def test_queue_contains_references_not_click_identifier(self):
         _point, lookup = self._point()
         job = self.env["queue.job"].search(
@@ -311,7 +529,7 @@ class TestGoogleClickLookup(SavepointCase):
                 "native_utm_medium_id": utm_medium.id,
             }
         )
-        point, lookup = self._web_point()
+        point, lookup = self._web_point(linked=False)
         lead = self.env["crm.lead"].create(
             {
                 "name": "Existing Google acquisition lead",
@@ -330,6 +548,7 @@ class TestGoogleClickLookup(SavepointCase):
             lead,
             source_ref="google-click-integration",
         )
+        lookup = self.service._schedule_touchpoint(point)
         self.assertEqual(lead._job_resolve_native_utm()["state"], "missing")
         run = lookup.sync_run_id
         with patch(_ADAPTER) as adapter:

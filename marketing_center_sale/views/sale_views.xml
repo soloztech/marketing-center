@@ -6,13 +6,14 @@
         <field name="inherit_id" ref="sale.view_order_form" />
         <field name="arch" type="xml">
             <xpath expr="//div[@name='button_box']" position="inside">
+                <field name="marketing_business_events_enabled" invisible="1" />
                 <button
                     name="action_view_marketing_crm_leads"
                     type="object"
                     class="oe_stat_button"
                     icon="fa-filter"
                     groups="sales_team.group_sale_salesman"
-                    attrs="{'invisible': [('marketing_crm_lead_count', '=', 0)]}"
+                    attrs="{'invisible': ['|', ('marketing_business_events_enabled', '=', False), ('marketing_crm_lead_count', '=', 0)]}"
                 >
                     <field
                         name="marketing_crm_lead_count"
@@ -26,7 +27,7 @@
                     class="oe_stat_button"
                     icon="fa-history"
                     groups="marketing_center_base.group_marketing_center_analyst"
-                    attrs="{'invisible': [('marketing_business_event_count', '=', 0)]}"
+                    attrs="{'invisible': ['|', ('marketing_business_events_enabled', '=', False), ('marketing_business_event_count', '=', 0)]}"
                 >
                     <field
                         name="marketing_business_event_count"
@@ -41,6 +42,7 @@
                     icon="fa-refresh"
                     string="Reconcile Marketing"
                     groups="marketing_center_base.group_marketing_center_manager"
+                    attrs="{'invisible': [('marketing_business_events_enabled', '=', False)]}"
                 />
             </xpath>
         </field>

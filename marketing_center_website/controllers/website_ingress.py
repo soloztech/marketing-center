@@ -5,6 +5,7 @@ from werkzeug.wrappers import Response
 
 from odoo import http
 from odoo.http import request
+
 from odoo.addons.marketing_center_web_ingress.services.contracts import (
     WebIngressContractError,
     normalize_allowed_hosts,
@@ -17,8 +18,10 @@ def _endpoint_origin_allowed(endpoint, host_url):
     """Do not advertise capture on a fallback Website served on another host."""
     try:
         return bool(
-            normalize_origin(host_url) in normalize_allowed_origins(endpoint.allowed_origins)
-            and urlsplit(host_url).hostname in normalize_allowed_hosts(endpoint.allowed_hosts)
+            normalize_origin(host_url)
+            in normalize_allowed_origins(endpoint.allowed_origins)
+            and urlsplit(host_url).hostname
+            in normalize_allowed_hosts(endpoint.allowed_hosts)
         )
     except (WebIngressContractError, ValueError):
         return False
@@ -73,14 +76,20 @@ class MarketingWebsiteIngressController(http.Controller):
             or endpoint.company_id != website.company_id
             or not _endpoint_origin_allowed(endpoint, request.httprequest.host_url)
             or (
-                (endpoint._requires_individual_consent() or endpoint._informational_notice())
+                (
+                    endpoint._requires_individual_consent()
+                    or endpoint._informational_notice()
+                )
                 and request.httprequest.scheme != "https"
             )
         ):
             return _config_response({"enabled": False})
+        if binding.capture_mode == "native":
+            return _config_response({"enabled": True, "capture_mode": "native"})
         return _config_response(
             {
                 "enabled": True,
+                "capture_mode": binding.capture_mode,
                 "ingest_path": "/marketing/web-ingress/%s" % endpoint.public_ref,
                 "public_key": endpoint.public_key,
                 "config_revision": endpoint.config_revision,

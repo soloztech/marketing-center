@@ -1,5 +1,16 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <odoo noupdate="1">
+    <record id="ir_cron_marketing_center_google_linked_clicks" model="ir.cron">
+        <field name="name">Marketing Center: enrich CRM Google acquisition daily</field>
+        <field name="model_id" ref="model_marketing_center_google_click_service" />
+        <field name="state">code</field>
+        <field name="code">model._cron_enqueue_linked_clicks()</field>
+        <field name="user_id" ref="base.user_root" />
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="numbercall">-1</field>
+        <field name="active">True</field>
+    </record>
     <record id="ir_cron_marketing_center_google_catalog" model="ir.cron">
         <field name="name">Marketing Center: synchronize Google Ads catalog</field>
         <field name="model_id" ref="model_marketing_center_google_catalog_service" />

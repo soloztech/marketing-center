@@ -63,7 +63,7 @@
     />
     <menuitem
         id="menu_marketing_center_catalog"
-        name="Catalog"
+        name="Campaigns"
         parent="menu_marketing_center_root"
         sequence="30"
         groups="marketing_center_base.group_marketing_center_viewer"
@@ -86,7 +86,7 @@
     />
     <menuitem
         id="menu_marketing_center_configuration"
-        name="Configuration"
+        name="Integrations"
         parent="menu_marketing_center_root"
         sequence="90"
         groups="marketing_center_base.group_marketing_center_admin"
@@ -123,4 +123,40 @@
         sequence="40"
         groups="marketing_center_base.group_marketing_center_admin"
     />
+    <record id="action_marketing_campaigns" model="ir.actions.act_window">
+        <field name="name">Campaigns</field>
+        <field name="res_model">marketing.center.external.entity</field>
+        <field name="view_mode">tree,form</field>
+        <field name="domain">[('entity_type', '=', 'campaign')]</field>
+        <field name="search_view_id" ref="view_marketing_external_entity_search" />
+    </record>
+    <menuitem
+        id="menu_marketing_campaigns"
+        name="Campaigns"
+        parent="menu_marketing_center_catalog"
+        action="action_marketing_campaigns"
+        sequence="1"
+        groups="marketing_center_base.group_marketing_center_viewer"
+    />
+    <record id="menu_marketing_center_funnel" model="ir.ui.menu">
+        <field name="parent_id" ref="menu_marketing_center_configuration" />
+        <field name="name">Business event history</field>
+        <field
+            name="groups_id"
+            eval="[(6, 0, [ref('marketing_center_base.group_marketing_center_admin')])]"
+        />
+    </record>
+    <record id="menu_marketing_center_attribution" model="ir.ui.menu">
+        <field name="parent_id" ref="menu_marketing_center_configuration" />
+        <field name="name">Acquisition history</field>
+    </record>
+    <record id="menu_marketing_center_performance" model="ir.ui.menu">
+        <field name="parent_id" ref="menu_marketing_center_catalog" />
+    </record>
+    <record id="menu_marketing_center_external_entities" model="ir.ui.menu">
+        <field name="parent_id" ref="menu_marketing_center_configuration" />
+    </record>
+    <record id="menu_marketing_center_sync_runs" model="ir.ui.menu">
+        <field name="parent_id" ref="menu_marketing_center_configuration" />
+    </record>
 </odoo>

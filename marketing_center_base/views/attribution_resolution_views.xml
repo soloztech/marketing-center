@@ -173,7 +173,7 @@
     <menuitem
         id="menu_marketing_center_asset_resolutions"
         name="Asset Resolution"
-        parent="menu_marketing_center_catalog"
+        parent="menu_marketing_center_configuration"
         action="action_marketing_attribution_asset_resolutions"
         sequence="15"
         groups="marketing_center_base.group_marketing_center_viewer"

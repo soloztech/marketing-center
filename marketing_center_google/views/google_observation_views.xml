@@ -203,7 +203,7 @@
     <menuitem
         id="menu_google_observability"
         name="Google Ads Observability"
-        parent="marketing_center_base.menu_marketing_center_root"
+        parent="marketing_center_base.menu_marketing_center_configuration"
         sequence="35"
         groups="marketing_center_base.group_marketing_center_manager"
     />

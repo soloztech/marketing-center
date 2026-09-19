@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="crm_lead_native_acquisition" model="ir.ui.view">
+        <field name="name">crm.lead.native.acquisition</field>
+        <field name="model">crm.lead</field>
+        <field name="inherit_id" ref="crm.crm_lead_view_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page
+                    string="Aquisição do site"
+                    groups="marketing_center_base.group_marketing_center_admin"
+                    attrs="{'invisible': [('marketing_native_event_id', '=', False)]}"
+                >
+                    <group>
+                        <field name="marketing_native_website_id" />
+                        <field name="marketing_native_event_id" />
+                        <field name="marketing_native_capture_state" />
+                        <field name="marketing_native_capture_reason" />
+                    </group>
+                    <button
+                        name="action_retry_native_acquisition"
+                        type="object"
+                        string="Repetir captura"
+                        attrs="{'invisible': [('marketing_native_capture_state', '=', 'done')]}"
+                    />
+                    <field name="marketing_native_snapshot" />
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

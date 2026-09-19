@@ -35,10 +35,20 @@ class TestIndividualWebsiteConsent(SavepointCase):
             [("website_id", "=", cls.website.id)], limit=1
         )
         if cls.binding:
-            cls.binding.write({"endpoint_id": cls.endpoint.id, "active": True})
+            cls.binding.write(
+                {
+                    "endpoint_id": cls.endpoint.id,
+                    "active": True,
+                    "capture_mode": "legacy",
+                }
+            )
         else:
             cls.binding = cls.env["marketing.website.ingress.binding"].create(
-                {"website_id": cls.website.id, "endpoint_id": cls.endpoint.id}
+                {
+                    "website_id": cls.website.id,
+                    "endpoint_id": cls.endpoint.id,
+                    "capture_mode": "legacy",
+                }
             )
         cls.consent = cls.env["marketing.website.consent"]
 
@@ -118,35 +128,44 @@ class TestIndividualWebsiteConsent(SavepointCase):
 
     def _informational_policy(self):
         return self.endpoint._activate_informational_notice(
-            website_id=self.website.id, binding_id=self.binding.id,
+            website_id=self.website.id,
+            binding_id=self.binding.id,
             company_id=self.website.company_id.id,
             expected_revision=self.endpoint.config_revision,
-            policy_version="informational-v2", notice_version="notice-v2",
+            policy_version="informational-v2",
+            notice_version="notice-v2",
             justification="Synthetic operator decision; no visitor grant.",
         )
 
-    def _test_entry(self, endpoint=None, *, path="/landing", origin="https://example.test"):
+    def _test_entry(
+        self, endpoint=None, *, path="/landing", origin="https://example.test"
+    ):
         endpoint = endpoint if endpoint is not None else self.endpoint
-        return self.env["marketing.web.ingress.service"].with_env(endpoint.env)._ingest_payload(
-            endpoint,
-            {
-                "event_id": str(uuid.uuid4()),
-                "event_type": "entry_point",
-                "occurred_at": fields.Datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "landing_url": "https://example.test" + path,
-                "utm_source": "synthetic-source",
-                "utm_medium": "cpc",
-                "utm_campaign": "synthetic-informational-notice",
-                "session_ref": str(uuid.uuid4()),
-            },
-            origin=origin,
-            body_size_bytes=512,
-            ingress_provenance="browser_capability",
+        return (
+            self.env["marketing.web.ingress.service"]
+            .with_env(endpoint.env)
+            ._ingest_payload(
+                endpoint,
+                {
+                    "event_id": str(uuid.uuid4()),
+                    "event_type": "entry_point",
+                    "occurred_at": fields.Datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "landing_url": "https://example.test" + path,
+                    "utm_source": "synthetic-source",
+                    "utm_medium": "cpc",
+                    "utm_campaign": "synthetic-informational-notice",
+                    "session_ref": str(uuid.uuid4()),
+                },
+                origin=origin,
+                body_size_bytes=512,
+                ingress_provenance="browser_capability",
+            )
         )
 
     def test_operator_policy_is_explicit_and_default_ignores_old_parameter(self):
         self.env["ir.config_parameter"].sudo().set_param(
-            "marketing_center_website.tracking_test_endpoint_ids", json.dumps([self.endpoint.id])
+            "marketing_center_website.tracking_test_endpoint_ids",
+            json.dumps([self.endpoint.id]),
         )
         self.assertEqual(self.endpoint.website_tracking_policy, "individual_consent")
         self.assertFalse(self.endpoint._capture_policy_allows())
@@ -156,31 +175,49 @@ class TestIndividualWebsiteConsent(SavepointCase):
         self.assertEqual(self.endpoint.privacy_policy_set_by, self.env.user)
         self.assertTrue(self.endpoint._capture_policy_allows())
         self.assertFalse(self.endpoint.privacy_legal_basis_code)
-        other = self.env["marketing.web.ingress.endpoint"].create({
-            "name": "Unselected endpoint", "allowed_hosts": "other.test",
-            "allowed_origins": "https://other.test",
-            "privacy_legal_basis_code": "consent",
-            **{name: self.endpoint[name] for name in (
-                "capture_enabled", "capture_purpose", "privacy_policy_version",
-                "privacy_notice_version", "privacy_policy_justification",
-                "identifier_retention_days",
-            )},
-        })
+        other = self.env["marketing.web.ingress.endpoint"].create(
+            {
+                "name": "Unselected endpoint",
+                "allowed_hosts": "other.test",
+                "allowed_origins": "https://other.test",
+                "privacy_legal_basis_code": "consent",
+                **{
+                    name: self.endpoint[name]
+                    for name in (
+                        "capture_enabled",
+                        "capture_purpose",
+                        "privacy_policy_version",
+                        "privacy_notice_version",
+                        "privacy_policy_justification",
+                        "identifier_retention_days",
+                    )
+                },
+            }
+        )
         self.assertFalse(other._capture_policy_allows())
         self.endpoint.capture_enabled = False
         self.assertFalse(self.endpoint._capture_policy_allows())
 
     def test_operator_migration_rejects_wrong_scope_or_stale_revision(self):
-        values = dict(website_id=self.website.id, binding_id=self.binding.id,
-                      company_id=self.website.company_id.id,
-                      expected_revision=self.endpoint.config_revision,
-                      policy_version="new-v2", notice_version="new-v2",
-                      justification="Reviewed synthetic operator decision")
-        for changed in ({"website_id": self.website.id + 1000},
-                        {"company_id": self.website.company_id.id + 1000},
-                        {"expected_revision": self.endpoint.config_revision + 1},
-                        {"expected_revision": True}, {"justification": ""}):
-            with self.subTest(changed=changed), self.assertRaises(ValidationError), self.env.cr.savepoint():
+        values = dict(
+            website_id=self.website.id,
+            binding_id=self.binding.id,
+            company_id=self.website.company_id.id,
+            expected_revision=self.endpoint.config_revision,
+            policy_version="new-v2",
+            notice_version="new-v2",
+            justification="Reviewed synthetic operator decision",
+        )
+        for changed in (
+            {"website_id": self.website.id + 1000},
+            {"company_id": self.website.company_id.id + 1000},
+            {"expected_revision": self.endpoint.config_revision + 1},
+            {"expected_revision": True},
+            {"justification": ""},
+        ):
+            with self.subTest(changed=changed), self.assertRaises(
+                ValidationError
+            ), self.env.cr.savepoint():
                 self.endpoint._activate_informational_notice(**{**values, **changed})
         self.assertFalse(self.endpoint._capture_policy_allows())
         self._informational_policy()
@@ -196,12 +233,17 @@ class TestIndividualWebsiteConsent(SavepointCase):
         # the absence of a legal-basis assertion without inventing one.
         self.assertIs(self.endpoint.privacy_legal_basis_code, False)
         result = self._test_entry(self._trusted_endpoint(decision))
-        touchpoint = self.env["marketing.attribution.touchpoint"].browse(result.touchpoint_id)
+        touchpoint = self.env["marketing.attribution.touchpoint"].browse(
+            result.touchpoint_id
+        )
         self.assertEqual(touchpoint.consent_state, "unknown")
         self.assertFalse(touchpoint.legal_basis_code)
         self.assertEqual(touchpoint.privacy_decision_source, "operator.website_notice")
         self.assertFalse(touchpoint.privacy_decided_at)
-        self.assertEqual(touchpoint.extensions_json["web_ingress.website_tracking_policy"], "informational_notice")
+        self.assertEqual(
+            touchpoint.extensions_json["web_ingress.website_tracking_policy"],
+            "informational_notice",
+        )
         self.assertNotIn("web_ingress.tracking_test_mode", touchpoint.extensions_json)
         self.assertEqual(self.consent.search_count([]), count)
         self.assertEqual(decision.read()[0], before)
@@ -211,8 +253,10 @@ class TestIndividualWebsiteConsent(SavepointCase):
         self.assertEqual(touchpoint.consent_state, "unknown")
 
     def test_informational_policy_retains_origin_path_and_authentication_guards(self):
-        from ..models import consent, consent_service
         from unittest.mock import patch
+
+        from ..models import consent, consent_service
+
         self._informational_policy()
         with self.assertRaises(AccessError):
             self._test_entry(path="/web/login")
@@ -221,7 +265,9 @@ class TestIndividualWebsiteConsent(SavepointCase):
         with self._http("/marketing/web-ingress/" + self.endpoint.public_ref, {}):
             fake = consent.request
             fake.session.uid = self.env.uid
-            with patch.object(consent_service, "request", fake), self.assertRaises(AccessError):
+            with patch.object(consent_service, "request", fake), self.assertRaises(
+                AccessError
+            ):
                 self._test_entry()
             fake.session.uid = False
 
@@ -236,13 +282,20 @@ class TestIndividualWebsiteConsent(SavepointCase):
             self.assertFalse(config["available"])
             self.assertFalse(config["granted"])
             self.assertNotIn("tracking_test_mode", config)
-        with self._http("/marketing/website-consent/config", base_url="https://legacy.invalid") as controller:
+        with self._http(
+            "/marketing/website-consent/config", base_url="https://legacy.invalid"
+        ) as controller:
             config = json.loads(controller.configuration().get_data())
             self.assertFalse(config["capture_allowed"])
-        with self._http("/marketing/website-consent/decision", {
-            "granted": False, "config_revision": self.endpoint.config_revision,
-            "policy_version": "informational-v2", "notice_version": "notice-v2",
-        }) as controller:
+        with self._http(
+            "/marketing/website-consent/decision",
+            {
+                "granted": False,
+                "config_revision": self.endpoint.config_revision,
+                "policy_version": "informational-v2",
+                "notice_version": "notice-v2",
+            },
+        ) as controller:
             answer = json.loads(controller.decide().get_data())
             self.assertTrue(answer["accepted"])
             self.assertTrue(answer["informational_notice"])
@@ -255,8 +308,10 @@ class TestIndividualWebsiteConsent(SavepointCase):
     def test_internal_http_worker_requires_real_token_and_current_decision(self):
         from types import SimpleNamespace
         from unittest.mock import patch
+
         from werkzeug.test import EnvironBuilder
         from werkzeug.wrappers import Request
+
         from ..models import consent
 
         decision = self._granted()
@@ -302,15 +357,21 @@ class TestIndividualWebsiteConsent(SavepointCase):
             self.assertFalse(self._trusted_endpoint(current)._capture_policy_allows())
 
     def _http(
-        self, path, payload=None, *, cookie="", extra_headers=None,
+        self,
+        path,
+        payload=None,
+        *,
+        cookie="",
+        extra_headers=None,
         base_url="https://example.test",
     ):
         import contextlib
-        import json
         from types import SimpleNamespace
         from unittest.mock import patch
+
         from werkzeug.test import EnvironBuilder
         from werkzeug.wrappers import Request
+
         from ..controllers import website_action, website_consent
         from ..models import consent
 
@@ -345,7 +406,6 @@ class TestIndividualWebsiteConsent(SavepointCase):
         return mocked()
 
     def test_individual_http_choice_scope_and_stale_request_revocation(self):
-        import json
         from http.cookies import SimpleCookie
         from urllib.parse import quote
 

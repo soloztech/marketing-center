@@ -3,6 +3,7 @@
 import {
     boundedActionResponse,
     createFormPostBridge,
+    createNativeFormPostBridge,
     technicalActionRef,
     trustedHumanActivation,
     validRedirectPath,
@@ -26,6 +27,27 @@ const RETRY_DELAYS_MS = Object.freeze([0, 250, 750]);
 let enabled = false;
 let consentRef = "";
 let formClaim = null;
+const measurementConfig = document.getElementById("marketing_measurement_config");
+let captureMode =
+    (measurementConfig && measurementConfig.dataset.captureMode) || "native";
+let nativeForm = null;
+const nativeEvents = new WeakMap();
+
+function nativeEventClaim(body) {
+    const target = nativeForm || (body && typeof body === "object" ? body : null);
+    let eventId = target && nativeEvents.get(target);
+    if (!eventId) {
+        eventId = newActionEventId();
+        if (target) nativeEvents.set(target, eventId);
+    }
+    return {
+        eventId,
+        complete() {
+            if (target) nativeEvents.delete(target);
+            nativeForm = null;
+        },
+    };
+}
 
 function freshClaim(actionRef) {
     return {
@@ -66,18 +88,23 @@ async function postTechnicalAction(path, payload, deadline = Date.now() + 16000)
         }
         let response = null;
         try {
-            response = await boundedActionResponse(path, {
-                method: "POST",
-                credentials: "same-origin",
-                cache: "no-store",
-                keepalive: true,
-                headers: {
-                    Accept: "application/json",
-                    "Content-Type": "application/json",
-                    ...(consentRef ? {"X-Marketing-Consent-Ref": consentRef} : {}),
+            response = await boundedActionResponse(
+                path,
+                {
+                    method: "POST",
+                    credentials: "same-origin",
+                    cache: "no-store",
+                    keepalive: true,
+                    headers: {
+                        Accept: "application/json",
+                        "Content-Type": "application/json",
+                        ...(consentRef ? {"X-Marketing-Consent-Ref": consentRef} : {}),
+                    },
+                    body,
                 },
-                body,
-            }, window, Math.max(1, Math.min(5000, deadline - Date.now())));
+                window,
+                Math.max(1, Math.min(5000, deadline - Date.now()))
+            );
         } catch (_error) {
             continue;
         }
@@ -120,7 +147,8 @@ async function notifyAction(kind, eventId, deadline = Date.now() + 750) {
             Promise.all(pending),
             new Promise((resolve) => {
                 timeoutId = window.setTimeout(
-                    resolve, Math.max(0, Math.min(750, deadline - Date.now()))
+                    resolve,
+                    Math.max(0, Math.min(750, deadline - Date.now()))
                 );
             }),
         ]);
@@ -151,6 +179,18 @@ async function claimWhatsApp(actionRef, fallbackPath) {
 }
 
 function onActivation(event) {
+    if (captureMode === "native") {
+        const path =
+            typeof event.composedPath === "function" ? event.composedPath() : [];
+        const form = path.find(
+            (item) =>
+                item &&
+                item.tagName === "FORM" &&
+                item.getAttribute("data-model_name") === "crm.lead"
+        );
+        if (form) nativeForm = form;
+        return;
+    }
     if (!enabled || !trustedHumanActivation(event, document, navigator)) {
         return;
     }
@@ -172,17 +212,25 @@ function onActivation(event) {
 }
 
 const originalPost = ajax.post;
-ajax.post = createFormPostBridge(
+const legacyPost = createFormPostBridge(
     originalPost,
     window.location.origin,
     takeFormClaim,
     exchangeForm
 );
+ajax.post = createNativeFormPostBridge(
+    legacyPost,
+    window.location.origin,
+    nativeEventClaim,
+    notifyAction,
+    () => captureMode === "native"
+);
 document.addEventListener("click", onActivation, true);
 document.addEventListener("submit", onActivation, true);
 loadConfig()
     .then((config) => {
-        enabled = validConfig(config);
+        captureMode = (config && config.capture_mode) || captureMode;
+        enabled = validConfig(config) && captureMode === "legacy";
         consentRef = enabled ? config.consent_ref || "" : "";
     })
     .catch(() => {
@@ -200,7 +248,8 @@ document.addEventListener("marketing_center:consent-changed", (event) => {
     ) {
         loadConfig(true)
             .then((config) => {
-                enabled = validConfig(config);
+                captureMode = (config && config.capture_mode) || captureMode;
+                enabled = validConfig(config) && captureMode === "legacy";
                 consentRef = enabled ? config.consent_ref || "" : "";
             })
             .catch(() => {

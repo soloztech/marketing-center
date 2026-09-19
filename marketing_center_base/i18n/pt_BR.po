@@ -1,0 +1,31 @@
+# Translation of Odoo Server.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 16.0\n"
+"Language: pt_BR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#. module: marketing_center_base
+#: model:ir.ui.menu,name:marketing_center_base.menu_marketing_center_catalog
+#: model:ir.ui.menu,name:marketing_center_base.menu_marketing_campaigns
+#: model:ir.actions.act_window,name:marketing_center_base.action_marketing_campaigns
+msgid "Campaigns"
+msgstr "Campanhas"
+
+#. module: marketing_center_base
+#: model:ir.ui.menu,name:marketing_center_base.menu_marketing_center_configuration
+msgid "Integrations"
+msgstr "Integrações"
+
+#. module: marketing_center_base
+#: model:ir.ui.menu,name:marketing_center_base.menu_marketing_center_attribution
+msgid "Acquisition history"
+msgstr "Histórico de aquisição"
+
+#. module: marketing_center_base
+#: model:ir.ui.menu,name:marketing_center_base.menu_marketing_center_funnel
+msgid "Business event history"
+msgstr "Histórico de eventos comerciais"

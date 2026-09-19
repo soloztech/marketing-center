@@ -8,7 +8,8 @@ from typing import Dict, Mapping, Tuple
 from urllib.parse import unquote, urlsplit, urlunsplit
 
 MAX_BODY_BYTES = 16 * 1024
-MAX_PAYLOAD_FIELDS = 20
+MAX_PAYLOAD_FIELDS = 23
+ACQUISITION_FIELDS = ("gad_campaignid", "gad_source", "acquisition_at")
 CLICK_ID_FIELDS = ("gclid", "gbraid", "wbraid", "fbclid")
 UTM_FIELDS = (
     "utm_source",
@@ -31,6 +32,7 @@ ALLOWED_PAYLOAD_FIELDS = frozenset(
         *UTM_FIELDS,
         *REFERENCE_FIELDS,
         *ACTION_REFERENCE_FIELDS,
+        *ACQUISITION_FIELDS,
     }
 )
 ACTION_EVENT_TYPES = frozenset({"form_submission", "organic_link"})
@@ -271,6 +273,7 @@ class WebIngressPayload:
     route_ref: str
     model_ref: str
     consent_state: str
+    acquisition: Dict[str, str] = dataclasses.field(default_factory=dict)
 
     def safe_canonical_dict(self):
         canonical = {
@@ -300,7 +303,26 @@ class WebIngressPayload:
             )
             if self.model_ref:
                 canonical["model_ref"] = self.model_ref
+        # Omit absent fields so historical retries keep their original digest.
+        if self.acquisition:
+            canonical["acquisition"] = self.acquisition
         return canonical
+
+
+def _parse_acquisition(payload, occurred_at):
+    acquisition = {}
+    for name in ("gad_campaignid", "gad_source"):
+        value = _text(payload.get(name), name, 32)
+        if value:
+            if not re.fullmatch(r"[0-9]{1,32}", value):
+                raise WebIngressContractError("%s must be a numeric identifier" % name)
+            acquisition[name] = value
+    if payload.get("acquisition_at"):
+        acquired_at = _provider_datetime(payload["acquisition_at"])
+        if acquired_at > occurred_at:
+            raise WebIngressContractError("acquisition_at must not follow occurred_at")
+        acquisition["acquisition_at"] = acquired_at.isoformat() + "Z"
+    return acquisition
 
 
 def parse_web_ingress_payload(
@@ -324,6 +346,7 @@ def parse_web_ingress_payload(
         payload, event_type, max_field_length
     )
     occurred_at = _provider_datetime(payload.get("occurred_at"))
+    acquisition = _parse_acquisition(payload, occurred_at)
     landing_url = _safe_url(payload.get("landing_url"), "landing_url")
     landing_host = _url_host(landing_url, "landing_url")
     if landing_host not in allowed_hosts:
@@ -377,6 +400,7 @@ def parse_web_ingress_payload(
         route_ref=route_ref,
         model_ref=model_ref,
         consent_state=consent_state,
+        acquisition=acquisition,
     )
 
 

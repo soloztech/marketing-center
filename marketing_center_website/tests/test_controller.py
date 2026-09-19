@@ -1,5 +1,8 @@
+from unittest.mock import patch
+
 from odoo.tests import tagged
 from odoo.tests.common import HttpCase
+from odoo.tools import config
 
 
 @tagged("-at_install", "post_install")
@@ -8,6 +11,7 @@ class TestMarketingWebsiteIngressController(HttpCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.website = cls.env.ref("website.default_website")
+        cls.website.domain = "https://www.example.test"
         cls.endpoint = cls.env["marketing.web.ingress.endpoint"].create(
             {
                 "capture_enabled": True,
@@ -27,12 +31,19 @@ class TestMarketingWebsiteIngressController(HttpCase):
             [("website_id", "=", cls.website.id)], limit=1
         )
         if cls.binding:
-            cls.binding.write({"endpoint_id": cls.endpoint.id, "active": True})
+            cls.binding.write(
+                {
+                    "endpoint_id": cls.endpoint.id,
+                    "active": True,
+                    "capture_mode": "legacy",
+                }
+            )
         else:
             cls.binding = cls.env["marketing.website.ingress.binding"].create(
                 {
                     "website_id": cls.website.id,
                     "endpoint_id": cls.endpoint.id,
+                    "capture_mode": "legacy",
                 }
             )
         cls.authenticated_login = "website-ingress-authenticated"
@@ -49,16 +60,34 @@ class TestMarketingWebsiteIngressController(HttpCase):
             }
         )
 
+    def setUp(self):
+        super().setUp()
+        proxy = patch.dict(config.options, {"proxy_mode": True})
+        proxy.start()
+        self.addCleanup(proxy.stop)
+
+    def _open_config(self):
+        return self.opener.get(
+            self.base_url() + "/marketing/website-ingress/config",
+            headers={
+                "X-Forwarded-Host": "www.example.test",
+                "X-Forwarded-Proto": "https",
+            },
+        )
+
     def test_same_origin_config_is_minimal_and_side_effect_free(self):
         event_model = self.env["marketing.web.ingress.event"].sudo()
         touchpoint_model = self.env["marketing.attribution.touchpoint"].sudo()
         before = (event_model.search_count([]), touchpoint_model.search_count([]))
-        response = self.url_open("/marketing/website-ingress/config")
+        response = self._open_config()
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(
             response.json(),
             {
                 "enabled": True,
+                "capture_mode": "legacy",
+                "informational_notice": False,
+                "capture_allowed": True,
                 "ingest_path": "/marketing/web-ingress/%s" % self.endpoint.public_ref,
                 "public_key": self.endpoint.public_key,
                 "config_revision": self.endpoint.config_revision,
@@ -80,7 +109,7 @@ class TestMarketingWebsiteIngressController(HttpCase):
 
     def test_disabled_binding_returns_no_endpoint_material(self):
         self.binding.write({"active": False})
-        response = self.url_open("/marketing/website-ingress/config")
+        response = self._open_config()
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"enabled": False})
         self.assertNotIn(self.endpoint.public_ref, response.text)
@@ -88,14 +117,14 @@ class TestMarketingWebsiteIngressController(HttpCase):
 
     def test_disabled_capture_policy_returns_no_endpoint_material(self):
         self.endpoint.write({"capture_enabled": False})
-        response = self.url_open("/marketing/website-ingress/config")
+        response = self._open_config()
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"enabled": False})
         self.assertNotIn(self.endpoint.public_key, response.text)
 
     def test_authenticated_session_receives_no_public_endpoint_material(self):
         self.authenticate(self.authenticated_login, self.authenticated_password)
-        response = self.url_open("/marketing/website-ingress/config")
+        response = self._open_config()
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"enabled": False})
         self.assertNotIn(self.endpoint.public_ref, response.text)

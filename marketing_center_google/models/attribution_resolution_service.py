@@ -23,6 +23,20 @@ _REF = re.compile(
 )
 
 
+def google_account_hints(assets):
+    """Read only typed account evidence; names and campaign IDs are not accounts."""
+    assets = assets if isinstance(assets, dict) else {}
+    customer = str(assets.get("google.customer_id") or "")
+    if customer and not re.fullmatch(r"[0-9]{10}", customer):
+        return set(), True
+    hints = {customer} if customer else set()
+    for namespace in _SPECS:
+        candidate = _REF.fullmatch(str(assets.get(namespace) or ""))
+        if candidate:
+            hints.add(candidate[1])
+    return hints, False
+
+
 class MarketingAssetResolutionGoogle(models.AbstractModel):
     _inherit = "marketing.attribution.asset.resolution.service"
 
@@ -31,37 +45,52 @@ class MarketingAssetResolutionGoogle(models.AbstractModel):
         return {**super()._asset_resolver_specs(), **_SPECS}
 
     @api.model
+    def _resolution_values(self, effective, namespace, value, assets, specs):
+        # The generic URL campaign ID is Google evidence only when the producer
+        # explicitly names its provider. Do not take ownership of other IDs.
+        if namespace == "campaign_id" and assets.get("campaign_provider") == "google":
+            specs = {**specs, "campaign_id": _SPECS["google.campaign_id"]}
+        return super()._resolution_values(effective, namespace, value, assets, specs)
+
+    @api.model
+    def _google_source_candidates(self, company, assets):
+        hints, invalid = google_account_hints(assets)
+        Source = self.env["marketing.center.source"].sudo()
+        if invalid or len(hints) > 1:
+            return Source.browse()
+        domain = [("company_id", "=", company.id), ("service", "=", "google.ads")]
+        if hints:
+            domain.append(
+                ("external_account_ref", "=", "customers/%s" % next(iter(hints)))
+            )
+            return Source.with_context(active_test=False).search(domain, limit=3)
+        # A URL ID has no account scope. Exactly one usable account is required;
+        # finding a similarly named campaign in another account is not evidence.
+        domain += [
+            ("active", "=", True),
+            ("state", "=", "active"),
+            ("read_enabled", "=", True),
+        ]
+        return Source.search(domain, limit=3)
+
+    @api.model
     def _resolve_asset_reference(self, base, effective, spec, value, assets, specs):
         if spec.provider_key != "google":
             return super()._resolve_asset_reference(
                 base, effective, spec, value, assets, specs
             )
-        customer = str(assets.get("google.customer_id") or "")
-        hints = {customer} if re.fullmatch(r"[0-9]{10}", customer) else set()
-        for namespace in _SPECS:
-            candidate = _REF.fullmatch(str(assets.get(namespace) or ""))
-            if candidate:
-                hints.add(candidate[1])
-        if len(hints) != 1:
+        hints, invalid = google_account_hints(assets)
+        if invalid or len(hints) > 1:
             base.update(
                 state="ambiguous" if len(hints) > 1 else "unresolved",
-                reason="conflicting_account_hints" if hints else "account_required",
+                reason=(
+                    "conflicting_account_hints"
+                    if len(hints) > 1
+                    else "invalid_account_reference"
+                ),
             )
             return base
-        customer = next(iter(hints))
-        source = (
-            self.env["marketing.center.source"]
-            .sudo()
-            .with_context(active_test=False)
-            .search(
-                [
-                    ("company_id", "=", effective.company_id.id),
-                    ("service", "=", "google.ads"),
-                    ("external_account_ref", "=", "customers/%s" % customer),
-                ],
-                limit=3,
-            )
-        )
+        source = self._google_source_candidates(effective.company_id, assets)
         base["source_candidate_count"] = len(source)
         if len(source) != 1:
             base.update(
@@ -70,6 +99,7 @@ class MarketingAssetResolutionGoogle(models.AbstractModel):
             )
             return base
         base["source_id"] = source.id
+        customer = source.external_account_id
         if spec.target_kind == "source":
             if value != customer:
                 base.update(reason="invalid_account_reference")
@@ -80,6 +110,8 @@ class MarketingAssetResolutionGoogle(models.AbstractModel):
                 canonical_external_ref=source.external_account_ref,
             )
             return base
+        if spec.entity_type == "campaign" and re.fullmatch(r"[0-9]+", value):
+            value = "customers/%s/campaigns/%s" % (customer, value)
         match = _REF.fullmatch(value)
         if not match or match[1] != customer or match[2] != spec.ref_segment:
             base["reason"] = "invalid_entity_reference"
@@ -121,7 +153,7 @@ class MarketingAssetResolutionGoogle(models.AbstractModel):
                 ("company_id", "=", source.company_id.id),
                 ("service_key", "=", "google.ads"),
                 ("state", "in", ["unresolved", "ambiguous"]),
-                ("asset_value", "=", entity.external_ref),
+                ("asset_value", "in", [entity.external_ref, entity.external_id]),
                 "|",
                 ("source_id", "=", source.id),
                 ("source_id", "=", False),

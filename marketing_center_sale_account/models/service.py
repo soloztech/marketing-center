@@ -17,6 +17,8 @@ class MarketingAccountService(models.AbstractModel):
     @api.model
     def _claim_sale_account_projection(self, move, account_link):
         """Create an MVCC conflict before a first typed Sales projection."""
+        if not move.company_id.marketing_business_events_enabled:
+            return self.env["marketing.business.event.account.move.link"]
         self.env.cr.execute(
             "SELECT id "
             "FROM marketing_business_event_account_move_link "
@@ -64,6 +66,8 @@ class MarketingAccountService(models.AbstractModel):
 
     @api.model
     def _link_typed_move_order(self, move, order):
+        if not move.company_id.marketing_business_events_enabled:
+            return self.env["marketing.account.move.sale.link"]
         company = self._company_for_move(move)
         order_company = self.env["marketing.sale.service"]._company_for_order(order)
         if order_company != company:
@@ -138,6 +142,8 @@ class MarketingAccountService(models.AbstractModel):
 
     @api.model
     def _project_event_move_sale_links(self, event, move, role, account_link):
+        if not move.company_id.marketing_business_events_enabled:
+            return self.env["marketing.sale.account.projection"], False
         event, move, account_link, company = self._validate_projection_source(
             event, move, role, account_link
         )
@@ -191,6 +197,8 @@ class MarketingAccountService(models.AbstractModel):
 
     @api.model
     def _after_link_event_move(self, event, move, role, account_link, created):
+        if not move.company_id.marketing_business_events_enabled:
+            return False
         result = super()._after_link_event_move(
             event, move, role, account_link, created
         )
@@ -211,6 +219,15 @@ class MarketingAccountService(models.AbstractModel):
             raise ValidationError(_("A single valid company is required."))
         if company not in self.env.companies:
             raise AccessError(_("The company is not available for this backfill."))
+        if not company.marketing_business_events_enabled:
+            return {
+                "processed": 0,
+                "projected": 0,
+                "skipped_missing_source": 0,
+                "last_id": after_id,
+                "has_more": False,
+                "disabled": True,
+            }
         if isinstance(after_id, bool) or not isinstance(after_id, int) or after_id < 0:
             raise ValidationError(
                 _("The backfill cursor must be a non-negative integer.")

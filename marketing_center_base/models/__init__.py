@@ -9,6 +9,7 @@ from . import (
     catalog_service,
     configuration,
     effective_touchpoint,
+    event_policy,
     performance,
     performance_service,
     sync,

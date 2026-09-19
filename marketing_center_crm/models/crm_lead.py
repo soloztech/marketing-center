@@ -7,6 +7,24 @@ from .tokens import MARKETING_CRM_EVENT_WRITE_TOKEN
 class CrmLead(models.Model):
     _inherit = "crm.lead"
 
+    marketing_business_events_enabled = fields.Boolean(
+        compute="_compute_marketing_business_events_enabled"
+    )
+
+    @api.depends_context("company")
+    @api.depends(
+        "company_id.marketing_business_events_enabled",
+        "marketing_event_company_id.marketing_business_events_enabled",
+    )
+    def _compute_marketing_business_events_enabled(self):
+        for lead in self:
+            company = (
+                lead.marketing_event_company_id or lead.company_id or self.env.company
+            )
+            lead.marketing_business_events_enabled = (
+                company.marketing_business_events_enabled
+            )
+
     marketing_event_sequence = fields.Integer(
         string="Marketing event sequence", readonly=True, copy=False, default=0
     )
@@ -76,7 +94,7 @@ class CrmLead(models.Model):
         if internal_write:
             return leads
         service = self.env["marketing.crm.service"]
-        for lead in leads:
+        for lead in leads.filtered("marketing_business_events_enabled"):
             sequence = lead._marketing_next_event_sequence()
             service._ingest_lead_event(
                 lead,
@@ -117,23 +135,24 @@ class CrmLead(models.Model):
                     )
                 )
         tracked = {"stage_id", "active", "lost_reason_id"} & set(values)
-        if not tracked:
+        event_leads = self.filtered("marketing_business_events_enabled")
+        if not tracked or not event_leads:
             return super().write(values)
-        self._marketing_lock_event_state()
+        event_leads._marketing_lock_event_state()
         before = {
             lead.id: {
                 "stage": lead.stage_id,
                 "active": lead.active,
                 "lost_reason": lead.lost_reason_id,
             }
-            for lead in self
+            for lead in event_leads
         }
-        watermark = self._marketing_tracking_watermark()
+        watermark = event_leads._marketing_tracking_watermark()
         result = super().write(values)
-        tracking_by_lead = self._marketing_new_tracking_by_lead(watermark)
+        tracking_by_lead = event_leads._marketing_new_tracking_by_lead(watermark)
         service = self.env["marketing.crm.service"]
         now = fields.Datetime.now()
-        for lead in self:
+        for lead in event_leads:
             previous = before[lead.id]
             stage_changed = previous["stage"] != lead.stage_id
             became_lost = previous["active"] and not lead.active
@@ -200,11 +219,12 @@ class CrmLead(models.Model):
         return merged
 
     def _marketing_lock_event_state(self):
-        if not self.ids:
+        tracked = self.filtered("marketing_business_events_enabled")
+        if not tracked.ids:
             return True
         self.env.cr.execute(
             "SELECT id FROM crm_lead WHERE id IN %s ORDER BY id FOR UPDATE",
-            [tuple(self.ids)],
+            [tuple(tracked.ids)],
         )
         self.invalidate_recordset(
             ["stage_id", "active", "lost_reason_id", "marketing_event_sequence"]
@@ -221,6 +241,8 @@ class CrmLead(models.Model):
 
     def _marketing_next_event_sequence(self):
         self.ensure_one()
+        if not self.marketing_business_events_enabled:
+            return 0
         self.env.cr.execute(
             "SELECT marketing_event_sequence FROM crm_lead WHERE id = %s FOR UPDATE",
             [self.id],
@@ -321,6 +343,11 @@ class CrmLead(models.Model):
             raise AccessError(_("Only Marketing managers can reconcile CRM history."))
         self.check_access_rights("read")
         self.check_access_rule("read")
+        if not self.marketing_business_events_enabled:
+            company = (
+                self.marketing_event_company_id or self.company_id or self.env.company
+            )
+            return company._marketing_business_events_disabled_notification()
         service = self.env["marketing.crm.service"]
         cursor = 0
         processed = 0

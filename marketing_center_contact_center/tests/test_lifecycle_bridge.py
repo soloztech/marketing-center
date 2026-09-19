@@ -1,5 +1,6 @@
 import datetime
 import uuid
+from contextlib import ExitStack
 from unittest.mock import patch
 
 from odoo import fields
@@ -13,6 +14,7 @@ class MarketingLifecycleCase(SavepointCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        cls.env.company.marketing_business_events_enabled = True
         suffix = str(uuid.uuid4())
         contact_group = cls.env.ref("contact_center_base.group_contact_center_agent")
         cls.agent = (
@@ -166,6 +168,104 @@ class MarketingLifecycleCase(SavepointCase):
 
 
 class TestMarketingContactCenterLifecycleBridge(MarketingLifecycleCase):
+    def test_disabled_capture_keeps_messages_and_delivery_without_marketing(self):
+        self.env.company.marketing_business_events_enabled = False
+        _channel, channel_binding = self._conversation()
+        models = (
+            "marketing.business.event",
+            "marketing.business.event.observation",
+            "marketing.contact.center.response.signal",
+            "marketing.contact.center.response.cursor",
+            "marketing.contact.center.response.episode",
+            "marketing.contact.center.response",
+        )
+        counts = {name: self.env[name].search_count([]) for name in models}
+        with ExitStack() as stack, trap_jobs() as trap:
+            for model, method in (
+                (
+                    "marketing.contact.center.response.episode.service",
+                    "_record_signals",
+                ),
+                ("marketing.contact.center.lifecycle.service", "_lock_event"),
+                ("marketing.contact.center.response.episode.service", "_lock_channel"),
+            ):
+                stack.enter_context(
+                    patch.object(
+                        type(self.env[model]),
+                        method,
+                        side_effect=AssertionError(
+                            "Disabled message measurement was called"
+                        ),
+                    )
+                )
+            source = self._message_binding(
+                channel_binding,
+                direction="inbound",
+                origin="provider",
+                date="2026-09-01 12:00:00",
+                delivery_state="delivered",
+            )
+            response = self._message_binding(
+                channel_binding,
+                direction="outbound",
+                origin="agent",
+                date="2026-09-01 12:01:00",
+                delivery_state="queued",
+            )
+            response._contact_center_apply_delivery("sent")
+            self.assertEqual(response.delivery_state, "sent")
+            self.assertTrue(source.message_id.exists())
+            self.assertTrue(response.message_id.exists())
+            source._job_sync_marketing_response_episode()
+            channel_binding._job_sync_marketing_lifecycle("conversation_started")
+            channel_binding._job_sync_marketing_response_episodes()
+            self.assertFalse(
+                self.service._sync_event(channel_binding, "conversation_started")
+            )
+            result = self.episode_service._reconcile_channel(channel_binding)
+            self.assertTrue(result["disabled"])
+            self.assertFalse(result["has_more"])
+            trap.assert_jobs_count(0)
+        self.assertEqual(
+            {name: self.env[name].search_count([]) for name in models}, counts
+        )
+
+    def test_disabled_capture_retains_existing_events_and_response_history(self):
+        channel, channel_binding = self._conversation()
+        source = self._message_binding(
+            channel_binding,
+            direction="inbound",
+            origin="provider",
+            date="2026-09-01 12:00:00",
+            delivery_state="delivered",
+            skip_enqueue=True,
+        )
+        self.service._sync_event(channel_binding, "conversation_started")
+        self._reconcile_episode_pages(channel_binding)
+        events = self._events(channel, "conversation_started")
+        episodes = self.env["marketing.contact.center.response.episode"].search(
+            [("channel_binding_id", "=", channel_binding.id)]
+        )
+        self.assertTrue(events)
+        self.assertTrue(episodes)
+        self.env.company.marketing_business_events_enabled = False
+        with patch.object(
+            type(self.episode_service),
+            "_lock_channel",
+            side_effect=AssertionError("Disabled signal capture acquired a lock"),
+        ):
+            self.assertFalse(self.episode_service._record_signals(source))
+            self.assertTrue(
+                self.episode_service._reconcile_channel(channel_binding)["disabled"]
+            )
+        self.assertEqual(self._events(channel, "conversation_started"), events)
+        self.assertEqual(
+            self.env["marketing.contact.center.response.episode"].search(
+                [("channel_binding_id", "=", channel_binding.id)]
+            ),
+            episodes,
+        )
+
     def test_external_projection_enqueues_and_replay_is_idempotent(self):
         channel, channel_binding = self._conversation()
         with trap_jobs() as trap:
@@ -367,7 +467,10 @@ class TestMarketingContactCenterLifecycleBridge(MarketingLifecycleCase):
 
     def test_company_scope_and_business_event_acl_are_preserved(self):
         other_company = self.env["res.company"].create(
-            {"name": "Lifecycle company %s" % uuid.uuid4()}
+            {
+                "name": "Lifecycle company %s" % uuid.uuid4(),
+                "marketing_business_events_enabled": True,
+            }
         )
         allowed_company_ids = [self.env.company.id, other_company.id]
         scoped = (

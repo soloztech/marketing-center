@@ -8,6 +8,9 @@ from .tokens import MARKETING_SALE_INTERNAL_WRITE_TOKEN, MARKETING_SALE_TRANSITI
 class SaleOrder(models.Model):
     _inherit = "sale.order"
 
+    marketing_business_events_enabled = fields.Boolean(
+        related="company_id.marketing_business_events_enabled"
+    )
     marketing_sale_event_sequence = fields.Integer(
         string="Marketing event sequence", readonly=True, copy=False, default=0
     )
@@ -62,7 +65,9 @@ class SaleOrder(models.Model):
             raise AccessError(_("The sales marketing scope is managed internally."))
         orders = super().create(vals_list)
         service = self.env["marketing.sale.service"]
-        for order in orders.filtered("opportunity_id"):
+        for order in orders.filtered("marketing_business_events_enabled").filtered(
+            "opportunity_id"
+        ):
             service._link_order_lead(order, order.opportunity_id, "sale.create")
         return orders
 
@@ -80,9 +85,12 @@ class SaleOrder(models.Model):
             raise AccessError(_("The sales marketing scope is managed internally."))
         if internal or guarded:
             return super().write(values)
+        tracked = self.filtered("marketing_business_events_enabled")
+        if not tracked:
+            return super().write(values)
         if "company_id" in values:
             requested_company_id = values.get("company_id") or False
-            invalid = self.filtered(
+            invalid = tracked.filtered(
                 lambda order: order.marketing_sale_company_id
                 and requested_company_id != order.marketing_sale_company_id.id
             )
@@ -98,22 +106,22 @@ class SaleOrder(models.Model):
         if not tracks_proposal and not tracks_lead:
             return super().write(values)
         if tracks_proposal:
-            self._marketing_sale_lock_event_state()
-            previous_states = {order.id: order.state for order in self}
-            watermark = self._marketing_sale_tracking_watermark()
+            tracked._marketing_sale_lock_event_state()
+            previous_states = {order.id: order.state for order in tracked}
+            watermark = tracked._marketing_sale_tracking_watermark()
         else:
             previous_states = {}
             watermark = 0
         result = super().write(values)
         service = self.env["marketing.sale.service"]
         if tracks_lead:
-            for order in self.filtered("opportunity_id"):
+            for order in tracked.filtered("opportunity_id"):
                 service._link_order_lead(
                     order, order.opportunity_id, "sale.opportunity_id.write"
                 )
         if tracks_proposal:
-            tracking_by_order = self._marketing_sale_new_state_tracking(watermark)
-            for order in self:
+            tracking_by_order = tracked._marketing_sale_new_state_tracking(watermark)
+            for order in tracked:
                 if previous_states[order.id] != "draft" or order.state != "sent":
                     continue
                 if service._first_proposal_event(order):
@@ -146,13 +154,16 @@ class SaleOrder(models.Model):
             is MARKETING_SALE_TRANSITION_GUARD
         ):
             return super().action_confirm()
-        self._marketing_sale_lock_event_state()
-        previous_states = {order.id: order.state for order in self}
-        watermark = self._marketing_sale_tracking_watermark()
+        tracked = self.filtered("marketing_business_events_enabled")
+        if not tracked:
+            return super().action_confirm()
+        tracked._marketing_sale_lock_event_state()
+        previous_states = {order.id: order.state for order in tracked}
+        watermark = tracked._marketing_sale_tracking_watermark()
         result = super().action_confirm()
-        tracking_by_order = self._marketing_sale_new_state_tracking(watermark)
+        tracking_by_order = tracked._marketing_sale_new_state_tracking(watermark)
         service = self.env["marketing.sale.service"]
-        for order in self:
+        for order in tracked:
             if (
                 previous_states[order.id] in CONFIRMED_STATES
                 or order.state not in CONFIRMED_STATES
@@ -186,13 +197,16 @@ class SaleOrder(models.Model):
             is MARKETING_SALE_TRANSITION_GUARD
         ):
             return super()._action_cancel()
-        self._marketing_sale_lock_event_state()
-        previous_states = {order.id: order.state for order in self}
-        watermark = self._marketing_sale_tracking_watermark()
+        tracked = self.filtered("marketing_business_events_enabled")
+        if not tracked:
+            return super()._action_cancel()
+        tracked._marketing_sale_lock_event_state()
+        previous_states = {order.id: order.state for order in tracked}
+        watermark = tracked._marketing_sale_tracking_watermark()
         result = super()._action_cancel()
-        tracking_by_order = self._marketing_sale_new_state_tracking(watermark)
+        tracking_by_order = tracked._marketing_sale_new_state_tracking(watermark)
         service = self.env["marketing.sale.service"]
-        for order in self:
+        for order in tracked:
             if (
                 previous_states[order.id] not in CONFIRMED_STATES
                 or order.state != "cancel"
@@ -223,11 +237,12 @@ class SaleOrder(models.Model):
         return result
 
     def _marketing_sale_lock_event_state(self):
-        if not self.ids:
+        tracked = self.filtered("marketing_business_events_enabled")
+        if not tracked.ids:
             return True
         self.env.cr.execute(
             "SELECT id FROM sale_order WHERE id IN %s ORDER BY id FOR UPDATE",
-            [tuple(self.ids)],
+            [tuple(tracked.ids)],
         )
         self.invalidate_recordset(
             ["state", "marketing_sale_event_sequence", "marketing_sale_company_id"]
@@ -236,6 +251,8 @@ class SaleOrder(models.Model):
 
     def _marketing_sale_next_event_sequence(self):
         self.ensure_one()
+        if not self.marketing_business_events_enabled:
+            return 0
         self.env.cr.execute(
             "SELECT marketing_sale_event_sequence FROM sale_order WHERE id = %s FOR UPDATE",
             [self.id],
@@ -314,6 +331,8 @@ class SaleOrder(models.Model):
             raise AccessError(_("Only Marketing managers can reconcile sales history."))
         self.check_access_rights("read")
         self.check_access_rule("read")
+        if not self.marketing_business_events_enabled:
+            return self.company_id._marketing_business_events_disabled_notification()
         service = self.env["marketing.sale.service"]
         cursor = 0
         processed = 0

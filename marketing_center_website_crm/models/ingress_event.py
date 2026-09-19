@@ -1,6 +1,7 @@
 from odoo import models
 
 from .intent import _WEBSITE_CRM_RETENTION_TOKEN
+from .tokens import WEBSITE_NATIVE_SUBMISSION_TOKEN as _TOKEN
 
 
 class MarketingWebIngressEvent(models.Model):
@@ -9,6 +10,22 @@ class MarketingWebIngressEvent(models.Model):
     def _erase_related_private_values(self, *, now):
         result = super()._erase_related_private_values(now=now)
         for event in self:
+            leads = (
+                self.env["marketing.website.crm.correlation"]
+                .sudo()
+                .search(
+                    [
+                        ("event_id", "=", event.id),
+                    ]
+                )
+                .mapped("lead_id")
+                .filtered("marketing_native_snapshot")
+            )
+            leads.with_context(marketing_native_submission_token=_TOKEN).write(
+                {
+                    "marketing_native_snapshot": False,
+                }
+            )
             intents = (
                 self.env["marketing.website.crm.intent"]
                 .sudo()

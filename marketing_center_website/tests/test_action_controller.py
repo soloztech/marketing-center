@@ -37,12 +37,19 @@ class TestMarketingWebsiteActionController(HttpCase):
             [("website_id", "=", cls.website.id)], limit=1
         )
         if cls.binding:
-            cls.binding.write({"endpoint_id": cls.endpoint.id, "active": True})
+            cls.binding.write(
+                {
+                    "endpoint_id": cls.endpoint.id,
+                    "active": True,
+                    "capture_mode": "legacy",
+                }
+            )
         else:
             cls.binding = cls.env["marketing.website.ingress.binding"].create(
                 {
                     "website_id": cls.website.id,
                     "endpoint_id": cls.endpoint.id,
+                    "capture_mode": "legacy",
                 }
             )
         cls.form_model = cls.env["ir.model"]._get("res.partner")

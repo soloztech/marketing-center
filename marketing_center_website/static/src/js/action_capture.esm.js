@@ -11,7 +11,12 @@ const FORM_PATH_PATTERN = /^\/website\/form\/[a-z0-9_.]+$/i;
 const NATIVE_TRACKED_LINK_PATH_PATTERN = /^\/r\/[^/]+(?:\/.*)?$/;
 const RESERVED_FORM_QUERY = Object.freeze(["mc_action", "mc_event", "mc_session"]);
 
-export async function boundedActionResponse(path, options, scope = window, timeoutMs = 5000) {
+export async function boundedActionResponse(
+    path,
+    options,
+    scope = window,
+    timeoutMs = 5000
+) {
     const controller =
         typeof scope.AbortController === "function"
             ? new scope.AbortController()
@@ -265,7 +270,11 @@ export function validRedirectPath(value) {
 }
 
 export function createFormPostBridge(
-    originalPost, origin, takeClaim, exchange, maxWaitMs = 2000
+    originalPost,
+    origin,
+    takeClaim,
+    exchange,
+    maxWaitMs = 2000
 ) {
     return function marketingWebsiteFormPost(rawUrl, opaqueBody) {
         // Preserve unrelated legacy AJAX calls exactly and leave the pending
@@ -278,31 +287,97 @@ export function createFormPostBridge(
             nativePromise &&
             typeof nativePromise.then === "function"
         ) {
-            return nativePromise.then(
-                async (result) => {
-                    const receipt = receiptFromFormResult(result);
-                    const payload = formExchangePayload(claim, receipt);
-                    if (payload) {
-                        let timeoutId;
-                        const deadline = Date.now() + maxWaitMs;
-                        try {
-                            await Promise.race([
-                                Promise.resolve().then(() => exchange(payload, deadline)),
-                                new Promise((resolve) => {
-                                    timeoutId = setTimeout(resolve, maxWaitMs);
-                                }),
-                            ]);
-                        } catch (_error) {
-                            // Tracking can never turn a successful native form into
-                            // a failure, nor keep its navigation pending indefinitely.
-                        } finally {
-                            clearTimeout(timeoutId);
-                        }
+            return nativePromise.then(async (result) => {
+                const receipt = receiptFromFormResult(result);
+                const payload = formExchangePayload(claim, receipt);
+                if (payload) {
+                    let timeoutId;
+                    const deadline = Date.now() + maxWaitMs;
+                    try {
+                        await Promise.race([
+                            Promise.resolve().then(() => exchange(payload, deadline)),
+                            new Promise((resolve) => {
+                                timeoutId = setTimeout(resolve, maxWaitMs);
+                            }),
+                        ]);
+                    } catch (_error) {
+                        // Tracking can never turn a successful native form into
+                        // a failure, nor keep its navigation pending indefinitely.
+                    } finally {
+                        clearTimeout(timeoutId);
                     }
-                    return result;
                 }
-            );
+                return result;
+            });
         }
         return nativePromise;
+    };
+}
+
+export function nativeEventFromFormResult(result) {
+    try {
+        const payload = typeof result === "string" ? JSON.parse(result) : null;
+        return payload &&
+            Number.isInteger(payload.id) &&
+            payload.id > 0 &&
+            validOpaqueUuid(payload.marketing_center_event_id)
+            ? payload.marketing_center_event_id
+            : "";
+    } catch (_error) {
+        return "";
+    }
+}
+
+export function createNativeFormPostBridge(
+    originalPost,
+    origin,
+    claimEvent,
+    confirm,
+    enabled
+) {
+    return function nativeAcquisitionPost(rawUrl, body) {
+        const url = nativeFormUrl(rawUrl, origin);
+        if (!enabled() || !url || url.pathname !== "/website/form/crm.lead") {
+            return originalPost.call(this, rawUrl, body);
+        }
+        let claim;
+        try {
+            claim = claimEvent(body);
+            if (claim && validOpaqueUuid(claim.eventId)) {
+                url.searchParams.set("mc_event", claim.eventId);
+            }
+        } catch (_error) {
+            /* Native submission works without browser storage/crypto. */
+        }
+        const pending = originalPost.call(this, `${url.pathname}${url.search}`, body);
+        if (!pending || typeof pending.then !== "function") {
+            return pending;
+        }
+        return pending.then(async (result) => {
+            const eventId = nativeEventFromFormResult(result);
+            try {
+                const payload = JSON.parse(result);
+                if (payload && payload.marketing_center_submission_conflict === true) {
+                    // The old key belongs to an earlier completed submission;
+                    // a corrected/new demand needs a fresh identity next time.
+                    if (claim && typeof claim.complete === "function") {
+                        claim.complete();
+                    }
+                }
+            } catch (_error) {
+                /* Non-JSON responses keep native error handling. */
+            }
+            if (eventId) {
+                try {
+                    if (claim && typeof claim.complete === "function") {
+                        claim.complete();
+                    }
+                    await confirm("form_submission", eventId);
+                } catch (_error) {
+                    /* Measurement never turns CRM success into failure. */
+                }
+            }
+            return result;
+        });
     };
 }

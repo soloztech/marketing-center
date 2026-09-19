@@ -1,5 +1,7 @@
 import datetime
 import uuid
+from contextlib import ExitStack
+from unittest.mock import patch
 
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tests.common import SavepointCase
@@ -11,6 +13,7 @@ class TestMarketingCenterCrm(SavepointCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        cls.env.company.marketing_business_events_enabled = True
         cls.service = cls.env["marketing.crm.service"]
         suffix = str(uuid.uuid4())
         cls.stage_a = cls.env["crm.stage"].create(
@@ -56,6 +59,73 @@ class TestMarketingCenterCrm(SavepointCase):
         return events.filtered(
             lambda event: not event_type or event.event_type == event_type
         )
+
+    def test_disabled_lifecycle_preserves_native_crm_and_touchpoints(self):
+        self.env.company.marketing_business_events_enabled = False
+        models = ("marketing.business.event", "marketing.business.event.observation")
+        counts = {name: self.env[name].search_count([]) for name in models}
+        with ExitStack() as stack:
+            for model, method in (
+                ("crm.lead", "_marketing_lock_event_state"),
+                ("crm.lead", "_marketing_next_event_sequence"),
+                ("marketing.crm.service", "_ingest_lead_event"),
+            ):
+                stack.enter_context(
+                    patch.object(
+                        type(self.env[model]),
+                        method,
+                        side_effect=AssertionError("Disabled CRM ledger was called"),
+                    )
+                )
+            lead = self.env["crm.lead"].create(
+                {
+                    "name": "Acquisition while lifecycle is paused",
+                    "company_id": self.env.company.id,
+                    "stage_id": self.stage_a.id,
+                }
+            )
+            lead.write({"stage_id": self.stage_b.id})
+            self.assertEqual(lead.stage_id, self.stage_b)
+            lead.action_set_lost()
+            self.assertFalse(lead.active)
+            lead.action_unarchive()
+            lead.write({"stage_id": self.stage_won.id})
+            self.assertEqual(lead.stage_id, self.stage_won)
+        self.assertEqual(lead.marketing_event_sequence, 0)
+        self.assertFalse(lead.marketing_event_company_id)
+        self.service._link_touchpoint_lead(self.touchpoint, lead)
+        self.assertEqual(lead.marketing_touchpoint_count, 1)
+        self.assertEqual(
+            {name: self.env[name].search_count([]) for name in models}, counts
+        )
+
+    def test_disabled_crm_backfill_keeps_history_and_skips_emission(self):
+        events = self._events()
+        sequence = self.lead.marketing_event_sequence
+        self.env.company.marketing_business_events_enabled = False
+        with patch.object(
+            type(self.service),
+            "_company_for_lead",
+            side_effect=AssertionError("Disabled events must not claim CRM scope"),
+        ):
+            result = self.service._backfill_lead_events(self.lead)
+            self.assertTrue(result["disabled"])
+            self.assertEqual(result["processed"], 0)
+            self.assertFalse(
+                self.service._ingest_lead_event(self.lead, "lead_created", "created")
+            )
+            self.assertFalse(
+                self.service._emit_stage_events(
+                    self.lead, self.stage_a, self.stage_b, "paused"
+                )
+            )
+            self.assertFalse(self.service._emit_lost_event(self.lead, "paused"))
+            self.assertEqual(
+                self.service._existing_lead_event(self.lead, "lead_created", "created"),
+                events,
+            )
+        self.assertEqual(self._events(), events)
+        self.assertEqual(self.lead.marketing_event_sequence, sequence)
 
     def test_assertion_identity_is_a_required_runtime_contract(self):
         fields_by_name = self.env["marketing.attribution.crm.link"]._fields

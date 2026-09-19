@@ -1,7 +1,7 @@
 {
     "name": "Marketing Center - Sales",
-    "summary": "Project sales lifecycle and value into the marketing ledger",
-    "version": "16.0.1.0.1",
+    "summary": "Optional sales event history, disabled by default",
+    "version": "16.0.1.1.0",
     "category": "Marketing",
     "author": "Soloz Technologies",
     "website": "https://github.com/soloztech/marketing-center",

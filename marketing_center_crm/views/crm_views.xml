@@ -6,6 +6,7 @@
         <field name="inherit_id" ref="crm.crm_lead_view_form" />
         <field name="arch" type="xml">
             <xpath expr="//div[@name='button_box']" position="inside">
+                <field name="marketing_business_events_enabled" invisible="1" />
                 <button
                     name="action_view_marketing_touchpoints"
                     type="object"
@@ -26,7 +27,7 @@
                     class="oe_stat_button"
                     icon="fa-history"
                     groups="marketing_center_base.group_marketing_center_analyst"
-                    attrs="{'invisible': [('marketing_business_event_count', '=', 0)]}"
+                    attrs="{'invisible': ['|', ('marketing_business_events_enabled', '=', False), ('marketing_business_event_count', '=', 0)]}"
                 >
                     <field
                         name="marketing_business_event_count"
@@ -41,6 +42,7 @@
                     icon="fa-refresh"
                     string="Reconcile Marketing"
                     groups="marketing_center_base.group_marketing_center_manager"
+                    attrs="{'invisible': [('marketing_business_events_enabled', '=', False)]}"
                 />
             </xpath>
         </field>

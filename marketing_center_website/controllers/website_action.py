@@ -159,7 +159,14 @@ class MarketingWebsiteFormController(WebsiteForm):
         claim = _form_claim_from_query(kwargs)
         receipt = ""
         origin = _same_origin()
-        if claim and origin and request.env.user._is_public():
+        binding = request.website._marketing_measurement_binding()
+        if (
+            claim
+            and origin
+            and request.env.user._is_public()
+            and binding
+            and binding.capture_mode == "legacy"
+        ):
             try:
                 receipt = (
                     request.env["marketing.website.action.service"]

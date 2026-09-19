@@ -10,6 +10,13 @@ class MarketingWebsiteIngressBinding(models.Model):
     _check_company_auto = True
 
     active = fields.Boolean(default=True, index=True)
+    capture_mode = fields.Selection(
+        [("native", "Native form acquisition"), ("legacy", "Legacy session tracking")],
+        default="native",
+        required=True,
+        help="Native captures acquisition when a CRM form succeeds. Legacy also "
+        "collects browser entries and correlates the session history.",
+    )
     website_id = fields.Many2one(
         "website",
         required=True,

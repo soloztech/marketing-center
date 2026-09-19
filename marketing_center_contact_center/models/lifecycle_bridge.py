@@ -32,7 +32,9 @@ class ContactCenterMessageBinding(models.Model):
         bindings = super().create(vals_list)
         if self.env.context.get("marketing_contact_center_skip_lifecycle_enqueue"):
             return bindings
-        for binding in bindings.sudo():
+        for binding in bindings.sudo().filtered(
+            "company_id.marketing_business_events_enabled"
+        ):
             if binding._marketing_is_external_conversation_message():
                 binding.channel_binding_id._enqueue_marketing_lifecycle(
                     "conversation_started"
@@ -48,8 +50,10 @@ class ContactCenterMessageBinding(models.Model):
         if state in _CONFIRMED_DELIVERY_STATES and not self.env.context.get(
             "marketing_contact_center_skip_lifecycle_enqueue"
         ):
-            for binding in self.sudo().filtered(
-                lambda item: item._marketing_is_confirmed_human_response()
+            for binding in (
+                self.sudo()
+                .filtered("company_id.marketing_business_events_enabled")
+                .filtered(lambda item: item._marketing_is_confirmed_human_response())
             ):
                 binding.channel_binding_id._enqueue_marketing_lifecycle(
                     "first_human_response"
@@ -96,7 +100,11 @@ class ContactCenterChannelBinding(models.Model):
         )
 
     def _enqueue_marketing_lifecycle(self, event_type, *, wake_scope="live"):
-        for binding in self.sudo().exists():
+        for binding in (
+            self.sudo()
+            .exists()
+            .filtered("company_id.marketing_business_events_enabled")
+        ):
             company = binding.company_id
             binding.with_context(allowed_company_ids=[company.id]).with_company(
                 company
@@ -116,10 +124,12 @@ class ContactCenterChannelBinding(models.Model):
     @retry_transient_database
     def _job_sync_marketing_lifecycle(self, event_type):
         self.ensure_one()
+        binding = self.sudo().exists()
+        if not binding or not binding.company_id.marketing_business_events_enabled:
+            return True
         service = self.env["marketing.contact.center.lifecycle.service"].sudo()
         try:
-            # The record id is sufficient for the process-wide lock key. Acquire
-            # it before ``exists()`` establishes a REPEATABLE READ snapshot.
+            # Disabled queued jobs finish before acquiring a marketing lock.
             service._lock_event(self.sudo(), event_type)
             binding = self.sudo().exists()
             if not binding:
@@ -160,6 +170,8 @@ class MarketingContactCenterLifecycleService(models.AbstractModel):
 
     @api.model
     def _lock_event(self, binding, event_type):
+        if not binding.company_id.marketing_business_events_enabled:
+            return False
         if (
             event_type not in _LIFECYCLE_TYPES
             or getattr(binding, "_name", "") != "contact.center.channel.binding"
@@ -348,6 +360,8 @@ class MarketingContactCenterLifecycleService(models.AbstractModel):
 
     @api.model
     def _sync_event(self, binding, event_type):
+        if not binding.company_id.marketing_business_events_enabled:
+            return self.env["marketing.business.event"]
         if event_type not in _LIFECYCLE_TYPES:
             raise ValidationError(_("The Contact Center lifecycle type is invalid."))
         self._lock_event(binding, event_type)
@@ -378,6 +392,13 @@ class MarketingContactCenterLifecycleService(models.AbstractModel):
             or company not in self.env.companies
         ):
             raise AccessError(_("The backfill company is not available."))
+        if not company.marketing_business_events_enabled:
+            return {
+                "enqueued_conversations": 0,
+                "last_id": after_id,
+                "has_more": False,
+                "disabled": True,
+            }
         limit = min(max(int(limit), 1), 1000)
         after_id = max(int(after_id), 0)
         bindings = (

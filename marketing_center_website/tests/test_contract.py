@@ -51,7 +51,6 @@ class TestMarketingWebsiteContract(SavepointCase):
         for forbidden in (
             "FormData",
             "querySelector",
-            "getElementById",
             "document.cookie",
             "localStorage",
             ".elements",

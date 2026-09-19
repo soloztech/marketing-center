@@ -1,7 +1,7 @@
 {
     "name": "Marketing Center - Dashboard",
     "summary": "Read-only operational coverage and funnel overview",
-    "version": "16.0.1.0.1",
+    "version": "16.0.1.0.2",
     "category": "Marketing",
     "author": "Soloz Technologies",
     "website": "https://github.com/soloztech/marketing-center",

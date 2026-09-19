@@ -11,6 +11,11 @@ from odoo.addons.queue_job.tests.common import trap_jobs
 
 
 class TestMarketingContactCenterBootstrap(SavepointCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.env.company.marketing_business_events_enabled = True
+
     def test_enqueue_is_one_durable_company_job(self):
         with trap_jobs() as trap:
             self.env.company._enqueue_marketing_contact_center_backfill("attribution")
@@ -27,6 +32,24 @@ class TestMarketingContactCenterBootstrap(SavepointCase):
                     "priority": 50,
                 },
             )
+
+    def test_disabled_bootstrap_keeps_attribution_and_stops_business_history(self):
+        company = self.env.company
+        company.marketing_business_events_enabled = False
+        with trap_jobs() as trap:
+            for phase in ("lifecycle", "response_episode"):
+                self.assertFalse(
+                    company._enqueue_marketing_contact_center_backfill(phase)
+                )
+                result = company._job_marketing_contact_center_backfill(phase)
+                self.assertTrue(result["done"])
+                self.assertTrue(result["disabled"])
+            responses = self.env["marketing.contact.center.response"]
+            self.assertFalse(responses._enqueue_answered_backfill())
+            self.assertTrue(responses._job_backfill_answered_events()["disabled"])
+            trap.assert_jobs_count(0)
+            company._enqueue_marketing_contact_center_backfill("attribution")
+            trap.assert_jobs_count(1)
 
     def test_job_chains_only_after_a_monotonic_page(self):
         service = self.env["marketing.contact.center.attribution.service"]

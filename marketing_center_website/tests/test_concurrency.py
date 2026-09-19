@@ -49,6 +49,7 @@ class TestMarketingWebsiteConcurrency(TransactionCase):
                 {
                     "website_id": website.id,
                     "endpoint_id": endpoint.id,
+                    "capture_mode": "legacy",
                     "active": active_binding,
                 }
             )

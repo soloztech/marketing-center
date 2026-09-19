@@ -251,6 +251,25 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
         self.assertEqual(len(links), 1)
         self.assertIn("contact_center:conversation:", links.source_ref)
 
+    def test_business_events_disabled_keeps_conversation_acquisition_in_crm(self):
+        self.env.company.marketing_business_events_enabled = False
+        before = self.env["marketing.business.event"].search_count([])
+        channel, binding = self._channel("acquisition-without-lifecycle")
+        lead = self._lead("Acquisition without business events")
+        conversation_link = self._link_conversation(channel, lead)
+        _source, bridge = self._source_and_projection(
+            binding, "acquisition-without-lifecycle"
+        )
+        links = self.env["marketing.attribution.crm.effective.link"].search(
+            [
+                ("touchpoint_id", "=", bridge.marketing_touchpoint_id.id),
+                ("lead_id", "=", lead.id),
+            ]
+        )
+        self.assertTrue(links)
+        self.assertEqual(conversation_link.lead_id, lead)
+        self.assertEqual(self.env["marketing.business.event"].search_count([]), before)
+
     def test_prebaseline_assertion_cannot_replace_current_conversation_link_identity(
         self,
     ):
@@ -644,6 +663,7 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
         )
 
     def test_bridge_fences_contact_graph_before_marketing_stage_lock(self):
+        self.env.company.marketing_business_events_enabled = True
         channel, _binding = self._channel("bridge-lock-order")
         lead = self._lead("Bridge lock order")
         self._link_conversation(channel, lead)

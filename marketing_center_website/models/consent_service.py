@@ -4,6 +4,7 @@ from urllib.parse import unquote, urlsplit
 from odoo import _, api, models
 from odoo.exceptions import AccessError
 from odoo.http import request
+
 from odoo.addons.marketing_center_base.services.dto import PrivacySnapshotDTO
 
 
@@ -12,15 +13,29 @@ class MarketingWebIngressService(models.AbstractModel):
 
     @api.model
     def _ingest_payload(self, endpoint, payload, **kwargs):
-        if endpoint.privacy_legal_basis_code == "consent" or endpoint._informational_notice():
-            if (
-                endpoint._requires_individual_consent()
-                and not self.env["marketing.website.consent"]._current(endpoint)
-            ):
+        if kwargs.get("ingress_provenance") == "browser_capability" and self.env[
+            "marketing.website.ingress.binding"
+        ].sudo().search_count(
+            [
+                ("endpoint_id", "=", endpoint.id),
+                ("active", "=", True),
+                ("capture_mode", "=", "native"),
+            ]
+        ):
+            raise AccessError(_("Browser session tracking is disabled in native mode."))
+        if (
+            endpoint.privacy_legal_basis_code == "consent"
+            or endpoint._informational_notice()
+        ):
+            if endpoint._requires_individual_consent() and not self.env[
+                "marketing.website.consent"
+            ]._current(endpoint):
                 raise AccessError(_("Individual consent is required."))
             if request and getattr(request, "httprequest", None):
                 if request.session.uid:
-                    raise AccessError(_("Authenticated sessions cannot create marketing evidence."))
+                    raise AccessError(
+                        _("Authenticated sessions cannot create marketing evidence.")
+                    )
                 if (
                     request.httprequest.path.startswith(
                         ("/marketing/web-ingress/", "/marketing/website-action/")
@@ -59,8 +74,10 @@ class MarketingWebIngressService(models.AbstractModel):
                     decision_source="operator.website_notice",
                     decided_at=None,
                 ),
-                extensions={**dto.extensions,
-                            "web_ingress.website_tracking_policy": "informational_notice"},
+                extensions={
+                    **dto.extensions,
+                    "web_ingress.website_tracking_policy": "informational_notice",
+                },
             )
         if endpoint.privacy_legal_basis_code != "consent":
             return dto

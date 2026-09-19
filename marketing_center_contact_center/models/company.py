@@ -25,6 +25,8 @@ class ResCompany(models.Model):
         self.ensure_one()
         if phase not in _BACKFILL_PHASES:
             raise ValidationError(_("The Marketing Contact Center phase is invalid."))
+        if phase != "attribution" and not self.marketing_business_events_enabled:
+            return False
         after_id = max(int(after_id or 0), 0)
         limit = min(max(int(limit or _BACKFILL_PAGE_SIZE), 1), 1000)
         return self.with_delay(
@@ -55,6 +57,8 @@ class ResCompany(models.Model):
         service_model = _BACKFILL_PHASES.get(phase)
         if not service_model:
             raise ValidationError(_("The Marketing Contact Center phase is invalid."))
+        if phase != "attribution" and not company.marketing_business_events_enabled:
+            return {"done": True, "last_id": after_id, "phase": phase, "disabled": True}
         after_id = max(int(after_id or 0), 0)
         limit = min(max(int(limit or _BACKFILL_PAGE_SIZE), 1), 1000)
         service = (

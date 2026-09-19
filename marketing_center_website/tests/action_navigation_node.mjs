@@ -17,7 +17,7 @@ const window = {
 const context = vm.createContext({
     console, Promise, URL, Date, setTimeout, clearTimeout, window,
     CustomEvent: class {constructor(type, options) {this.type = type; this.detail = options.detail;}},
-    document: {addEventListener() {}, dispatchEvent(event) {
+    document: {getElementById() { return {dataset: {captureMode: "legacy"}}; }, addEventListener() { /* No browser events in this fixture. */ }, dispatchEvent(event) {
         assert.equal(event.type, "marketing_center:action-confirmed");
         assert.equal(event.detail.kind, "form_submission");
         assert.deepEqual(Object.keys(event.detail).sort(), ["event_id", "kind", "waitUntil"]);
@@ -25,7 +25,7 @@ const context = vm.createContext({
         event.detail.waitUntil(sleep(30).then(() => order.push("analytics_callback")));
     }},
     ajax: {post: () => Promise.resolve(result)},
-    loadConfig: async () => ({}), validConfig: () => true,
+    loadConfig: async () => ({capture_mode: "legacy"}), validConfig: () => true,
 });
 vm.runInContext(read("action_capture") + "\n" + read("action_bootstrap") + "\nglobalThis.api={createFormPostBridge,exchangeForm};", context);
 await sleep(0);
@@ -39,7 +39,7 @@ assert.deepEqual(order, ["exchange", "confirmed", "analytics_callback", "navigat
 
 // A hung or rejected tracker does not alter successful form results or hang forever.
 const started = Date.now();
-assert.equal(await bridge(() => Promise.resolve(result), () => new Promise(() => {}), 25)("/website/form/crm.lead", {}), result);
+assert.equal(await bridge(() => Promise.resolve(result), () => new Promise(() => { /* Deliberately pending to verify the timeout. */ }), 25)("/website/form/crm.lead", {}), result);
 assert.ok(Date.now() - started < 500);
 assert.equal(await bridge(() => Promise.resolve(result), () => Promise.reject(new Error("tracking failed")))("/website/form/crm.lead", {}), result);
 

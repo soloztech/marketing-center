@@ -1,5 +1,7 @@
 import decimal
 import uuid
+from contextlib import ExitStack
+from unittest.mock import patch
 
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tests.common import SavepointCase
@@ -13,6 +15,7 @@ class TestMarketingCenterSale(SavepointCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        cls.env.company.marketing_business_events_enabled = True
         suffix = str(uuid.uuid4())
         cls.partner = cls.env["res.partner"].create(
             {"name": "Sale Partner %s" % suffix}
@@ -65,6 +68,63 @@ class TestMarketingCenterSale(SavepointCase):
         return events.filtered(
             lambda event: not event_type or event.event_type == event_type
         )
+
+    def test_disabled_capture_keeps_native_sales_independent(self):
+        self.env.company.marketing_business_events_enabled = False
+        models = (
+            "marketing.business.event",
+            "marketing.business.event.sale.link",
+            "marketing.sale.order.crm.link",
+        )
+        counts = {name: self.env[name].search_count([]) for name in models}
+        with ExitStack() as stack:
+            for model, method in (
+                ("sale.order", "_marketing_sale_lock_event_state"),
+                ("sale.order", "_marketing_sale_next_event_sequence"),
+                ("marketing.sale.service", "_emit_order_event"),
+                ("marketing.sale.service", "_link_order_lead"),
+            ):
+                stack.enter_context(
+                    patch.object(
+                        type(self.env[model]),
+                        method,
+                        side_effect=AssertionError("Disabled marketing was called"),
+                    )
+                )
+            order = self._create_order("Capture off", self.lead)
+            order.write({"opportunity_id": False})
+            order.write({"opportunity_id": self.lead.id})
+            order.action_quotation_sent()
+            order.action_confirm()
+            self.assertIn(order.state, ("sale", "done"))
+            order.with_context(disable_cancel_warning=True)._action_cancel()
+            self.assertEqual(order.state, "cancel")
+        self.assertEqual(order.marketing_sale_event_sequence, 0)
+        self.assertFalse(order.marketing_sale_company_id)
+        self.assertEqual(
+            {name: self.env[name].search_count([]) for name in models}, counts
+        )
+
+    def test_disabled_backfill_preserves_history_without_repair(self):
+        self.order.action_confirm()
+        events = self._events()
+        sequence = self.order.marketing_sale_event_sequence
+        self.env.company.marketing_business_events_enabled = False
+        service = self.env["marketing.sale.service"]
+        with patch.object(
+            type(self.env["sale.order"]),
+            "_marketing_sale_lock_event_state",
+            side_effect=AssertionError("Disabled history must not lock sales"),
+        ):
+            result = service._backfill_order_events(self.order)
+            self.assertTrue(result["disabled"])
+            self.assertEqual(result["processed"], 0)
+            self.assertFalse(service._ensure_confirmation(self.order))
+            self.assertFalse(service._link_order_lead(self.order, self.lead))
+            self.assertEqual(service._source_events(self.order), events)
+            self.order.with_context(disable_cancel_warning=True)._action_cancel()
+        self.assertEqual(self._events(), events)
+        self.assertEqual(self.order.marketing_sale_event_sequence, sequence)
 
     def test_first_proposal_confirmation_and_exact_cancellation(self):
         self.order.action_quotation_send()

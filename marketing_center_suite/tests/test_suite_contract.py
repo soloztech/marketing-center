@@ -7,12 +7,10 @@ DIRECT_DEPENDENCIES = (
     "marketing_center_dashboard",
     "marketing_center_google",
     "marketing_center_meta_crm",
-    "marketing_center_sale_account",
     "marketing_center_website_crm",
 )
 
 COMPONENT_MODULES = {
-    "marketing_center_account",
     "marketing_center_base",
     "marketing_center_contact_center",
     "marketing_center_contact_center_crm",
@@ -21,8 +19,6 @@ COMPONENT_MODULES = {
     "marketing_center_google",
     "marketing_center_meta",
     "marketing_center_meta_crm",
-    "marketing_center_sale",
-    "marketing_center_sale_account",
     "marketing_center_web_ingress",
     "marketing_center_website",
     "marketing_center_website_crm",
@@ -45,32 +41,6 @@ UPDATEABLE_SECURITY_RULES = {
         "rule_marketing_crm_lead_equivalence_own",
         "rule_marketing_crm_lead_equivalence_all",
         "rule_marketing_crm_lead_equivalence_system",
-    },
-    "marketing_center_sale": {
-        "rule_marketing_sale_order_crm_link_own",
-        "rule_marketing_sale_order_crm_link_all",
-        "rule_marketing_event_sale_link_own",
-        "rule_marketing_event_sale_link_all",
-        "rule_marketing_sale_order_crm_link_system",
-        "rule_marketing_event_sale_link_system",
-    },
-    "marketing_center_account": {
-        "rule_marketing_event_account_move_link_account",
-        "rule_marketing_event_account_payment_link_account",
-        "rule_marketing_event_account_move_link_analyst",
-        "rule_marketing_event_account_payment_link_analyst",
-        "rule_marketing_event_account_move_link_system",
-        "rule_marketing_event_account_payment_link_system",
-    },
-    "marketing_center_sale_account": {
-        "rule_marketing_move_sale_link_billing",
-        "rule_marketing_move_sale_link_sales_own",
-        "rule_marketing_move_sale_link_sales_all",
-        "rule_marketing_move_sale_link_analyst",
-        "rule_marketing_move_sale_link_system",
-        "rule_marketing_sale_account_projection_billing",
-        "rule_marketing_sale_account_projection_analyst",
-        "rule_marketing_sale_account_projection_system",
     },
 }
 

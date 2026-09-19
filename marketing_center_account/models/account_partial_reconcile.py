@@ -41,7 +41,9 @@ class AccountPartialReconcile(models.Model):
         ):
             return partials
         service = self.env["marketing.account.service"]
-        for partial in partials.sorted("id"):
+        for partial in partials.filtered(
+            "company_id.marketing_business_events_enabled"
+        ).sorted("id"):
             service._ensure_allocation_event(partial)
         return partials
 
@@ -64,9 +66,12 @@ class AccountPartialReconcile(models.Model):
             is MARKETING_ACCOUNT_TRANSITION_GUARD
         ):
             return super().unlink()
+        tracked = self.filtered("company_id.marketing_business_events_enabled")
+        if not tracked:
+            return super().unlink()
         service = self.env["marketing.account.service"]
         reversals = []
-        for partial in self.sorted("id"):
+        for partial in tracked.sorted("id"):
             event, facts = service._ensure_allocation_event(partial)
             if event and facts:
                 reversals.append((event, facts))

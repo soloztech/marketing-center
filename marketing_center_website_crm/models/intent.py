@@ -523,12 +523,16 @@ class MarketingWebsiteCrmIntent(models.Model):
     @api.model
     def _cron_enqueue_due(self, now=None, limit=200):
         now = now or fields.Datetime.now()
+        self.env["marketing.website.crm.service"]._cron_recover_native_submissions(
+            now=now
+        )
         limit = min(max(int(limit), 1), 1000)
         due = fair_scheduler_batch(
             self.env,
             self._name,
             [
                 ("state", "in", ("pending", "retry")),
+                ("action_id.binding_id.capture_mode", "=", "legacy"),
                 "|",
                 ("next_retry_at", "=", False),
                 ("next_retry_at", "<=", now),
@@ -599,6 +603,7 @@ class MarketingWebsiteCrmIntent(models.Model):
             [
                 ("state", "=", "done"),
                 ("session_reconcile_state", "in", ("pending", "watching")),
+                ("action_id.binding_id.capture_mode", "=", "legacy"),
                 "|",
                 ("session_reconcile_until", "<", now),
                 "&",

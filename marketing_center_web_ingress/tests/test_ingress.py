@@ -124,6 +124,37 @@ class TestMarketingWebIngress(SavepointCase):
         self.assertEqual(len(identifier), 1)
         return event, identifier
 
+    def test_native_form_preserves_acquisition_assets_without_session(self):
+        payload = self._payload(
+            event_type="form_submission",
+            action_ref="native.contact",
+            route_ref="contactus",
+            model_ref="crm.lead",
+            gad_campaignid="23172115632",
+            gad_source="1",
+            acquisition_at="2026-08-31T09:00:00Z",
+        )
+        payload.pop("session_ref")
+        result = self._ingest(payload, ingress_provenance="website_confirmed_action")
+        touchpoint = self.env["marketing.attribution.touchpoint"].browse(
+            result.touchpoint_id
+        )
+        self.assertEqual(touchpoint.asset_refs_json["campaign_id"], "23172115632")
+        self.assertEqual(touchpoint.asset_refs_json["campaign_provider"], "google")
+        self.assertEqual(
+            touchpoint.asset_refs_json["acquisition_at"], "2026-08-31T09:00:00Z"
+        )
+        self.assertEqual(touchpoint.occurred_at, self.observed_at)
+        self.assertFalse(
+            touchpoint.identifier_ids.filtered(lambda item: item.role == "session")
+        )
+        self.assertEqual(
+            self._ingest(
+                payload, ingress_provenance="website_confirmed_action"
+            ).touchpoint_id,
+            touchpoint.id,
+        )
+
     def test_google_click_input_returns_genuine_unexpired_ingested_value(self):
         event, identifier = self._ingested_google_click()
         self.assertGreater(event.retain_until, fields.Datetime.now())

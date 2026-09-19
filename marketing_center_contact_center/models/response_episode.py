@@ -661,6 +661,8 @@ class MarketingContactCenterResponse(models.Model):
     @api.model
     def _enqueue_answered_backfill(self, after_id=0, limit=200):
         """Project legacy episode responses without rewriting their evidence."""
+        if not self.env.company.marketing_business_events_enabled:
+            return False
         after_id = max(int(after_id or 0), 0)
         limit = min(max(int(limit), 1), 1000)
         return self.with_delay(
@@ -673,6 +675,8 @@ class MarketingContactCenterResponse(models.Model):
     @api.model
     @retry_transient_database
     def _job_backfill_answered_events(self, after_id=0, limit=200):
+        if not self.env.company.marketing_business_events_enabled:
+            return {"processed": 0, "last_id": after_id, "disabled": True}
         after_id = max(int(after_id or 0), 0)
         limit = min(max(int(limit), 1), 1000)
         responses = self.sudo().search(
@@ -769,23 +773,29 @@ class ContactCenterMessageBinding(models.Model):
         bindings = super().create(vals_list)
         if self.env.context.get("marketing_contact_center_skip_lifecycle_enqueue"):
             return bindings
+        tracked = bindings.filtered("company_id.marketing_business_events_enabled")
+        if not tracked:
+            return bindings
         signals = (
             self.env["marketing.contact.center.response.episode.service"]
             .sudo()
-            ._record_signals(bindings)
+            ._record_signals(tracked)
         )
         signals.mapped("message_binding_id")._enqueue_marketing_response_episode()
         return bindings
 
     def _contact_center_apply_delivery(self, state, **kwargs):
         result = super()._contact_center_apply_delivery(state, **kwargs)
+        tracked = self.filtered("company_id.marketing_business_events_enabled")
+        if not tracked:
+            return result
         if state in _CONFIRMED_DELIVERY_STATES and not self.env.context.get(
             "marketing_contact_center_skip_lifecycle_enqueue"
         ):
             signals = (
                 self.env["marketing.contact.center.response.episode.service"]
                 .sudo()
-                ._record_signals(self)
+                ._record_signals(tracked)
             )
             signals.mapped("message_binding_id")._enqueue_marketing_response_episode()
         return result
@@ -799,7 +809,11 @@ class ContactCenterMessageBinding(models.Model):
         )
 
     def _enqueue_marketing_response_episode(self):
-        for message_binding in self.sudo().exists():
+        for message_binding in (
+            self.sudo()
+            .exists()
+            .filtered("company_id.marketing_business_events_enabled")
+        ):
             company = message_binding.company_id
             message_binding.with_context(allowed_company_ids=[company.id]).with_company(
                 company
@@ -818,7 +832,10 @@ class ContactCenterMessageBinding(models.Model):
     def _job_sync_marketing_response_episode(self):
         self.ensure_one()
         message_binding = self.sudo().exists()
-        if not message_binding:
+        if (
+            not message_binding
+            or not message_binding.company_id.marketing_business_events_enabled
+        ):
             return True
         try:
             result = (
@@ -844,7 +861,11 @@ class ContactCenterChannelBinding(models.Model):
     _inherit = "contact.center.channel.binding"
 
     def _enqueue_marketing_response_episodes(self, *, priority=43):
-        for binding in self.sudo().exists():
+        for binding in (
+            self.sudo()
+            .exists()
+            .filtered("company_id.marketing_business_events_enabled")
+        ):
             company = binding.company_id
             binding.with_context(allowed_company_ids=[company.id]).with_company(
                 company
@@ -859,10 +880,16 @@ class ContactCenterChannelBinding(models.Model):
 
     def _enqueue_marketing_response_episode_continuation(self, continuation_token):
         """Queue the next bounded page without colliding with the active job."""
+        if not self.filtered("company_id.marketing_business_events_enabled"):
+            return False
         continuation_token = str(continuation_token or "").strip()
         if not continuation_token or len(continuation_token) > 160:
             raise ValidationError(_("A valid response continuation token is required."))
-        for binding in self.sudo().exists():
+        for binding in (
+            self.sudo()
+            .exists()
+            .filtered("company_id.marketing_business_events_enabled")
+        ):
             company = binding.company_id
             binding.with_context(allowed_company_ids=[company.id]).with_company(
                 company
@@ -880,11 +907,12 @@ class ContactCenterChannelBinding(models.Model):
     @retry_transient_database
     def _job_sync_marketing_response_episodes(self):
         self.ensure_one()
+        binding = self.sudo().exists()
+        if not binding or not binding.company_id.marketing_business_events_enabled:
+            return True
         service = self.env["marketing.contact.center.response.episode.service"].sudo()
         try:
-            # Fence the channel before ``exists()`` establishes the job's
-            # REPEATABLE READ snapshot. A busy key is retried in a new job
-            # transaction instead of waiting with stale state.
+            # Disabled queued jobs finish before acquiring a marketing lock.
             service._lock_channel(self.sudo())
             binding = self.sudo().exists()
             if not binding:
@@ -929,6 +957,8 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
 
     @api.model
     def _lock_channel(self, binding):
+        if not binding.company_id.marketing_business_events_enabled:
+            return False
         if (
             getattr(binding, "_name", "") != "contact.center.channel.binding"
             or len(binding) != 1
@@ -1074,6 +1104,8 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
 
     @api.model
     def _create_signal_rows(self, binding, rows, clamp_to_cursor=False):
+        if not binding.company_id.marketing_business_events_enabled:
+            return self.env["marketing.contact.center.response.signal"]
         Signal = self.env["marketing.contact.center.response.signal"].sudo()
         observed_floor = False
         if clamp_to_cursor:
@@ -1140,6 +1172,8 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
         lock=True,
         limit=None,
     ):
+        if not binding.company_id.marketing_business_events_enabled:
+            return self.env["marketing.contact.center.response.signal"]
         binding = self._validated_binding(binding)
         if lock:
             self._lock_channel(binding)
@@ -1164,6 +1198,9 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
         message_bindings = message_bindings.sudo().exists()
         if getattr(message_bindings, "_name", "") != "contact.center.message.binding":
             raise ValidationError(_("Valid Contact Center messages are required."))
+        message_bindings = message_bindings.filtered(
+            "company_id.marketing_business_events_enabled"
+        )
         result = self.env["marketing.contact.center.response.signal"]
         for binding in message_bindings.mapped("channel_binding_id").sorted("id"):
             scoped = message_bindings.filtered(
@@ -1221,6 +1258,8 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
 
     @api.model
     def _cursor(self, binding):
+        if not binding.company_id.marketing_business_events_enabled:
+            return self.env["marketing.contact.center.response.cursor"]
         Cursor = self.env["marketing.contact.center.response.cursor"].sudo()
         cursor = Cursor.search([("channel_binding_id", "=", binding.id)], limit=1)
         if cursor:
@@ -1242,6 +1281,8 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
 
     @api.model
     def _write_cursor(self, cursor, values):
+        if not cursor.company_id.marketing_business_events_enabled:
+            return False
         values = dict(values)
         for link, number in (
             ("last_message_binding_id", "last_message_res_id"),
@@ -1302,6 +1343,8 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
 
     @api.model
     def _ingest_event(self, binding, dto):
+        if not binding.company_id.marketing_business_events_enabled:
+            return self.env["marketing.business.event"]
         result = (
             self.env["marketing.business.event.service"]
             .sudo()
@@ -1313,6 +1356,8 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
 
     @api.model
     def _episode_event(self, binding, public_ref, sequence, message, started_at):
+        if not binding.company_id.marketing_business_events_enabled:
+            return self.env["marketing.business.event"]
         message_ref = self._message_ref(message)
         event_key = "contact.center:%s:episode:%s:started" % (
             binding.channel_id.uuid,
@@ -1349,6 +1394,8 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
         # The conversation-level lifecycle projection and the per-episode
         # projection may be queued by the same delivery receipt.  They must
         # serialize on the same lock before adopting the shared response event.
+        if not binding.company_id.marketing_business_events_enabled:
+            return self.env["marketing.business.event"]
         self.env["marketing.contact.center.lifecycle.service"]._lock_event(
             binding, "first_human_response"
         )
@@ -1408,6 +1455,8 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
     def _get_or_create_episode(
         self, binding, sequence, message_binding, started_at, observed_at
     ):
+        if not binding.company_id.marketing_business_events_enabled:
+            return self.env["marketing.contact.center.response.episode"]
         model = self.env["marketing.contact.center.response.episode"].sudo()
         episode = model.search(
             [("source_message_res_id", "=", message_binding.id)], limit=1
@@ -1461,6 +1510,8 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
         responded_at,
         observed_at,
     ):
+        if not binding.company_id.marketing_business_events_enabled:
+            return self.env["marketing.contact.center.response"]
         model = self.env["marketing.contact.center.response"].sudo()
         response = model.search([("episode_id", "=", episode.id)], limit=1)
         if response:
@@ -1517,6 +1568,8 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
         The older first_human_response fact and response link remain immutable.
         Replaying this projection uses the same episode identity and snapshot.
         """
+        if not response.company_id.marketing_business_events_enabled:
+            return self.env["marketing.business.event"]
         response.ensure_one()
         episode = response.episode_id
         binding = episode.channel_binding_id
@@ -1546,6 +1599,8 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
 
     @api.model
     def _initialize_backfill(self, binding, cursor):
+        if not binding.company_id.marketing_business_events_enabled:
+            return False
         self.env.cr.execute(
             """
             SELECT message_binding.id
@@ -1575,6 +1630,8 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
 
     @api.model
     def _materialize_backfill_page(self, binding, cursor, page_size):
+        if not binding.company_id.marketing_business_events_enabled:
+            return False
         message_ids = self._source_message_ids(
             binding,
             after_message_id=cursor.backfill_after_message_res_id,
@@ -1603,6 +1660,12 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
 
     @api.model
     def _process_timeline_page(self, binding, cursor, page_size):
+        if not binding.company_id.marketing_business_events_enabled:
+            return {
+                "episode_count": 0,
+                "pending_episode_ref": "",
+                "page_is_full": False,
+            }
         after_order = None
         if cursor.last_observed_at:
             after_order = (
@@ -1713,6 +1776,15 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
         Every new cursor crosses the same durable snapshot barrier, including a
         cursor first seen by a live-message job.
         """
+        if not binding.company_id.marketing_business_events_enabled:
+            return {
+                "episode_count": 0,
+                "pending_episode_ref": "",
+                "has_more": False,
+                "backfill_state": "disabled",
+                "continuation_token": "",
+                "disabled": True,
+            }
         self._lock_channel(binding)
         binding = self._validated_binding(binding)
         cursor = self._cursor(binding)
@@ -1749,6 +1821,13 @@ class MarketingContactCenterResponseEpisodeService(models.AbstractModel):
             or company not in self.env.companies
         ):
             raise AccessError(_("The backfill company is not available."))
+        if not company.marketing_business_events_enabled:
+            return {
+                "enqueued_conversations": 0,
+                "last_id": after_id,
+                "has_more": False,
+                "disabled": True,
+            }
         limit = min(max(int(limit), 1), 1000)
         after_id = max(int(after_id), 0)
         bindings = (

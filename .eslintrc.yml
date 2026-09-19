@@ -7,6 +7,14 @@ parserOptions:
 
 overrides:
   - files:
+      - "**/tests/*_node.mjs"
+    env:
+      node: true
+      browser: false
+    parserOptions:
+      ecmaVersion: 2022
+      sourceType: module
+  - files:
       - "**/*.esm.js"
       - "marketing_center_catalog/static/**/*.js"
     parserOptions:

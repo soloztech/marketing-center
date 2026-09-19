@@ -8,6 +8,7 @@
         <field name="website_id" />
         <field name="company_id" />
         <field name="endpoint_id" />
+        <field name="capture_mode" />
         <field name="endpoint_config_revision" />
         <field name="active" />
       </tree>
@@ -28,6 +29,7 @@
             <group>
               <field name="company_id" />
               <field name="active" />
+              <field name="capture_mode" />
             </group>
             <group>
               <field name="endpoint_id" />
@@ -36,9 +38,8 @@
             </group>
           </group>
           <div class="alert alert-info" role="alert">
-            The browser receives only the endpoint route and its public routing
-            key. Landing events are validated and persisted by Web Ingress; this
-            adapter does not create a second ledger.
+            Native acquisition captures the source with the submitted CRM lead.
+            Legacy session tracking remains available as an explicit option.
           </div>
           <notebook>
             <page string="Website actions">
@@ -76,11 +77,17 @@
   <record id="view_marketing_website_consent_endpoint" model="ir.ui.view">
     <field name="name">marketing.website.consent.endpoint</field>
     <field name="model">marketing.web.ingress.endpoint</field>
-    <field name="inherit_id" ref="marketing_center_web_ingress.view_marketing_web_ingress_endpoint_form" />
+    <field
+            name="inherit_id"
+            ref="marketing_center_web_ingress.view_marketing_web_ingress_endpoint_form"
+        />
     <field name="arch" type="xml">
       <field name="retention_mode" position="after">
-        <field name="website_tracking_policy"/>
-        <field name="consent_ttl_days" attrs="{'invisible': [('website_tracking_policy', '=', 'informational_notice')]}"/>
+        <field name="website_tracking_policy" />
+        <field
+                    name="consent_ttl_days"
+                    attrs="{'invisible': [('website_tracking_policy', '=', 'informational_notice')]}"
+                />
       </field>
     </field>
   </record>

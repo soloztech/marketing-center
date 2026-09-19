@@ -95,6 +95,43 @@ class TestWebIngressPureContract(ContractTestCase):
             parsed.referrer_url, "https://www.soloz.example/products/solar"
         )
 
+    def test_acquisition_keeps_campaign_and_click_date_separate_from_submission(self):
+        parsed = self._parse(
+            self._form_payload(
+                gad_campaignid="23172115632",
+                gad_source="1",
+                acquisition_at="2026-08-31T09:30:00-03:00",
+            )
+        )
+        self.assertEqual(
+            parsed.acquisition,
+            {
+                "gad_campaignid": "23172115632",
+                "gad_source": "1",
+                "acquisition_at": "2026-08-31T12:30:00Z",
+            },
+        )
+        self.assertEqual(parsed.occurred_at, datetime.datetime(2026, 9, 1, 12))
+        self.assertNotIn("acquisition", self._parse().safe_canonical_dict())
+        self.assertNotEqual(
+            canonical_request_digest(parsed),
+            canonical_request_digest(
+                self._parse(self._form_payload(gad_campaignid="23172115633"))
+            ),
+        )
+
+    def test_acquisition_rejects_invalid_ids_and_future_dates(self):
+        for values in (
+            {"gad_campaignid": "not-an-id"},
+            {"gad_source": "1&email=x"},
+            {"acquisition_at": "2026-09-02T12:00:00Z"},
+            {"acquisition_at": "2026-08-31T12:00:00"},
+        ):
+            with self.subTest(values=values), self.assertRaises(
+                WebIngressContractError
+            ):
+                self._parse(self._payload(**values))
+
     def test_safe_digest_contains_hashes_not_click_or_session_values(self):
         parsed = self._parse()
         digest = canonical_request_digest(parsed)
@@ -256,7 +293,7 @@ class TestWebIngressPureContract(ContractTestCase):
             ):
                 self._parse(self._form_payload(**{field_name: "contains whitespace"}))
 
-    def test_entry_point_canonical_remains_v1_and_field_cap_remains_twenty(self):
+    def test_entry_point_canonical_remains_v1_and_complete_payload_fits_cap(self):
         parsed_entry = self._parse()
         canonical = parsed_entry.safe_canonical_dict()
         for field_name in ("action_ref", "route_ref", "model_ref"):
@@ -273,6 +310,9 @@ class TestWebIngressPureContract(ContractTestCase):
             wbraid="opaque-wbraid",
             fbclid="opaque-fbclid",
             visitor_ref="visitor-opaque-001",
+            gad_campaignid="23172115632",
+            gad_source="1",
+            acquisition_at="2026-08-31T12:00:00Z",
         )
         self.assertEqual(len(payload), MAX_PAYLOAD_FIELDS)
         self._parse(payload)

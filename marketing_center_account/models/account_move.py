@@ -11,6 +11,9 @@ from .tokens import (
 class AccountMove(models.Model):
     _inherit = "account.move"
 
+    marketing_business_events_enabled = fields.Boolean(
+        related="company_id.marketing_business_events_enabled"
+    )
     marketing_account_event_sequence = fields.Integer(
         string="Marketing event sequence", readonly=True, copy=False, default=0
     )
@@ -82,6 +85,9 @@ class AccountMove(models.Model):
             raise AccessError(
                 _("The accounting marketing scope is managed internally.")
             )
+        tracked = self.filtered("marketing_business_events_enabled")
+        if not tracked:
+            return super().write(values)
         if not internal and ({"company_id", "journal_id"} & set(values)):
             requested_company_ids = set()
             if "company_id" in values:
@@ -91,7 +97,7 @@ class AccountMove(models.Model):
                     values.get("journal_id") or False
                 )
                 requested_company_ids.add(journal.company_id.id or False)
-            invalid = self.filtered(
+            invalid = tracked.filtered(
                 lambda move: move.marketing_account_company_id
                 and requested_company_ids != {move.marketing_account_company_id.id}
             )
@@ -109,7 +115,7 @@ class AccountMove(models.Model):
         departing = self.browse()
         postings = {}
         if not internal and not guarded and values.get("state") in {"draft", "cancel"}:
-            departing = self.filtered(
+            departing = tracked.filtered(
                 lambda move: move.state == "posted"
                 and move.move_type in OUTGOING_MOVE_TYPES
             )
@@ -136,9 +142,12 @@ class AccountMove(models.Model):
         ):
             return super()._post(soft=soft)
         candidates = self.filtered(
-            lambda move: move.move_type in OUTGOING_MOVE_TYPES
+            lambda move: move.marketing_business_events_enabled
+            and move.move_type in OUTGOING_MOVE_TYPES
             and move.state != "posted"
         )
+        if not candidates:
+            return super()._post(soft=soft)
         candidates._marketing_account_lock_event_state()
         previous_states = {move.id: move.state for move in candidates}
         result = super()._post(soft=soft)
@@ -158,12 +167,13 @@ class AccountMove(models.Model):
         return result
 
     def _marketing_account_lock_event_state(self):
-        if not self.ids:
+        tracked = self.filtered("marketing_business_events_enabled")
+        if not tracked.ids:
             return True
         # Credits and their source document share one ordered lock scope. A
         # physical no-op update of the source row forces a fresh RR snapshot
         # when another posting/backfill changed its economic credit aggregate.
-        scope = self | self.mapped("reversed_entry_id")
+        scope = tracked | tracked.mapped("reversed_entry_id")
         self.env.cr.execute(
             "SELECT id FROM account_move WHERE id IN %s ORDER BY id FOR UPDATE",
             [tuple(scope.ids)],
@@ -183,6 +193,8 @@ class AccountMove(models.Model):
 
     def _marketing_account_next_event_sequence(self):
         self.ensure_one()
+        if not self.marketing_business_events_enabled:
+            return 0
         self.env.cr.execute(
             "SELECT marketing_account_event_sequence FROM account_move "
             "WHERE id = %s FOR UPDATE",
@@ -233,6 +245,8 @@ class AccountMove(models.Model):
             )
         self.check_access_rights("read")
         self.check_access_rule("read")
+        if not self.marketing_business_events_enabled:
+            return self.company_id._marketing_business_events_disabled_notification()
         event = self.env["marketing.account.service"]._ensure_move_event(self)
         return {
             "type": "ir.actions.client",
@@ -253,6 +267,9 @@ class AccountMove(models.Model):
 class AccountPayment(models.Model):
     _inherit = "account.payment"
 
+    marketing_business_events_enabled = fields.Boolean(
+        related="company_id.marketing_business_events_enabled"
+    )
     marketing_account_company_id = fields.Many2one(
         "res.company",
         string="Marketing event company",
@@ -296,6 +313,9 @@ class AccountPayment(models.Model):
         )
         if "marketing_account_company_id" in values and not internal:
             raise AccessError(_("The payment marketing scope is managed internally."))
+        tracked = self.filtered("marketing_business_events_enabled")
+        if not tracked:
+            return super().write(values)
         if not internal:
             requested_company = self.env["res.company"]
             if values.get("journal_id"):
@@ -305,7 +325,7 @@ class AccountPayment(models.Model):
             elif values.get("company_id"):
                 requested_company = self.env["res.company"].browse(values["company_id"])
             if requested_company:
-                invalid = self.filtered(
+                invalid = tracked.filtered(
                     lambda payment: payment.marketing_account_company_id
                     and payment.marketing_account_company_id != requested_company
                 )
@@ -359,6 +379,8 @@ class AccountPayment(models.Model):
             )
         self.check_access_rights("read")
         self.check_access_rule("read")
+        if not self.marketing_business_events_enabled:
+            return self.company_id._marketing_business_events_disabled_notification()
         cursor = 0
         processed = 0
         emitted = 0

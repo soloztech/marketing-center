@@ -603,7 +603,7 @@
     <menuitem
         id="menu_marketing_dashboard_overview"
         name="Management overview"
-        parent="marketing_center_base.menu_marketing_center_root"
+        parent="marketing_center_base.menu_marketing_center_configuration"
         action="action_marketing_dashboard_overview"
         sequence="5"
         groups="marketing_center_base.group_marketing_center_viewer"

@@ -102,7 +102,7 @@ class MarketingWebsiteActionService(models.AbstractModel):
                 limit=1,
             )
         )
-        if not action:
+        if not action or action.binding_id.capture_mode != "legacy":
             raise AccessError(_("The Website action is unavailable."))
         endpoint = self._lock_effective_configuration(action)
         if not (
@@ -127,7 +127,7 @@ class MarketingWebsiteActionService(models.AbstractModel):
         )
         endpoint.invalidate_recordset(["active", "company_id"])
         action.binding_id.invalidate_recordset(
-            ["active", "website_id", "company_id", "endpoint_id"]
+            ["active", "website_id", "company_id", "endpoint_id", "capture_mode"]
         )
         action.invalidate_recordset(
             ["active", "website_id", "company_id", "kind", "public_ref"]
@@ -257,6 +257,8 @@ class MarketingWebsiteActionService(models.AbstractModel):
         origin,
         occurred_at,
     ):
+        if action.binding_id.capture_mode != "legacy":
+            raise AccessError(_("Legacy action capture is disabled in native mode."))
         endpoint = self._lock_effective_configuration(action)
         expected_kinds = {
             "form_submission": "form_submission",
@@ -327,7 +329,9 @@ class MarketingWebsiteActionService(models.AbstractModel):
                 str(action.binding_id.id),
                 endpoint.public_ref,
                 str(endpoint.config_revision),
-                "tracking.informational" if endpoint._informational_notice() else "tracking.standard",
+                "tracking.informational"
+                if endpoint._informational_notice()
+                else "tracking.standard",
                 *(
                     [
                         self.env["marketing.website.consent"]

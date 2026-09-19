@@ -79,7 +79,7 @@ export async function loadConfig(refresh = false) {
                 headers: {Accept: "application/json"},
             })
             .then((response) => (response.ok ? response.json() : null))
-            .then((config) => generation === configGeneration ? config : null)
+            .then((config) => (generation === configGeneration ? config : null))
             .catch(() => null);
     }
     return configPromise;
@@ -91,7 +91,11 @@ export async function captureLandingEntry() {
     }
     const generation = configGeneration;
     const config = await loadConfig();
-    if (generation !== configGeneration || !validConfig(config)) {
+    if (
+        generation !== configGeneration ||
+        !validConfig(config) ||
+        config.capture_mode !== "legacy"
+    ) {
         return false;
     }
     const endpointRef = config.ingest_path.slice(

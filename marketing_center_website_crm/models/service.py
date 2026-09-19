@@ -12,9 +12,9 @@ from odoo.service.model import PG_CONCURRENCY_ERRORS_TO_RETRY
 from odoo.addons.marketing_center_web_ingress.services.errors import (
     WebIngressSerializationFailure,
 )
+from odoo.addons.marketing_center_website.models.consent import CONSENT_CONTEXT_TOKEN
 
 from .tokens import WEBSITE_CRM_WRITE_TOKEN
-from odoo.addons.marketing_center_website.models.consent import CONSENT_CONTEXT_TOKEN
 
 _logger = logging.getLogger(__name__)
 _MAX_NATIVE_RESULT_BYTES = 4096
@@ -311,6 +311,8 @@ class MarketingWebsiteCrmService(models.AbstractModel):
 
     @api.model
     def _process_intent(self, intent):
+        if intent.action_id.binding_id.capture_mode != "legacy":
+            raise AccessError(_("Legacy session capture is disabled."))
         if intent.endpoint_id._requires_individual_consent():
             if not intent.consent_id._is_current(intent.endpoint_id):
                 raise AccessError(
@@ -382,6 +384,8 @@ class MarketingWebsiteCrmService(models.AbstractModel):
 
     @api.model
     def _require_session_capture_policy(self, intent):
+        if intent.action_id.binding_id.capture_mode != "legacy":
+            raise AccessError(_("Legacy session capture is disabled."))
         # Durable intents may supply their validated receipt without a browser
         # cookie. Informational policies still honor the endpoint pause switch.
         endpoint = intent.endpoint_id.with_context(

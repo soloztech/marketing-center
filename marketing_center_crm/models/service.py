@@ -322,6 +322,8 @@ class MarketingCrmService(models.AbstractModel):
 
     @api.model
     def _link_event_lead(self, event, lead):
+        if not lead.marketing_business_events_enabled:
+            return self.env["marketing.business.event.crm.link"]
         event = event.exists()
         if getattr(event, "_name", "") != "marketing.business.event" or len(event) != 1:
             raise ValidationError(_("A single valid marketing event is required."))
@@ -529,6 +531,8 @@ class MarketingCrmService(models.AbstractModel):
         occurred_at=None,
         extensions=None,
     ):
+        if not lead.marketing_business_events_enabled:
+            return self.env["marketing.business.event"]
         company = self._company_for_lead(lead)
         occurrence_ref = (occurrence_ref or "").strip()
         if not occurrence_ref or len(occurrence_ref) > 512:
@@ -560,7 +564,9 @@ class MarketingCrmService(models.AbstractModel):
 
     @api.model
     def _existing_lead_event(self, lead, event_type, occurrence_ref):
-        company = self._company_for_lead(lead)
+        company = lead.marketing_event_company_id or lead.company_id or self.env.company
+        if company not in self.env.companies:
+            raise AccessError(_("The CRM lead company is not available."))
         event_key = "crm.lead:%s:%s:%s" % (lead.id, occurrence_ref, event_type)
         return (
             self.env["marketing.business.event"]
@@ -596,6 +602,8 @@ class MarketingCrmService(models.AbstractModel):
         sequence=0,
         tracking_watermark=None,
     ):
+        if not lead.marketing_business_events_enabled:
+            return self.env["marketing.business.event"]
         if old_stage == new_stage:
             return self.env["marketing.business.event"]
         sequence = sequence or self._known_transition_sequence(
@@ -644,6 +652,8 @@ class MarketingCrmService(models.AbstractModel):
         lost_reason=None,
         tracking_watermark=None,
     ):
+        if not lead.marketing_business_events_enabled:
+            return self.env["marketing.business.event"]
         sequence = sequence or self._known_transition_sequence(
             lead, "lost", occurrence_ref
         )
@@ -664,6 +674,13 @@ class MarketingCrmService(models.AbstractModel):
 
     @api.model
     def _backfill_lead_events(self, lead, after_tracking_id=0, limit=200):
+        if not lead.marketing_business_events_enabled:
+            return {
+                "processed": 0,
+                "last_tracking_id": after_tracking_id,
+                "has_more": False,
+                "disabled": True,
+            }
         company = self._company_for_lead(lead)
         after_tracking_id = max(int(after_tracking_id or 0), 0)
         limit = min(max(int(limit or 200), 1), 1000)

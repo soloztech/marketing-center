@@ -365,7 +365,12 @@ class TestMarketingRetentionBridge(MarketingLifecycleCase):
         self._settle()
         original_facts = self._facts()
         company_a = self.env.company
-        company_b = self.env["res.company"].create({"name": "Retention second company"})
+        company_b = self.env["res.company"].create(
+            {
+                "name": "Retention second company",
+                "marketing_business_events_enabled": True,
+            }
+        )
         scoped = (
             self.env["res.company"]
             .sudo()

@@ -51,12 +51,19 @@ class TestMarketingWebsiteCrm(SavepointCase):
             [("website_id", "=", cls.website.id)], limit=1
         )
         if cls.binding:
-            cls.binding.write({"endpoint_id": cls.endpoint.id, "active": True})
+            cls.binding.write(
+                {
+                    "endpoint_id": cls.endpoint.id,
+                    "active": True,
+                    "capture_mode": "legacy",
+                }
+            )
         else:
             cls.binding = cls.env["marketing.website.ingress.binding"].create(
                 {
                     "website_id": cls.website.id,
                     "endpoint_id": cls.endpoint.id,
+                    "capture_mode": "legacy",
                 }
             )
         cls.crm_model = cls.env["ir.model"]._get("crm.lead")
@@ -1301,7 +1308,12 @@ class TestMarketingWebsiteCrm(SavepointCase):
             )
 
     def test_global_lead_anchored_to_other_company_is_rejected(self):
-        other = self.env["res.company"].create({"name": "Other Website CRM company"})
+        other = self.env["res.company"].create(
+            {
+                "name": "Other Website CRM company",
+                "marketing_business_events_enabled": True,
+            }
+        )
         lead = (
             self.env["crm.lead"]
             .with_company(other)
@@ -1815,12 +1827,19 @@ class TestMarketingWebsiteCrmHttp(HttpCase):
             [("website_id", "=", cls.website.id)], limit=1
         )
         if cls.binding:
-            cls.binding.write({"endpoint_id": cls.endpoint.id, "active": True})
+            cls.binding.write(
+                {
+                    "endpoint_id": cls.endpoint.id,
+                    "active": True,
+                    "capture_mode": "legacy",
+                }
+            )
         else:
             cls.binding = cls.env["marketing.website.ingress.binding"].create(
                 {
                     "website_id": cls.website.id,
                     "endpoint_id": cls.endpoint.id,
+                    "capture_mode": "legacy",
                 }
             )
         cls.crm_model = cls.env["ir.model"]._get("crm.lead")

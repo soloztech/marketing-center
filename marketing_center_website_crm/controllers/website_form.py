@@ -1,6 +1,13 @@
+import datetime
+import hashlib
+import json
 import logging
+import re
+import uuid
+from urllib.parse import urlsplit
 
 from psycopg2 import Error as PsycopgError
+from psycopg2.errors import DeadlockDetected, SerializationFailure
 
 from odoo import http
 from odoo.exceptions import AccessError, ValidationError
@@ -17,6 +24,53 @@ from odoo.addons.website_crm.controllers.website_form import (
 )
 
 _logger = logging.getLogger(__name__)
+_UUID = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$", re.I
+)
+
+
+def _submission_hash():
+    """Hash the original input, excluding the CSRF token and technical query."""
+    digest = hashlib.sha256()
+    pairs = sorted(
+        (key, values)
+        for key, values in request.httprequest.form.lists()
+        if key not in {"csrf_token", "mc_event", "mc_action", "mc_session"}
+    )
+    digest.update(json.dumps(pairs, ensure_ascii=False, separators=(",", ":")).encode())
+    for name, uploads in sorted(request.httprequest.files.lists()):
+        for upload in uploads:
+            digest.update(
+                json.dumps([name, upload.filename, upload.content_type]).encode()
+            )
+            stream = upload.stream
+            position = stream.tell()
+            try:
+                stream.seek(0)
+                for block in iter(lambda: stream.read(65536), b""):
+                    digest.update(block)
+            finally:
+                stream.seek(position)
+    return digest.hexdigest()
+
+
+def _append_native_event(result, event_id):
+    try:
+        payload = json.loads(_response_text(result))
+    except (TypeError, ValueError):
+        return result
+    if (
+        not isinstance(payload, dict)
+        or type(payload.get("id")) is not int
+        or payload["id"] <= 0
+    ):
+        return result
+    payload["marketing_center_event_id"] = event_id
+    serialized = json.dumps(payload, separators=(",", ":"))
+    if hasattr(result, "set_data"):
+        result.set_data(serialized)
+        return result
+    return serialized
 
 
 def _form_claim():
@@ -49,6 +103,7 @@ class MarketingWebsiteCrmFormController(
 
     def insert_record(self, request, model, values, custom, meta=None):
         native_default = False
+        utm_values = {}
         if model.sudo().model == "crm.lead" and getattr(request, "website", None):
             website = request.website
             binding = (
@@ -98,15 +153,86 @@ class MarketingWebsiteCrmFormController(
                         )
                     )
                 )
+        native = getattr(request, "_marketing_native_submission", None)
+        if native and model.sudo().model == "crm.lead":
+            values = dict(values, **native["values"])
+            try:
+                with request.env.cr.savepoint():
+                    utm_values = (
+                        request.env["marketing.website.crm.service"]
+                        .sudo()
+                        ._native_utm_values(
+                            native["values"]["marketing_native_snapshot"],
+                            request.params,
+                        )
+                    )
+                # Assigned before create: native defaults, never a later manual
+                # edit. A submitted field retains its explicitly chosen value.
+                values.update(utm_values)
+            except (SerializationFailure, DeadlockDetected):
+                raise
+            except Exception as error:
+                _logger.warning(
+                    "Native UTM defaults unavailable (%s)", type(error).__name__
+                )
         result = super().insert_record(request, model, values, custom, meta=meta)
         if native_default and result:
             request.env["crm.lead"].sudo().browse(
                 result
             )._mark_native_utm_website_default()
+        if native and result:
+            self._mark_native_acquisition_defaults(result, utm_values)
         return result
+
+    def _mark_native_acquisition_defaults(self, lead_id, utm_values):
+        try:
+            with request.env.cr.savepoint():
+                request.env[
+                    "marketing.website.crm.service"
+                ].sudo()._mark_native_utm_defaults(
+                    request.env["crm.lead"].sudo().browse(lead_id),
+                    utm_values,
+                    request.params,
+                )
+        except (SerializationFailure, DeadlockDetected):
+            raise
+        except Exception as error:
+            _logger.warning(
+                "Native UTM provenance unavailable (%s)", type(error).__name__
+            )
 
     @http.route()
     def website_form(self, model_name, **kwargs):
+        try:
+            with request.env.cr.savepoint():
+                native = self._prepare_native_submission(model_name)
+        except (SerializationFailure, DeadlockDetected):
+            raise
+        except ValidationError:
+            return json.dumps(
+                {
+                    "error": (
+                        "This submission reference was already used "
+                        "for different form data."
+                    ),
+                    "marketing_center_submission_conflict": True,
+                }
+            )
+        except Exception as error:
+            _logger.warning(
+                "Native acquisition preparation unavailable (%s)", type(error).__name__
+            )
+            native = None
+        if native:
+            request._marketing_native_submission = native
+            try:
+                if native["existing"]:
+                    result = json.dumps({"id": native["existing"].id})
+                else:
+                    result = super().website_form(model_name, **kwargs)
+                return self._confirm_native_result(result, native["event_id"])
+            finally:
+                del request._marketing_native_submission
         claim = _form_claim()
         origin = _same_origin()
         result = super().website_form(model_name, **kwargs)
@@ -151,3 +277,123 @@ class MarketingWebsiteCrmFormController(
                 type(error).__name__,
             )
         return result
+
+    def _confirm_native_result(self, result, event_id):
+        try:
+            payload = json.loads(_response_text(result))
+        except (TypeError, ValueError):
+            return result
+        if isinstance(payload, dict) and type(payload.get("id")) is int:
+            lead = request.env["crm.lead"].sudo().browse(payload["id"]).exists()
+            if (
+                lead
+                and lead.marketing_native_website_id == request.website
+                and lead.marketing_native_event_id == event_id
+            ):
+                self._capture_native_lead(lead)
+                return _append_native_event(result, event_id)
+        return result
+
+    def _prepare_native_submission(self, model_name):
+        if (
+            model_name != "crm.lead"
+            or not request.env.user._is_public()
+            or request.httprequest.scheme != "https"
+        ):
+            return None
+        website = request.website
+        binding = website._marketing_measurement_binding()
+        origin = _same_origin()
+        if not origin:
+            # Same-origin forms may omit Origin; a same-origin Referer is still
+            # required. An explicit foreign Origin never gets this fallback.
+            if request.httprequest.headers.get("Origin"):
+                return None
+            referrer = urlsplit(request.httprequest.referrer or "")
+            host = urlsplit(request.httprequest.host_url)
+            if (referrer.scheme, referrer.netloc) != (host.scheme, host.netloc):
+                return None
+            origin = "%s://%s" % (host.scheme, host.netloc)
+        query = request.httprequest.args.getlist("mc_event")
+        supplied = (
+            query[0].lower() if len(query) == 1 and _UUID.fullmatch(query[0]) else ""
+        )
+        native_binding = binding and binding.capture_mode == "native"
+        if not native_binding and not supplied:
+            return None
+        environ = request.httprequest.environ
+        event_id = supplied or environ.setdefault(
+            "marketing.native.event", str(uuid.uuid4())
+        )
+        submitted_at = environ.setdefault(
+            "marketing.native.occurred_at",
+            datetime.datetime.utcnow().replace(microsecond=0),
+        )
+        request_hash = _submission_hash()
+        service = (
+            request.env["marketing.website.crm.service"]
+            .sudo()
+            .with_context(allowed_company_ids=[website.company_id.id])
+            .with_company(website.company_id)
+        )
+        existing = service._native_existing_submission(website, event_id, request_hash)
+        # Replaying a successful submission still returns its original lead after
+        # capture is paused or the binding changes mode.
+        if not existing and not native_binding:
+            return None
+        snapshot = {}
+        if not existing:
+            try:
+                with request.env.cr.savepoint():
+                    visitor = request.env["website.visitor"]._get_visitor_from_request()
+                    snapshot = service._native_snapshot(
+                        website,
+                        binding,
+                        event_id,
+                        origin,
+                        request.httprequest.referrer or "",
+                        submitted_at,
+                        visitor=visitor,
+                        cookies=request.httprequest.cookies,
+                    )
+            except (SerializationFailure, DeadlockDetected):
+                raise
+            except Exception as error:
+                _logger.warning(
+                    "Native acquisition snapshot unavailable (%s)", type(error).__name__
+                )
+        return {
+            "existing": existing,
+            "event_id": event_id,
+            "values": {
+                "marketing_native_website_id": website.id,
+                "marketing_native_event_id": event_id,
+                "marketing_native_request_hash": request_hash,
+                "marketing_native_snapshot": snapshot,
+                "marketing_native_capture_state": "pending" if snapshot else "skipped",
+                "marketing_native_capture_reason": False
+                if snapshot
+                else "acquisition_unavailable",
+            },
+        }
+
+    def _capture_native_lead(self, lead):
+        try:
+            with request.env.cr.savepoint():
+                request.env["marketing.website.crm.service"].sudo().with_context(
+                    allowed_company_ids=[lead.company_id.id]
+                ).with_company(lead.company_id)._capture_native_submission(lead)
+        except (SerializationFailure, DeadlockDetected):
+            raise
+        except Exception as error:
+            _logger.warning(
+                "Native acquisition capture failed for CRM %s (%s)",
+                lead.id,
+                type(error).__name__,
+            )
+            lead.write(
+                {
+                    "marketing_native_capture_state": "error",
+                    "marketing_native_capture_reason": type(error).__name__,
+                }
+            )

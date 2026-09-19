@@ -22,6 +22,13 @@ class MarketingSaleService(models.AbstractModel):
         order = order.exists()
         if getattr(order, "_name", "") != "sale.order" or len(order) != 1:
             raise ValidationError(_("A single valid sales order is required."))
+        if not order.company_id.marketing_business_events_enabled:
+            # Historical reads keep their original company scope, without
+            # claiming the order or repairing projections while capture is off.
+            company = order.marketing_sale_company_id or order.company_id
+            if company not in self.env.companies:
+                raise AccessError(_("The sales order company is not available."))
+            return company
         self.env.cr.execute(
             "SELECT id FROM sale_order WHERE id = %s FOR UPDATE", [order.id]
         )
@@ -41,6 +48,8 @@ class MarketingSaleService(models.AbstractModel):
 
     @api.model
     def _link_order_lead(self, order, lead, source_ref="sale.opportunity_id"):
+        if not order.company_id.marketing_business_events_enabled:
+            return self.env["marketing.sale.order.crm.link"]
         order = order.exists()
         lead = lead.exists()
         company = self._company_for_order(order)
@@ -101,6 +110,8 @@ class MarketingSaleService(models.AbstractModel):
 
     @api.model
     def _link_event_order(self, event, order, *, project_crm=True):
+        if not order.company_id.marketing_business_events_enabled:
+            return self.env["marketing.business.event.sale.link"]
         event = event.exists()
         if getattr(event, "_name", "") != "marketing.business.event" or len(event) != 1:
             raise ValidationError(_("A single valid marketing event is required."))
@@ -269,6 +280,8 @@ class MarketingSaleService(models.AbstractModel):
         evidence_ref="",
         tracking_watermark=None,
     ):
+        if not order.company_id.marketing_business_events_enabled:
+            return self.env["marketing.business.event"]
         company = self._company_for_order(order)
         occurrence_ref = (occurrence_ref or "").strip()
         if not occurrence_ref or len(occurrence_ref) > 512:
@@ -374,6 +387,8 @@ class MarketingSaleService(models.AbstractModel):
     def _ensure_confirmation(
         self, order, evidence_level="imported", *, before_tracking_id=None
     ):
+        if not order.company_id.marketing_business_events_enabled:
+            return self.env["marketing.business.event"]
         confirmation = self._open_confirmation(
             order, historical_only=before_tracking_id is not None
         )
@@ -445,6 +460,14 @@ class MarketingSaleService(models.AbstractModel):
 
     @api.model
     def _backfill_order_events(self, order, after_tracking_id=0, limit=200):
+        if not order.company_id.marketing_business_events_enabled:
+            return {
+                "processed": 0,
+                "last_tracking_id": after_tracking_id,
+                "has_more": False,
+                "company_id": order.company_id.id,
+                "disabled": True,
+            }
         company = self._company_for_order(order)
         if order.opportunity_id:
             self._link_order_lead(order, order.opportunity_id, "sale.backfill")
@@ -554,6 +577,8 @@ class MarketingSaleService(models.AbstractModel):
 
     @api.model
     def _backfill_current_state(self, order):
+        if not order.company_id.marketing_business_events_enabled:
+            return False
         occurred_at = order.write_date or order.create_date or fields.Datetime.now()
         stable_stamp = fields.Datetime.to_string(occurred_at).replace(" ", "T")
         if order.state == "sent" and not self._first_proposal_event(order):

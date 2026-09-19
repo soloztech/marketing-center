@@ -22,6 +22,28 @@ class GoogleClickMatch:
     details: dict
 
 
+def click_acquisition_at(occurred_at, assets):
+    """Keep the captured visit date when a form is submitted on a later day."""
+    raw = (assets or {}).get("acquisition_at")
+    if not raw:
+        return occurred_at
+    try:
+        if not isinstance(raw, str):
+            raise ValueError()
+        instant = datetime.datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if instant.tzinfo is None or instant.utcoffset() != datetime.timedelta(0):
+            raise ValueError()
+        instant = instant.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+        event = occurred_at
+        if event.tzinfo:
+            event = event.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+        if instant > event:
+            raise ValueError()
+        return instant
+    except (ValueError, TypeError, AttributeError):
+        raise GoogleApiError("Google acquisition date is invalid") from None
+
+
 def click_local_date(occurred_at, timezone, *, now=None):
     try:
         zone = pytz.timezone(timezone)

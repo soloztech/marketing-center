@@ -1,6 +1,7 @@
 import datetime
 import decimal
 import uuid
+from contextlib import ExitStack
 from unittest.mock import patch
 
 from odoo import Command, fields
@@ -16,6 +17,7 @@ class TestMarketingCenterAccount(SavepointCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        cls.env.company.marketing_business_events_enabled = True
         suffix = uuid.uuid4().hex[:8]
         cls.receivable = cls.env["account.account"].create(
             {
@@ -169,6 +171,89 @@ class TestMarketingCenterAccount(SavepointCase):
         return events.filtered(
             lambda event: not event_type or event.event_type == event_type
         )
+
+    def test_disabled_capture_keeps_posting_and_reconciliation_independent(self):
+        self.env.company.marketing_business_events_enabled = False
+        models = (
+            "marketing.business.event",
+            "marketing.business.event.account.move.link",
+            "marketing.business.event.account.payment.link",
+        )
+        counts = {name: self.env[name].search_count([]) for name in models}
+        with ExitStack() as stack:
+            for model, method in (
+                ("account.move", "_marketing_account_lock_event_state"),
+                ("account.move", "_marketing_account_next_event_sequence"),
+                ("marketing.account.service", "_emit_move_event"),
+                ("marketing.account.service", "_ensure_allocation_event"),
+            ):
+                stack.enter_context(
+                    patch.object(
+                        type(self.env[model]),
+                        method,
+                        side_effect=AssertionError("Disabled marketing was called"),
+                    )
+                )
+            invoice = self._invoice(100)
+            invoice.action_post()
+            self.assertEqual(invoice.state, "posted")
+            payment = self._payment(100)
+            partial = self._reconcile(invoice, payment)
+            self.assertEqual(invoice.amount_residual, 0)
+            self.assertFalse(partial.marketing_account_event_claimed)
+            partial.unlink()
+            self.assertEqual(invoice.amount_residual, 100)
+            invoice.button_draft()
+            invoice.button_cancel()
+            self.assertEqual(invoice.state, "cancel")
+        self.assertEqual(invoice.marketing_account_event_sequence, 0)
+        self.assertFalse(invoice.marketing_account_company_id)
+        self.assertFalse(payment.marketing_account_company_id)
+        self.assertEqual(
+            {name: self.env[name].search_count([]) for name in models}, counts
+        )
+
+    def test_disabled_services_and_backfills_keep_existing_history(self):
+        invoice = self._invoice(100)
+        invoice.action_post()
+        payment = self._payment(100)
+        partial = self._reconcile(invoice, payment)
+        events = self._move_events(invoice)
+        payment_events = self._payment_events(payment)
+        self.env.company.marketing_business_events_enabled = False
+        service = self.env["marketing.account.service"]
+        with ExitStack() as stack:
+            for model, method in (
+                ("account.move", "_marketing_account_lock_event_state"),
+                ("marketing.account.service", "_allocation_facts"),
+                ("marketing.account.service", "_claim_partial_event"),
+            ):
+                stack.enter_context(
+                    patch.object(
+                        type(self.env[model]),
+                        method,
+                        side_effect=AssertionError("Disabled history was rebuilt"),
+                    )
+                )
+            self.assertFalse(service._ensure_move_event(invoice))
+            event, facts = service._ensure_allocation_event(partial)
+            self.assertFalse(event)
+            self.assertIsNone(facts)
+            for result in (
+                service._backfill_posted_moves(self.env.company),
+                service._backfill_payment_allocations(self.env.company),
+                service._backfill_payment(payment),
+            ):
+                self.assertEqual(result["processed"], 0)
+                self.assertTrue(result["disabled"])
+            self.assertEqual(
+                service._source_move_events(invoice).ids,
+                events.filtered(lambda event: event.source_model == "account.move").ids,
+            )
+            partial.unlink()
+            invoice.button_draft()
+        self.assertEqual(self._move_events(invoice), events)
+        self.assertEqual(self._payment_events(payment), payment_events)
 
     def test_invoice_and_credit_note_are_exact_and_idempotent(self):
         invoice = self._invoice(decimal.Decimal("123.45"))

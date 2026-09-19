@@ -352,6 +352,13 @@ class MarketingWebIngressService(models.AbstractModel):
         touchpoint_type = payload.event_type
         is_action_event = payload.event_type in ACTION_EVENT_TYPES
         asset_refs = {"web.endpoint": endpoint.public_ref}
+        if payload.acquisition.get("gad_campaignid"):
+            asset_refs["campaign_id"] = payload.acquisition["gad_campaignid"]
+            asset_refs["campaign_provider"] = "google"
+        if payload.acquisition.get("gad_source"):
+            asset_refs["google.gad_source"] = payload.acquisition["gad_source"]
+        if payload.acquisition.get("acquisition_at"):
+            asset_refs["acquisition_at"] = payload.acquisition["acquisition_at"]
         if is_action_event:
             asset_refs.update(
                 {

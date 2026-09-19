@@ -21,6 +21,8 @@ class TestMarketingCenterAccountConcurrency(TransactionCase):
         with self.registry.cursor() as cr:
             env = api.Environment(cr, SUPERUSER_ID, {})
             company = env.company
+            previous_event_policy = company.marketing_business_events_enabled
+            company.marketing_business_events_enabled = True
             receivable = env["account.account"].create(
                 {
                     "name": "Concurrent receivable %s" % token,
@@ -141,6 +143,7 @@ class TestMarketingCenterAccountConcurrency(TransactionCase):
             return {
                 "account_ids": (receivable | income | bank).ids,
                 "company_id": company.id,
+                "previous_event_policy": previous_event_policy,
                 "invoice_id": invoice.id,
                 "journal_ids": (sales_journal | bank_journal).ids,
                 "partial_id": partial.id,
@@ -218,6 +221,9 @@ class TestMarketingCenterAccountConcurrency(TransactionCase):
             )
             self.assertFalse(env["account.move"].browse(fixture["invoice_id"]).exists())
             self.assertFalse(env["res.partner"].browse(fixture["partner_id"]).exists())
+            env["res.company"].browse(fixture["company_id"]).write(
+                {"marketing_business_events_enabled": fixture["previous_event_policy"]}
+            )
             cr.commit()  # pylint: disable=invalid-commit
 
     def _retry_projection(self, fixture):

@@ -14,6 +14,7 @@ from odoo.addons.marketing_center_base.services.dto import (
     MarketingTouchpointDTO,
     PrivacySnapshotDTO,
 )
+from odoo.addons.marketing_center_base.services.scheduler import fair_scheduler_batch
 from odoo.addons.marketing_center_base.services.serialization import (
     acquire_advisory_xact_lock,
 )
@@ -21,7 +22,7 @@ from odoo.addons.queue_job.exception import RetryableJobError
 
 from ..services.adapter import GoogleMarketingReadAdapter
 from ..services.catalog import GOOGLE_ADS_SERVICE
-from ..services.click import click_local_date
+from ..services.click import click_acquisition_at, click_local_date
 from .sync_common import GoogleDeferredRetry
 
 _TOKEN = object()
@@ -109,31 +110,38 @@ class MarketingGoogleClickLookup(models.Model):
     )
 
     confirmed_campaign = fields.Char(
-        string="Campanha", compute="_compute_confirmed_details",
+        string="Campanha",
+        compute="_compute_confirmed_details",
         groups="marketing_center_base.group_marketing_center_admin",
     )
     confirmed_ad_group = fields.Char(
-        string="Grupo de anúncios", compute="_compute_confirmed_details",
+        string="Grupo de anúncios",
+        compute="_compute_confirmed_details",
         groups="marketing_center_base.group_marketing_center_admin",
     )
     confirmed_network = fields.Char(
-        string="Rede", compute="_compute_confirmed_details",
+        string="Rede",
+        compute="_compute_confirmed_details",
         groups="marketing_center_base.group_marketing_center_admin",
     )
     confirmed_device = fields.Char(
-        string="Dispositivo", compute="_compute_confirmed_details",
+        string="Dispositivo",
+        compute="_compute_confirmed_details",
         groups="marketing_center_base.group_marketing_center_admin",
     )
     confirmed_keyword = fields.Char(
-        string="Palavra-chave do anúncio", compute="_compute_confirmed_details",
+        string="Palavra-chave do anúncio",
+        compute="_compute_confirmed_details",
         groups="marketing_center_base.group_marketing_center_admin",
     )
     confirmed_match_type = fields.Char(
-        string="Correspondência", compute="_compute_confirmed_details",
+        string="Correspondência",
+        compute="_compute_confirmed_details",
         groups="marketing_center_base.group_marketing_center_admin",
     )
     confirmed_response_text = fields.Text(
-        string="Resposta técnica", compute="_compute_confirmed_details",
+        string="Resposta técnica",
+        compute="_compute_confirmed_details",
         groups="marketing_center_base.group_marketing_center_admin",
     )
 
@@ -147,19 +155,25 @@ class MarketingGoogleClickLookup(models.Model):
             "YOUTUBE_WATCH": _("Vídeos do YouTube"),
         }
         devices = {
-            "DESKTOP": _("Computador"), "MOBILE": _("Celular"),
-            "TABLET": _("Tablet"), "CONNECTED_TV": _("TV conectada"),
+            "DESKTOP": _("Computador"),
+            "MOBILE": _("Celular"),
+            "TABLET": _("Tablet"),
+            "CONNECTED_TV": _("TV conectada"),
         }
         matches = {
-            "BROAD": _("Ampla"), "PHRASE": _("Frase"), "EXACT": _("Exata"),
+            "BROAD": _("Ampla"),
+            "PHRASE": _("Frase"),
+            "EXACT": _("Exata"),
         }
         for lookup in self:
             result = lookup.result_json if isinstance(lookup.result_json, dict) else {}
             details = result.get("details")
             details = details if isinstance(details, dict) else {}
+
             def text(key):
                 value = details.get(key)
                 return value if isinstance(value, str) else False
+
             lookup.confirmed_campaign = text("campaign_name")
             lookup.confirmed_ad_group = text("ad_group_name")
             lookup.confirmed_network = networks.get(text("network"), text("network"))
@@ -194,7 +208,8 @@ class MarketingGoogleClickLookup(models.Model):
         self._require_internal()
         return super().write(values)
 
-    def unlink(self):
+    def unlink(self):  # pylint: disable=method-required-super
+        # This evidence is immutable: deletion must never reach the ORM.
         raise AccessError(_("Google click lookup evidence cannot be deleted."))
 
     def _require_internal(self):
@@ -224,7 +239,10 @@ class MarketingSourceGoogleClick(models.Model):
         string="Resolve captured Google clicks",
         default=False,
         groups="marketing_center_base.group_marketing_center_admin",
-        help="Opt in to exact GCLID lookups for new eligible acquisition evidence. Historical processing requires an explicit scoped retry.",
+        help=(
+            "Daily exact GCLID lookup for acquisition evidence linked to a CRM lead "
+            "and without a campaign ID. Known campaign IDs use the local catalog."
+        ),
     )
 
     def write(self, values):
@@ -309,27 +327,125 @@ class MarketingGoogleClickService(models.AbstractModel):
         )
 
     @api.model
-    def _source_candidates(self, company):
+    def _source_candidates(self, company, point=None):
         acquire_advisory_xact_lock(
             self.env.cr,
             "marketing_google_click_sources:%s" % company.id,
             "Concurrent click source selection needs a fresh snapshot",
         )
-        return (
-            self.env["marketing.center.source"]
-            .sudo()
-            .search(
-                [
-                    ("company_id", "=", company.id),
-                    ("service", "=", GOOGLE_ADS_SERVICE),
-                    ("google_click_lookup_enabled", "=", True),
-                    ("active", "=", True),
-                    ("state", "=", "active"),
-                    ("read_enabled", "=", True),
-                ],
-                limit=3,
-            )
+        sources = self.env[
+            "marketing.attribution.asset.resolution.service"
+        ]._google_source_candidates(company, point.asset_refs_json if point else {})
+        enabled = sources.filtered(
+            lambda source: source.google_click_lookup_enabled
+            and source.active
+            and source.state == "active"
+            and source.read_enabled
         )
+        # Opt-in permits lookup but does not prove which account owns a click.
+        # One opted-in account among several usable accounts is still ambiguous.
+        return sources if len(sources) > 1 and enabled else enabled
+
+    @api.model
+    def _fallback_reason(self, point):
+        if not point:
+            return "touchpoint_unavailable"
+        assets = point.asset_refs_json or {}
+        if assets.get("google.campaign_id") or (
+            assets.get("campaign_provider") == "google" and assets.get("campaign_id")
+        ):
+            # An explicit ID is sufficient to wait for the daily catalog, even
+            # before its corresponding entity is available locally.
+            return "campaign_id_available"
+        if point.touchpoint_type == "form_submission" and not assets.get(
+            "acquisition_at"
+        ):
+            return "acquisition_date_required"
+        model = "marketing.attribution.crm.effective.link"
+        if model not in self.env.registry.models or not self.env[model].sudo().search(
+            [
+                ("company_id", "=", point.company_id.id),
+                ("canonical_key", "=", point.canonical_key),
+                ("lead_id", "!=", False),
+            ],
+            limit=1,
+        ):
+            return "crm_lead_required"
+        return ""
+
+    @api.model
+    def _cron_enqueue_linked_clicks(self, limit=200):
+        model = "marketing.attribution.crm.effective.link"
+        result = {"processed": 0, "scheduled": 0, "failed": 0}
+        if model not in self.env.registry.models:
+            return result
+        cutoff = fields.Datetime.now() - datetime.timedelta(days=91)
+        campaign_refs = (
+            self.env["marketing.attribution.asset.resolution"]
+            .sudo()
+            ._search([("asset_namespace", "in", ["campaign_id", "google.campaign_id"])])
+        )
+        links = fair_scheduler_batch(
+            self.env,
+            model,
+            [
+                ("lead_id", "!=", False),
+                ("touchpoint_id.occurred_at", ">=", cutoff),
+                ("touchpoint_id.consent_state", "!=", "denied"),
+                ("touchpoint_id.touchpoint_id.privacy_erased_at", "=", False),
+                (
+                    "touchpoint_id.touchpoint_id.identifier_ids.namespace",
+                    "=",
+                    "google.gclid",
+                ),
+                (
+                    "touchpoint_id.touchpoint_id.asset_resolution_ids",
+                    "not in",
+                    campaign_refs,
+                ),
+            ],
+            cursor_key="google.daily_linked_clicks",
+            limit=limit,
+        )
+        seen = set()
+        for link in links:
+            key = (link.company_id.id, link.canonical_key)
+            if key in seen:
+                continue
+            seen.add(key)
+            result["processed"] += 1
+            try:
+                with self.env.cr.savepoint():
+                    scoped = (
+                        self.sudo()
+                        .with_company(link.company_id)
+                        .with_context(allowed_company_ids=[link.company_id.id])
+                    )
+                    point = scoped.env["marketing.attribution.touchpoint"].browse(
+                        link.touchpoint_id.id
+                    )
+                    before = (
+                        scoped._lookups()
+                        .search(
+                            [
+                                ("company_id", "=", link.company_id.id),
+                                ("canonical_key", "=", link.canonical_key),
+                            ],
+                            limit=1,
+                        )
+                        .sync_run_id
+                    )
+                    lookup = scoped._schedule_touchpoint(point)
+                    if lookup and lookup.sync_run_id and lookup.sync_run_id != before:
+                        result["scheduled"] += 1
+            except SerializationFailure:
+                raise
+            except Exception:
+                result["failed"] += 1
+                _logger.error(
+                    "Daily Google click scheduling failed for CRM link %s", link.id
+                )
+        return result
 
     @api.model
     def _effective(self, lookup):
@@ -351,6 +467,20 @@ class MarketingGoogleClickService(models.AbstractModel):
         touchpoint.ensure_one()
         if touchpoint.company_id not in self.env.companies:
             raise AccessError(_("The touchpoint belongs to another company."))
+        effective = (
+            self.env["marketing.attribution.effective.touchpoint"]
+            .sudo()
+            .search(
+                [
+                    ("company_id", "=", touchpoint.company_id.id),
+                    ("canonical_key", "=", touchpoint.canonical_key),
+                ],
+                limit=1,
+            )
+        )
+        touchpoint = effective.touchpoint_id
+        if self._fallback_reason(touchpoint):
+            return False
         if touchpoint.privacy_erased_at or touchpoint.consent_state == "denied":
             return False
         identifiers = touchpoint.identifier_ids.filtered(
@@ -358,6 +488,7 @@ class MarketingGoogleClickService(models.AbstractModel):
             and i.role == "click"
             and i.value_ref
             and not i.erased_at
+            and (not i.retain_until or i.retain_until >= fields.Date.today())
         )
         if len(identifiers) != 1:
             return False
@@ -367,7 +498,7 @@ class MarketingGoogleClickService(models.AbstractModel):
             % (touchpoint.company_id.id, touchpoint.canonical_key),
             "Concurrent click evidence needs a fresh snapshot",
         )
-        sources = self._source_candidates(touchpoint.company_id)
+        sources = self._source_candidates(touchpoint.company_id, touchpoint)
         if not sources and not explicit:
             return False
         acquire_advisory_xact_lock(
@@ -385,7 +516,15 @@ class MarketingGoogleClickService(models.AbstractModel):
         )
         if lookup and (lookup.state == "found" or lookup.sync_run_id.state in _ACTIVE):
             return lookup
-        if lookup and not explicit:
+        retry_configuration = lookup and (
+            lookup.state in {"ambiguous", "stale"}
+            or (
+                lookup.state == "blocked"
+                and lookup.reason
+                in {"lookup_disabled", "reader_unavailable", "source_selection_changed"}
+            )
+        )
+        if lookup and not explicit and not retry_configuration:
             return lookup
         if not lookup:
             lookup = self._lookups().create(
@@ -408,7 +547,11 @@ class MarketingGoogleClickService(models.AbstractModel):
         source = sources
         try:
             local_date = click_local_date(
-                touchpoint.occurred_at, source.timezone, now=fields.Datetime.now()
+                click_acquisition_at(
+                    touchpoint.occurred_at, touchpoint.asset_refs_json
+                ),
+                source.timezone,
+                now=fields.Datetime.now(),
             )
         except GoogleApiError:
             lookup.write({"state": "expired", "reason": "outside_90_day_window"})
@@ -425,7 +568,7 @@ class MarketingGoogleClickService(models.AbstractModel):
             sync_kind="leads",
             entity_type="google_click_lookup",
             scope_ref="click:%s" % lookup.public_ref,
-            trigger_kind="manual" if explicit else "webhook",
+            trigger_kind="manual" if explicit else "scheduled",
             trigger_ref="lookup:%s:%s" % (lookup.public_ref, uuid.uuid4()),
             reporting_context={
                 "contract": "google.click.v1",
@@ -534,23 +677,33 @@ class MarketingGoogleClickService(models.AbstractModel):
             return self._unexpected_failure(run, job_uuid, "click lookup")
 
     @api.model
-    def _execute_current(self, run, expected_attempt):
-        lookup = self._lookup_for_run(run)
+    def _click_execution_context(self, run, lookup, expected_attempt):
         if run.state not in _ACTIVE:
-            return {"terminal": run.state}
+            return None, {"terminal": run.state}
         job_uuid = self._current_job_uuid(run)
         if not job_uuid:
-            return {"orphan": True}
+            return None, {"orphan": True}
         if (
             type(expected_attempt) is not int
             or expected_attempt != lookup.attempt_count
         ):
-            return {"stale_attempt": True}
+            return None, {"stale_attempt": True}
+        return job_uuid, None
+
+    @api.model
+    def _execute_current(self, run, expected_attempt):
+        lookup = self._lookup_for_run(run)
+        job_uuid, stopped = self._click_execution_context(run, lookup, expected_attempt)
+        if stopped:
+            return stopped
         point = self._effective(lookup)
+        ineligible = self._fallback_reason(point)
+        if ineligible:
+            return self._finish_lookup(run, lookup, "blocked", ineligible)
         # The vault serializes endpoint policy/event retention and canonical
         # evidence before the source/profile locks, matching ingress/erasure.
         gclid = self._protected_input(lookup, point)
-        candidates = self._source_candidates(lookup.company_id)
+        candidates = self._source_candidates(lookup.company_id, point)
         profile = self._current_profile(run.connection_id, strict=False)
         if (
             not profile
@@ -572,7 +725,9 @@ class MarketingGoogleClickService(models.AbstractModel):
             )
         try:
             local_date = click_local_date(
-                point.occurred_at, lookup.source_id.timezone, now=fields.Datetime.now()
+                click_acquisition_at(point.occurred_at, point.asset_refs_json),
+                lookup.source_id.timezone,
+                now=fields.Datetime.now(),
             )
         except GoogleApiError:
             return self._finish_lookup(run, lookup, "expired", "outside_90_day_window")
@@ -591,7 +746,9 @@ class MarketingGoogleClickService(models.AbstractModel):
             ).fetch_click(
                 run.source_id.external_account_id,
                 gclid,
-                occurred_at=point.occurred_at,
+                occurred_at=click_acquisition_at(
+                    point.occurred_at, point.asset_refs_json
+                ),
                 report_timezone=lookup.report_timezone,
                 now=fields.Datetime.now(),
             )
@@ -602,7 +759,8 @@ class MarketingGoogleClickService(models.AbstractModel):
             )
         if (
             not self._preflight_current(run, profile)
-            or self._source_candidates(lookup.company_id) != lookup.source_id
+            or self._source_candidates(lookup.company_id, point) != lookup.source_id
+            or self._fallback_reason(point)
             or not self._protected_input(lookup, point)
         ):
             return self._finish_lookup(
@@ -745,36 +903,6 @@ class MarketingGoogleClickService(models.AbstractModel):
         return self.env["marketing.attribution.service"]._ingest_touchpoint(
             point.company_id, dto
         )
-
-
-class MarketingAttributionGoogleClick(models.AbstractModel):
-    _inherit = "marketing.attribution.service"
-
-    @api.model
-    def _ingest_touchpoint(self, company, payload):
-        result = super()._ingest_touchpoint(company, payload)
-        point = (
-            self.env["marketing.attribution.touchpoint"]
-            .sudo()
-            .browse(result.touchpoint_id)
-        )
-        # Enrichment cannot enqueue itself. Existing completed lookups also fence
-        # replays of the original web occurrence.
-        if (point.extensions_json or {}).get("google.click_lookup"):
-            return result
-        try:
-            with self.env.cr.savepoint():
-                self.env["marketing.center.google.click.service"]._schedule_touchpoint(
-                    point
-                )
-        except SerializationFailure:
-            raise
-        except Exception:
-            _logger.error(
-                "Google click scheduling failed for touchpoint %s; explicit reconciliation is available",
-                point.public_ref,
-            )
-        return result
 
 
 class MarketingTouchpointGoogleClickRetention(models.Model):

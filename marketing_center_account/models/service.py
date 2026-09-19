@@ -25,6 +25,11 @@ class MarketingAccountService(models.AbstractModel):
         move = move.exists()
         if getattr(move, "_name", "") != "account.move" or len(move) != 1:
             raise ValidationError(_("A single valid journal entry is required."))
+        if not move.company_id.marketing_business_events_enabled:
+            company = move.marketing_account_company_id or move.company_id
+            if company not in self.env.companies:
+                raise AccessError(_("The accounting company is not available."))
+            return company
         self.env.cr.execute(
             "SELECT id FROM account_move WHERE id = %s FOR UPDATE", [move.id]
         )
@@ -60,6 +65,11 @@ class MarketingAccountService(models.AbstractModel):
 
     @api.model
     def _company_for_payment(self, payment):
+        if not payment.company_id.marketing_business_events_enabled:
+            company = payment.marketing_account_company_id or payment.company_id
+            if company not in self.env.companies:
+                raise AccessError(_("The payment company is not available."))
+            return company
         payment, _company = self._payment_company_snapshot(payment)
         self.env.cr.execute(
             "SELECT id FROM account_payment WHERE id = %s FOR UPDATE", [payment.id]
@@ -84,6 +94,8 @@ class MarketingAccountService(models.AbstractModel):
 
     @api.model
     def _lock_partial(self, partial):
+        if not partial.company_id.marketing_business_events_enabled:
+            return self.env["account.partial.reconcile"]
         partial = partial.exists()
         if (
             getattr(partial, "_name", "") != "account.partial.reconcile"
@@ -113,6 +125,8 @@ class MarketingAccountService(models.AbstractModel):
 
     @api.model
     def _claim_partial_event(self, partial):
+        if not partial.company_id.marketing_business_events_enabled:
+            return self.env["account.partial.reconcile"]
         partial = partial.exists()
         if not partial or len(partial) != 1:
             raise ValidationError(
@@ -142,6 +156,8 @@ class MarketingAccountService(models.AbstractModel):
 
     @api.model
     def _link_event_move(self, event, move, role="source"):
+        if not move.company_id.marketing_business_events_enabled:
+            return self.env["marketing.business.event.account.move.link"]
         event = event.exists()
         if getattr(event, "_name", "") != "marketing.business.event" or len(event) != 1:
             raise ValidationError(_("A single valid marketing event is required."))
@@ -205,6 +221,8 @@ class MarketingAccountService(models.AbstractModel):
 
     @api.model
     def _link_event_payment(self, event, payment):
+        if not payment.company_id.marketing_business_events_enabled:
+            return self.env["marketing.business.event.account.payment.link"]
         event = event.exists()
         if getattr(event, "_name", "") != "marketing.business.event" or len(event) != 1:
             raise ValidationError(_("A single valid marketing event is required."))
@@ -308,6 +326,8 @@ class MarketingAccountService(models.AbstractModel):
         evidence_level="first_party",
         evidence_ref="",
     ):
+        if not move.company_id.marketing_business_events_enabled:
+            return self.env["marketing.business.event"]
         company = self._company_for_move(move)
         if move.state != "posted" or move.move_type not in OUTGOING_MOVE_TYPES:
             return self.env["marketing.business.event"]
@@ -435,6 +455,8 @@ class MarketingAccountService(models.AbstractModel):
     @api.model
     def _emit_move_posting_reversal(self, move, event, destination_state):
         """Append one exact counterevent after a successful native unposting."""
+        if not move.company_id.marketing_business_events_enabled:
+            return self.env["marketing.business.event"]
         company = self._company_for_move(move)
         reversal_type = {
             value: key for key, value in POSTING_REVERSAL_EVENT_PAIRS.items()
@@ -497,6 +519,8 @@ class MarketingAccountService(models.AbstractModel):
 
     @api.model
     def _ensure_move_event(self, move, evidence_level="imported"):
+        if not move.company_id.marketing_business_events_enabled:
+            return self.env["marketing.business.event"]
         move._marketing_account_lock_event_state()
         events = self._source_move_events(move)
         expected_type = {
@@ -627,6 +651,8 @@ class MarketingAccountService(models.AbstractModel):
 
     @api.model
     def _link_allocation_event(self, event, facts):
+        if not facts["company"].marketing_business_events_enabled:
+            return self.env["marketing.business.event"]
         self._link_event_move(event, facts["invoice"], "settled_invoice")
         self._link_event_move(event, facts["payment_entry"], "payment_entry")
         self._link_event_payment(event, facts["payment"])
@@ -641,6 +667,8 @@ class MarketingAccountService(models.AbstractModel):
         evidence_level="first_party",
         reversed_event=None,
     ):
+        if not facts["company"].marketing_business_events_enabled:
+            return self.env["marketing.business.event"]
         company = facts["company"]
         if company not in self.env.companies:
             raise AccessError(_("The payment allocation company is not available."))
@@ -706,6 +734,8 @@ class MarketingAccountService(models.AbstractModel):
 
     @api.model
     def _ensure_allocation_event(self, partial, evidence_level="first_party"):
+        if not partial.company_id.marketing_business_events_enabled:
+            return self.env["marketing.business.event"], None
         facts = self._allocation_facts(partial)
         if not facts:
             return self.env["marketing.business.event"], None
@@ -730,6 +760,8 @@ class MarketingAccountService(models.AbstractModel):
 
     @api.model
     def _emit_allocation_reversal(self, event, facts):
+        if not facts["company"].marketing_business_events_enabled:
+            return self.env["marketing.business.event"]
         existing = self._source_partial_event(
             facts["company"], facts["partial_id"], "payment_allocation_reversed"
         )
@@ -752,6 +784,13 @@ class MarketingAccountService(models.AbstractModel):
             or company not in self.env.companies
         ):
             raise AccessError(_("The accounting company is not available."))
+        if not company.marketing_business_events_enabled:
+            return {
+                "processed": 0,
+                "last_id": after_id,
+                "has_more": False,
+                "disabled": True,
+            }
         after_id = max(int(after_id or 0), 0)
         limit = min(max(int(limit or 200), 1), 1000)
         moves = (
@@ -801,6 +840,14 @@ class MarketingAccountService(models.AbstractModel):
             or company not in self.env.companies
         ):
             raise AccessError(_("The accounting company is not available."))
+        if not company.marketing_business_events_enabled:
+            return {
+                "processed": 0,
+                "emitted": 0,
+                "last_id": after_id,
+                "has_more": False,
+                "disabled": True,
+            }
         after_id = max(int(after_id or 0), 0)
         limit = min(max(int(limit or 200), 1), 1000)
         partials = (
@@ -837,6 +884,8 @@ class MarketingAccountService(models.AbstractModel):
         # Keep the same lock order as live partial create/unlink: partial first,
         # payment second. Locking the payment here before `_allocation_facts`
         # would deadlock with a concurrent reconciliation removal.
+        if not payment.company_id.marketing_business_events_enabled:
+            return {"processed": 0, "emitted": 0, "last_id": after_id, "disabled": True}
         payment, company = self._payment_company_snapshot(payment)
         line_ids = payment.move_id.line_ids.ids
         after_id = max(int(after_id or 0), 0)

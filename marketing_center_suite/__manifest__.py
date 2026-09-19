@@ -1,7 +1,7 @@
 {
     "name": "Marketing Center",
     "summary": "Install the supported Soloz Marketing Center suite",
-    "version": "16.0.1.0.0",
+    "version": "16.0.1.1.0",
     "category": "Marketing",
     "author": "Soloz Technologies",
     "website": "https://github.com/soloztech/marketing-center",
@@ -11,7 +11,6 @@
         "marketing_center_dashboard",
         "marketing_center_google",
         "marketing_center_meta_crm",
-        "marketing_center_sale_account",
         "marketing_center_website_crm",
     ],
     "data": [],
