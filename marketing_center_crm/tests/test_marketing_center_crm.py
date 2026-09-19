@@ -13,7 +13,7 @@ class TestMarketingCenterCrm(SavepointCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.env.company.marketing_business_events_enabled = True
+        cls.env.company.marketing_crm_events_enabled = True
         cls.service = cls.env["marketing.crm.service"]
         suffix = str(uuid.uuid4())
         cls.stage_a = cls.env["crm.stage"].create(
@@ -60,8 +60,31 @@ class TestMarketingCenterCrm(SavepointCase):
             lambda event: not event_type or event.event_type == event_type
         )
 
-    def test_disabled_lifecycle_preserves_native_crm_and_touchpoints(self):
+    def test_crm_lifecycle_is_independent_of_other_business_events(self):
         self.env.company.marketing_business_events_enabled = False
+        self.env.company.marketing_crm_events_enabled = True
+        lead = self.env["crm.lead"].create(
+            {
+                "name": "CRM remains active without financial events",
+                "company_id": self.env.company.id,
+                "stage_id": self.stage_a.id,
+            }
+        )
+        self.assertEqual(len(self._events(lead, "lead_created")), 1)
+        lead.write({"stage_id": self.stage_b.id})
+        self.assertEqual(len(self._events(lead, "qualified")), 1)
+        count = len(self._events(lead))
+        lead.write({"name": "Ordinary CRM maintenance"})
+        lead.write({"stage_id": self.stage_b.id})
+        self.assertEqual(len(self._events(lead)), count)
+        self.env.company.marketing_business_events_enabled = True
+        self.env.company.marketing_crm_events_enabled = False
+        self.assertFalse(lead.marketing_business_events_enabled)
+        lead.write({"stage_id": self.stage_won.id})
+        self.assertEqual(len(self._events(lead)), count)
+
+    def test_disabled_lifecycle_preserves_native_crm_and_touchpoints(self):
+        self.env.company.marketing_crm_events_enabled = False
         models = ("marketing.business.event", "marketing.business.event.observation")
         counts = {name: self.env[name].search_count([]) for name in models}
         with ExitStack() as stack:
@@ -102,7 +125,7 @@ class TestMarketingCenterCrm(SavepointCase):
     def test_disabled_crm_backfill_keeps_history_and_skips_emission(self):
         events = self._events()
         sequence = self.lead.marketing_event_sequence
-        self.env.company.marketing_business_events_enabled = False
+        self.env.company.marketing_crm_events_enabled = False
         with patch.object(
             type(self.service),
             "_company_for_lead",

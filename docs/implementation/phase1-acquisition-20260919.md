@@ -64,11 +64,20 @@ clique comprovada não dispara consulta por uma data presumida.
 
 ### Eventos e interface
 
-`res.company.marketing_business_events_enabled` é falso por padrão. Nesse estado, não há
-eventos automáticos de CRM, pedidos, faturas, pagamentos ou episódios de atendimento,
-nem reconstrução histórica. As guardas precedem locks e filas de marketing; mensagens,
-CRM, vendas e contabilidade continuam nativos. Touchpoints úteis e histórico anterior
-permanecem disponíveis.
+`res.company.marketing_crm_events_enabled` é verdadeiro por padrão e controla somente
+criação de leads e transições relevantes do CRM, incluindo qualificação, ganho e perda.
+Alterações ordinárias de cadastro e gravação da mesma etapa não geram novos eventos. Não
+há backfill automático nem envio de conversões às plataformas.
+
+`res.company.marketing_business_events_enabled` permanece falso por padrão para os
+eventos opcionais de pedidos, faturas, pagamentos e episódios de atendimento. As guardas
+precedem locks e filas de marketing; mensagens, vendas e contabilidade continuam
+nativas. Touchpoints úteis permanecem disponíveis.
+
+Por decisão posterior do operador, os módulos `marketing_center_sale_account`,
+`marketing_center_sale` e `marketing_center_account` serão desinstalados nesta entrega.
+O histórico exclusivo dessas extensões pode ser descartado. O CRM e o catálogo comercial
+não dependem delas. O ledger compartilhado não é apagado em lote.
 
 A navegação principal passa a Leads, Campanhas, Conversas e Integrações. O acesso a
 conversas mantém as permissões existentes do Contact Center. Histórico técnico,
@@ -80,8 +89,9 @@ financeiro `marketing_center_sale_account`.
 A correlação por visitante tem limitações em múltiplas abas e dispositivos; não é uma
 identidade universal. Não foi criado cálculo de receita/atribuição nem exportação de
 leads qualificados para Google/Meta. Essa segunda etapa depende de definir o evento
-comercial e seu contrato de envio. Os módulos legados não foram desinstalados; primeiro
-se interrompe sua geração, preservando uma reversão simples.
+comercial e seu contrato de envio. A desinstalação das extensões financeiras foi
+ensaiada em banco sintético com comparação dos registros nativos antes/depois; CRM,
+vendas e contabilidade permanecem instalados.
 
 ## Validação e implantação
 
@@ -92,9 +102,10 @@ credencial de provedores. O runner reproduzível está em
 final de resultados e SHAs acompanha o registro da entrega.
 
 A implantação exige upgrade dos módulos alterados e decisão do operador sobre backup
-conforme `odoo16/AGENTS.md`. Não executar backfills históricos, não excluir registros
-antigos e não alterar documentos fiscais. Antes de reativar eventos, avaliar a lacuna
-histórica para não apresentar relatórios de receita incompletos. Reversão funcional:
-restaurar modo `legacy` no binding e a política de eventos apenas se isso for
-explicitamente desejado; reversão de código usa o commit anterior e o procedimento de
-release.
+conforme `odoo16/AGENTS.md`. O operador autorizou implantação sem backup e trabalho
+direto na `16.0`. Não executar backfills históricos nem alterar documentos fiscais.
+Reinstalar os módulos financeiros restaura funcionalidades, mas não reconstrói o
+histórico descartado. Antes de reativar eventos financeiros, avaliar essa lacuna.
+Reversão funcional: restaurar modo `legacy` no binding e a política de eventos apenas se
+isso for explicitamente desejado; reversão de código usa o commit anterior e o
+procedimento de release.

@@ -16,6 +16,7 @@ class TestNativeWebsiteSubmissionHttp(HttpCase):
         super().setUpClass()
         cls.website = cls.env.ref("website.default_website")
         cls.website.company_id.marketing_business_events_enabled = False
+        cls.website.company_id.marketing_crm_events_enabled = True
         local = urlsplit(cls.base_url())
         cls.proxy_host = local.netloc
         cls.origin = urlunsplit(("https", local.netloc, "", "", ""))
@@ -149,7 +150,10 @@ class TestNativeWebsiteSubmissionHttp(HttpCase):
         self.assertEqual(
             self.env["marketing.website.crm.intent"].search_count([]), initial_intents
         )
-        self.assertFalse(lead.marketing_business_event_link_ids)
+        self.assertEqual(
+            lead.marketing_business_event_link_ids.mapped("event_id.event_type"),
+            ["lead_created"],
+        )
         return events
 
     def test_real_post_and_uuid_retry_create_one_native_lead_and_touchpoint(self):

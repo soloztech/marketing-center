@@ -13,8 +13,8 @@ class CrmLead(models.Model):
 
     @api.depends_context("company")
     @api.depends(
-        "company_id.marketing_business_events_enabled",
-        "marketing_event_company_id.marketing_business_events_enabled",
+        "company_id.marketing_crm_events_enabled",
+        "marketing_event_company_id.marketing_crm_events_enabled",
     )
     def _compute_marketing_business_events_enabled(self):
         for lead in self:
@@ -22,7 +22,7 @@ class CrmLead(models.Model):
                 lead.marketing_event_company_id or lead.company_id or self.env.company
             )
             lead.marketing_business_events_enabled = (
-                company.marketing_business_events_enabled
+                company.marketing_crm_events_enabled
             )
 
     marketing_event_sequence = fields.Integer(
