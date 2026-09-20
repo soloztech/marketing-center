@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="measurement_whatsapp_handoff" inherit_id="marketing_center_website.measurement_layout" priority="110">
+        <xpath expr="//div[@id='marketing_measurement_config']" position="attributes">
+            <attribute name="t-att-data-whatsapp-handoff-enabled">'1' if marketing_measurement.get('whatsapp_handoff_enabled') else None</attribute>
+            <attribute name="t-att-data-whatsapp-handoff-destination">marketing_measurement.get('whatsapp_handoff_destination') or None</attribute>
+        </xpath>
+    </template>
+    <record id="view_action_whatsapp_handoff" model="ir.ui.view">
+        <field name="name">marketing.website.action.whatsapp.handoff</field>
+        <field name="model">marketing.website.action</field>
+        <field name="inherit_id" ref="marketing_center_website.view_marketing_website_action_form"/>
+        <field name="arch" type="xml">
+            <field name="whatsapp_message" position="after">
+                <field name="handoff_enabled"/>
+                <field name="handoff_account_id" options="{'no_create': True}" attrs="{'required': [('handoff_enabled', '=', True)]}"/>
+                <field name="handoff_reference_prefix" attrs="{'required': [('handoff_enabled', '=', True)]}"/>
+            </field>
+        </field>
+    </record>
+    <record id="view_handoff_tree" model="ir.ui.view">
+        <field name="name">marketing.website.whatsapp.handoff.tree</field>
+        <field name="model">marketing.website.whatsapp.handoff</field>
+        <field name="arch" type="xml">
+            <tree create="false" edit="false" delete="false">
+                <field name="clicked_at"/>
+                <field name="reference"/>
+                <field name="page_url"/>
+                <field name="account_id"/>
+            </tree>
+        </field>
+    </record>
+    <record id="view_handoff_form" model="ir.ui.view">
+        <field name="name">marketing.website.whatsapp.handoff.form</field>
+        <field name="model">marketing.website.whatsapp.handoff</field>
+        <field name="arch" type="xml">
+            <form create="false" edit="false" delete="false">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="reference"/>
+                            <field name="clicked_at"/>
+                            <field name="account_id"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                        <group>
+                            <field name="page_url" widget="url"/>
+                            <field name="landing_url" widget="url"/>
+                            <field name="visitor_id" groups="contact_center_base.group_contact_center_admin"/>
+                            <field name="track_id" groups="contact_center_base.group_contact_center_admin"/>
+                        </group>
+                    </group>
+                    <p>O clique registra a saída para o WhatsApp. A associação com a conversa depende da referência recebida ou de confirmação humana de uma sugestão.</p>
+                    <field name="match_ids" readonly="1">
+                        <tree create="false" edit="false" delete="false">
+                            <field name="channel_id"/>
+                            <field name="message_at"/>
+                            <field name="state"/>
+                            <field name="delta_seconds"/>
+                            <field name="candidate_count"/>
+                        </tree>
+                    </field>
+                    <group groups="contact_center_base.group_contact_center_admin" string="Aquisição registrada">
+                        <field name="acquisition_json"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="action_handoffs" model="ir.actions.act_window">
+        <field name="name">Cliques do site para WhatsApp</field>
+        <field name="res_model">marketing.website.whatsapp.handoff</field>
+        <field name="view_mode">tree,form</field>
+        <field name="context">{'create': False}</field>
+    </record>
+    <menuitem id="menu_website_whatsapp" name="Site → WhatsApp" parent="marketing_center_base.menu_marketing_center_root" sequence="42" groups="contact_center_base.group_contact_center_agent"/>
+    <menuitem id="menu_whatsapp_clicks" name="Cliques" parent="menu_website_whatsapp" action="action_handoffs" sequence="10"/>
+</odoo>

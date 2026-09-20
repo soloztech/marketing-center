@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_website_whatsapp_match_tree" model="ir.ui.view">
+        <field name="name">marketing.website.whatsapp.match.tree</field>
+        <field name="model">marketing.website.whatsapp.match</field>
+        <field name="arch" type="xml">
+            <tree create="0" edit="0" delete="0" default_order="create_date desc, score desc, id desc" decoration-muted="state == 'rejected'" decoration-info="state == 'suggested'">
+                <field name="reference" />
+                <field name="channel_id" />
+                <field name="account_id" />
+                <field name="state" />
+                <field name="message_at" />
+                <field name="delta_seconds" />
+                <field name="score" optional="hide" />
+                <field name="candidate_count" />
+                <field name="candidates_truncated" optional="show" />
+                <field name="page_url" optional="hide" />
+                <field name="reason" optional="show" />
+                <field name="company_id" groups="base.group_multi_company" />
+                <button name="action_confirm" type="object" string="Confirmar" attrs="{'invisible': [('state', '!=', 'suggested')]}" />
+                <button name="action_reject" type="object" string="Descartar / desfazer" attrs="{'invisible': [('state', '=', 'rejected')]}" />
+            </tree>
+        </field>
+    </record>
+    <record id="view_website_whatsapp_match_form" model="ir.ui.view">
+        <field name="name">marketing.website.whatsapp.match.form</field>
+        <field name="model">marketing.website.whatsapp.match</field>
+        <field name="arch" type="xml">
+            <form create="0" edit="0" delete="0">
+                <header>
+                    <button name="action_confirm" type="object" string="Confirmar associação" class="oe_highlight" attrs="{'invisible': [('state', '!=', 'suggested')]}" />
+                    <button name="action_reject" type="object" string="Descartar / desfazer associação" attrs="{'invisible': [('state', '=', 'rejected')]}" />
+                    <field name="state" widget="statusbar" />
+                </header>
+                <sheet>
+                    <div class="oe_title"><h1><field name="reference" /></h1></div>
+                    <group>
+                        <group>
+                            <field name="channel_id" options="{'no_create': True}" />
+                            <field name="account_id" options="{'no_create': True}" />
+                            <field name="company_id" groups="base.group_multi_company" />
+                            <field name="message_at" />
+                            <field name="delta_seconds" />
+                        </group>
+                        <group>
+                            <field name="handoff_id" options="{'no_create': True}" />
+                            <field name="page_url" widget="url" />
+                            <field name="landing_url" widget="url" />
+                            <field name="reviewer_id" />
+                            <field name="reviewed_at" />
+                        </group>
+                    </group>
+                    <group string="Evidência da associação">
+                        <field name="reason" />
+                        <field name="candidate_count" />
+                        <field name="candidates_truncated" />
+                        <field name="score" />
+                    </group>
+                    <p>A pontuação ordena sugestões por proximidade de horário; não é uma probabilidade. Confirmar ou desfazer a associação não cria leads, não altera contatos e não envia mensagens.</p>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="view_website_whatsapp_match_search" model="ir.ui.view">
+        <field name="name">marketing.website.whatsapp.match.search</field>
+        <field name="model">marketing.website.whatsapp.match</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="reference" />
+                <field name="channel_id" />
+                <field name="account_id" />
+                <field name="page_url" />
+                <filter name="suggested" string="Sugeridas" domain="[('state', '=', 'suggested')]" />
+                <filter name="reference" string="Pela referência" domain="[('state', '=', 'reference')]" />
+                <filter name="confirmed" string="Confirmadas pela equipe" domain="[('state', '=', 'confirmed')]" />
+                <filter name="rejected" string="Descartadas / desfeitas" domain="[('state', '=', 'rejected')]" />
+                <group expand="0" string="Agrupar por">
+                    <filter name="group_state" string="Estado" context="{'group_by': 'state'}" />
+                    <filter name="group_account" string="Caixa" context="{'group_by': 'account_id'}" />
+                    <filter name="group_channel" string="Conversa" context="{'group_by': 'channel_id'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="action_website_whatsapp_matches" model="ir.actions.act_window">
+        <field name="name">Associações com conversas</field>
+        <field name="res_model">marketing.website.whatsapp.match</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_website_whatsapp_match_search" />
+        <field name="context">{'create': False}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">As referências recebidas e as sugestões por horário aparecerão aqui.</p>
+        </field>
+    </record>
+    <menuitem id="menu_website_whatsapp_matches" name="Associações com conversas" parent="menu_website_whatsapp" action="action_website_whatsapp_matches" sequence="20" groups="contact_center_base.group_contact_center_agent" />
+    <record id="view_channel_form_website_whatsapp" model="ir.ui.view">
+        <field name="name">mail.channel.form.website.whatsapp</field>
+        <field name="model">mail.channel</field>
+        <field name="inherit_id" ref="contact_center_base.view_mail_channel_form_contact_center" />
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='contact_center']" position="inside">
+                <group string="Origem no site" groups="contact_center_base.group_contact_center_agent">
+                    <p>Vínculos pela referência e sugestões por horário. A pontuação apenas ordena sugestões; não indica probabilidade.</p>
+                    <field name="marketing_whatsapp_match_ids" nolabel="1" readonly="1">
+                        <tree create="0" edit="0" delete="0" default_order="create_date desc, score desc, id desc" decoration-muted="state == 'rejected'">
+                            <field name="reference" />
+                            <field name="state" />
+                            <field name="message_at" />
+                            <field name="delta_seconds" />
+                            <field name="candidate_count" />
+                            <field name="candidates_truncated" />
+                            <field name="reason" />
+                            <button name="action_confirm" type="object" string="Confirmar" attrs="{'invisible': [('state', '!=', 'suggested')]}" />
+                            <button name="action_reject" type="object" string="Descartar / desfazer" attrs="{'invisible': [('state', '=', 'rejected')]}" />
+                        </tree>
+                    </field>
+                </group>
+            </xpath>
+        </field>
+    </record>
+    <record id="view_crm_lead_form_website_whatsapp" model="ir.ui.view">
+        <field name="name">crm.lead.form.website.whatsapp</field>
+        <field name="model">crm.lead</field>
+        <field name="inherit_id" ref="crm.crm_lead_view_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Origem por WhatsApp" name="website_whatsapp" groups="contact_center_base.group_contact_center_agent">
+                    <p>Origens associadas às conversas explicitamente vinculadas a este lead.</p>
+                    <field name="marketing_whatsapp_match_ids" nolabel="1" readonly="1">
+                        <tree create="0" edit="0" delete="0">
+                            <field name="reference" />
+                            <field name="channel_id" />
+                            <field name="state" />
+                            <field name="page_url" />
+                            <field name="message_at" />
+                            <field name="reason" />
+                        </tree>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

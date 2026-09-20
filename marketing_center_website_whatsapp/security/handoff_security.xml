@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="handoff_company" model="ir.rule">
+        <field name="name">Website WhatsApp clicks: company boundary</field>
+        <field name="model_id" ref="model_marketing_website_whatsapp_handoff"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="handoff_account" model="ir.rule">
+        <field name="name">Website WhatsApp clicks: account access</field>
+        <field name="model_id" ref="model_marketing_website_whatsapp_handoff"/>
+        <field name="groups" eval="[(4, ref('contact_center_base.group_contact_center_agent'))]"/>
+        <field name="domain_force">['|', '|', ('account_id.access_user_ids', '=', user.id), ('account_id.access_team_ids.agent_ids', '=', user.id), ('account_id.access_team_ids.supervisor_ids', '=', user.id)]</field>
+    </record>
+    <record id="handoff_admin" model="ir.rule">
+        <field name="name">Website WhatsApp clicks: administrator</field>
+        <field name="model_id" ref="model_marketing_website_whatsapp_handoff"/>
+        <field name="groups" eval="[(4, ref('contact_center_base.group_contact_center_admin'))]"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+    </record>
+    <record id="match_company" model="ir.rule">
+        <field name="name">Website WhatsApp associations: company boundary</field>
+        <field name="model_id" ref="model_marketing_website_whatsapp_match"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="match_member" model="ir.rule">
+        <field name="name">Website WhatsApp associations: conversation membership</field>
+        <field name="model_id" ref="model_marketing_website_whatsapp_match"/>
+        <field name="groups" eval="[(4, ref('contact_center_base.group_contact_center_agent'))]"/>
+        <field name="domain_force">[('channel_id.channel_member_ids.partner_id', '=', user.partner_id.id), '|', '|', ('account_id.access_user_ids', '=', user.id), ('account_id.access_team_ids.agent_ids', '=', user.id), ('account_id.access_team_ids.supervisor_ids', '=', user.id)]</field>
+    </record>
+    <record id="match_admin" model="ir.rule">
+        <field name="name">Website WhatsApp associations: administrator</field>
+        <field name="model_id" ref="model_marketing_website_whatsapp_match"/>
+        <field name="groups" eval="[(4, ref('contact_center_base.group_contact_center_admin'))]"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+    </record>
+</odoo>

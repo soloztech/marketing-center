@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+handoff_agent,Website WhatsApp clicks,model_marketing_website_whatsapp_handoff,contact_center_base.group_contact_center_agent,1,0,0,0
+match_agent,Website WhatsApp associations,model_marketing_website_whatsapp_match,contact_center_base.group_contact_center_agent,1,1,0,0
