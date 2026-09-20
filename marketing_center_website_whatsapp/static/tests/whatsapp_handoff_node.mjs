@@ -13,7 +13,8 @@ const original = "https://wa.me/5519999999999?text=" + encodeURIComponent("Olá!
 const destinationUrl = new URL(original);
 destinationUrl.searchParams.set("text", "Olá!\n\nReferência: " + reference);
 const destination = destinationUrl.href;
-let eligible = true;
+let editorEnabled = false;
+let configPresent = true;
 let mode = "success";
 let popupBlocked = false;
 const listeners = new Map();
@@ -21,14 +22,18 @@ const requests = [];
 const navigations = [];
 const popups = [];
 const notifications = [];
-const config = {dataset: {captureMode: "native", whatsapp: action, whatsappHandoffEnabled: "1", whatsappHandoffDestination: "5519999999999"}};
+const config = {dataset: {
+    action, destination: "5519999999999", path: "/new-public-page", websiteId: "1",
+}};
 const document = {
-    visibilityState: "visible", getElementById: () => config,
+    visibilityState: "visible",
+    body: {classList: {contains(name) {return name === "editor_enable" && editorEnabled;}}},
+    getElementById(id) {return id === "marketing_whatsapp_handoff_config" && configPresent ? config : null;},
     addEventListener(name, fn) { listeners.set(name, fn); },
     dispatchEvent(event) { notifications.push(event.detail); },
 };
 const window = {
-    location: {origin, assign(url) { navigations.push(url); }},
+    location: {origin, protocol: "https:", pathname: config.dataset.path, assign(url) { navigations.push(url); }},
     AbortController, setTimeout(fn, ms) { return setTimeout(fn, Math.min(ms, 5)); }, clearTimeout,
     async fetch(path, options) {
         requests.push({path, options});
@@ -51,7 +56,6 @@ const context = vm.createContext({
     navigator: {userActivation: {isActive: true}},
     CustomEvent: class {constructor(type, options) {this.type = type; this.detail = options.detail;}},
     newActionEventId: () => eventId,
-    eligibleMeasurementConfig: () => eligible,
     loadConsent: async () => ({informational_notice: true, capture_allowed: true}),
 });
 vm.runInContext(read(new URL("../../../marketing_center_website/static/src/js/action_capture.esm.js", import.meta.url)) + "\n" +
@@ -124,16 +128,37 @@ for (const modifier of [{ctrlKey: true}, {metaKey: true}, {shiftKey: true}, {but
     assert.equal(activate(link(), modifier).defaultPrevented, false);
 }
 assert.equal(requests.length, count, "Modifier/middle/programmatic navigation is not captured");
-eligible = false;
-assert.equal(activate().defaultPrevented, false, "Editor/ineligible page remains untouched");
-eligible = true;
-config.dataset.captureMode = "legacy";
-assert.equal(activate().defaultPrevented, false);
-config.dataset.captureMode = "native";
+editorEnabled = true;
+assert.equal(activate().defaultPrevented, false, "Editor remains untouched");
+editorEnabled = false;
+configPresent = false;
+assert.equal(activate().defaultPrevented, false, "Absent WhatsApp config preserves the original link");
+configPresent = true;
+config.dataset.path = "/different-page";
+assert.equal(activate().defaultPrevented, false, "Config for another page cannot be reused");
+config.dataset.path = window.location.pathname;
+config.dataset.websiteId = "invalid";
+assert.equal(activate().defaultPrevented, false, "Missing Website scope cannot capture");
+config.dataset.websiteId = "1";
+window.location.protocol = "http:";
+assert.equal(activate().defaultPrevented, false, "Insecure navigation remains untouched");
+window.location.protocol = "https:";
+assert.equal(requests.length, count, "Rejected configurations must not make claim requests");
 listeners.get("marketing_center:consent-changed")({detail: {granted: false, capture_allowed: false}});
 assert.equal(activate().defaultPrevented, false, "Explicit denied policy bypasses optional capture");
 listeners.get("marketing_center:consent-changed")({detail: {granted: true}});
 assert.equal(activate(link(), {detail: 0}).defaultPrevented, true, "Keyboard click activates capture");
 await settle();
 assert.equal(navigations.at(-1), destination);
-console.log("WhatsApp handoff JS: editorial and floating CTAs preserved, fixed destination, capture, stable retry UUID, bounded stalled body, fail-open, keyboard, popup, modifier/editor/policy behavior passed.");
+
+window.location.pathname = "/contactus-thank-you";
+config.dataset.path = window.location.pathname;
+assert.equal(document.getElementById("marketing_measurement_config"), null);
+const beforeThankYou = requests.length;
+assert.equal(activate(link("_self", editorialUrl.href)).defaultPrevented, true,
+    "A published thank-you CTA uses its own config without GA/form measurement");
+await settle();
+assert.deepEqual(JSON.parse(requests[beforeThankYou].options.body), {action_ref: action, event_id: eventId});
+assert.equal(new URL(navigations.at(-1)).searchParams.get("text"),
+    editorialText + "\n\nReferência: " + reference);
+console.log("WhatsApp handoff JS: independent page/Website config, thank-you without GA/forms, editorial and floating CTAs preserved, fixed destination, stable retry UUID, bounded stalled body, fail-open, keyboard, popup, modifier/editor/policy behavior passed.");

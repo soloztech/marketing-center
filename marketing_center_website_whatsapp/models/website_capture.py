@@ -22,16 +22,8 @@ class MarketingWebsiteWhatsAppCapture(models.AbstractModel):
         now = now or fields.Datetime.now()
         website = action.website_id
         page_url = safe_page(referrer, origin)
-        if not page_url or urlsplit(page_url).path != action.source_path:
+        if (not page_url or website._whatsapp_handoff_action(urlsplit(page_url).path) != action):
             raise AccessError(_("A página não corresponde à ação WhatsApp."))
-        page = self.env["website.page"].sudo().search([
-            ("url", "=", action.source_path),
-            ("website_id", "in", [False, website.id]),
-            ("is_published", "=", True),
-            ("visibility", "in", [False, ""]),
-        ], limit=1)
-        if not page:
-            raise AccessError(_("A página WhatsApp não está disponível publicamente."))
 
         landing_url = page_url
         acquisition = acquisition_values(referrer)

@@ -4,13 +4,21 @@ import {
     boundedActionResponse, trustedHumanActivation, validOpaqueUuid,
 } from "@marketing_center_website/js/action_capture.esm";
 import {newActionEventId} from "@marketing_center_website/js/landing_bootstrap.esm";
-import {eligibleMeasurementConfig} from "@marketing_center_website/js/cookie_notice.esm";
 import {loadConsent} from "@marketing_center_website/js/consent.esm";
 
 const CLAIM_PATH = "/marketing/website-whatsapp/claim";
 const claims = new WeakMap();
 const confirmed = new Set();
 let consent = null;
+
+export function eligibleHandoffConfig(config) {
+    return Boolean(config && /^[1-9][0-9]*$/.test(config.dataset.websiteId || "") &&
+        validOpaqueUuid(config.dataset.action) &&
+        /^[1-9][0-9]{7,14}$/.test(config.dataset.destination || "") &&
+        window.location.protocol === "https:" &&
+        config.dataset.path === window.location.pathname &&
+        document.body && !document.body.classList.contains("editor_enable"));
+}
 
 export function whatsappTarget(rawHref) {
     try {
@@ -73,19 +81,18 @@ function notifyConfirmation(eventId) {
 }
 
 export function onWhatsAppActivation(event) {
-    const config = document.getElementById("marketing_measurement_config");
+    const config = document.getElementById("marketing_whatsapp_handoff_config");
     // Modifier/middle clicks keep browser-native tab/window behavior. A normal
     // activation of target=_blank opens synchronously before awaiting capture.
-    if (!eligibleMeasurementConfig(config) || config.dataset.captureMode !== "native" ||
-        config.dataset.whatsappHandoffEnabled !== "1" ||
+    if (!eligibleHandoffConfig(config) ||
         !trustedHumanActivation(event, document, navigator) || event.defaultPrevented) return;
     if (consent && !(consent.granted === true ||
         (consent.informational_notice === true && consent.capture_allowed === true))) return;
     const link = event.composedPath?.().find((item) => item?.tagName === "A" &&
         item.getAttribute?.("href"));
     if (!link || link.hasAttribute("download")) return;
-    const actionRef = config.dataset.whatsapp;
-    const configuredDestination = config.dataset.whatsappHandoffDestination || "";
+    const actionRef = config.dataset.action;
+    const configuredDestination = config.dataset.destination || "";
     if (!validOpaqueUuid(actionRef) || !/^[1-9][0-9]{7,14}$/.test(configuredDestination)) return;
     const original = whatsappTarget(link.getAttribute("href"));
     if (!original || original.pathname !== "/" + configuredDestination) return;

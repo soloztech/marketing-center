@@ -33,3 +33,20 @@ copiar o diretório de trabalho com arquivos não commitados.
 
 Releases anteriores permanecem identificadas por seus commits. Rollback segue
 procedimento e autorização próprios, com origem e hashes registrados.
+
+## WhatsApp do Website: padrão herdado, exceção por página
+
+Por decisão do operador em 20/09/2026, a vinculação Site → WhatsApp deve ter uma
+configuração padrão por Website, reaproveitada nas páginas atuais e novas.
+Não criar ações ou copiar configuração para cada página apenas para habilitar
+o rastreamento. Usar `website.handoff_default_action_id`; uma ação específica
+ativa prevalece sobre o padrão, inclusive quando a captura específica estiver
+desligada. Reservar exceções para uma necessidade de destino/prefixo da página.
+
+Preservar os textos dos botões e os prefixos específicos das LPs. Validar a
+mesma resolução no HTML e no endpoint, a página pública real, a empresa, o
+destino e a política de captura. Herança de WhatsApp não habilita outros
+trackers/formulários nem autoriza envios. Proximidade temporal permanece uma
+sugestão revisável, sem afirmar identidade. O QA deve incluir uma página criada
+depois do padrão e auditar URLs públicas únicas, incluindo botões flutuantes e
+editoriais; conferir somente o cadastro de ações não prova cobertura do site.

@@ -77,13 +77,9 @@ class WebsiteWhatsAppHandoff(http.Controller):
             service._validate_runtime_origin(action, origin)
             if urlsplit(origin).hostname not in normalize_allowed_hosts(endpoint.allowed_hosts):
                 raise AccessError(_("Origem WhatsApp indisponível."))
-            # A unique mapping per page matches the existing CMS annotation rule.
-            if env["marketing.website.action"].sudo().search_count([
-                ("binding_id", "=", action.binding_id.id), ("active", "=", True),
-                ("source_path", "=", action.source_path), ("kind", "=", "whatsapp_handoff"),
-            ]) != 1:
-                raise AccessError(_("A página possui ações WhatsApp ambíguas."))
             with env.cr.savepoint():
+                # The snapshot resolves the actual Referer page with the same
+                # default/override rule used to render its public configuration.
                 visitor = env["website.visitor"]._get_visitor_from_request(force_create=True)
                 snapshot = env["marketing.website.whatsapp.capture"]._snapshot(
                     action, origin, request.httprequest.referrer or "", visitor=visitor,

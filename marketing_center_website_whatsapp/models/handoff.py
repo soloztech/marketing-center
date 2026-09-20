@@ -107,7 +107,8 @@ class WebsiteWhatsappHandoff(models.Model):
         ], limit=1)
         if existing:
             if (existing.action_id != action or existing.session_key != session_key
-                    or existing.account_id != action.handoff_account_id):
+                    or existing.account_id != action.handoff_account_id
+                    or existing.page_url != page_url):
                 raise ValidationError(_("Este identificador pertence a outro clique."))
             return existing
         now = fields.Datetime.now()

@@ -13,7 +13,22 @@ On an existing Website WhatsApp action, enable conversation linking, select the
 exact Contact Center account and choose a 2–8 character uppercase prefix.
 The account must be active, belong to the Website company, and declare the same
 destination phone as its own identity. Existing actions remain disabled on
-installation. Actions require a unique, published page mapping in native mode.
+installation. On Website Settings, select an enabled action from that Website as
+``Regra padrão do WhatsApp``. This reuses its destination and reference prefix
+on every current or future public page without creating a rule for each URL.
+An existing active page action takes precedence, including its disabled linking
+setting; ambiguous page rules fail closed. Archived page actions are ignored.
+Clearing the Website default leaves existing page-specific rules in place.
+An action belonging to another Website/company cannot be used as the default.
+
+The same resolver validates both the rendered page and the click request.
+Only published public ``website.page`` records in native mode are eligible;
+technical routes, private pages and authenticated/editor sessions are excluded.
+The real clicked page is recorded even when it uses the common default action,
+and an event UUID cannot be replayed on another page. A published thank-you page
+can use this WhatsApp setting without enabling GA4 or native form measurement on
+that page: the addon renders its own minimal configuration.
+
 Links must point to the configured destination number; their original messages
 are preserved, including document requests and floating buttons. The browser
 adds the server-issued reference without sending the editorial text to the

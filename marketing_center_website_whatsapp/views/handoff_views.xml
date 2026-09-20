@@ -1,11 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <template id="measurement_whatsapp_handoff" inherit_id="marketing_center_website.measurement_layout" priority="110">
-        <xpath expr="//div[@id='marketing_measurement_config']" position="attributes">
-            <attribute name="t-att-data-whatsapp-handoff-enabled">'1' if marketing_measurement.get('whatsapp_handoff_enabled') else None</attribute>
-            <attribute name="t-att-data-whatsapp-handoff-destination">marketing_measurement.get('whatsapp_handoff_destination') or None</attribute>
+    <template id="measurement_whatsapp_handoff" inherit_id="website.layout" priority="110">
+        <xpath expr="//div[@id='wrapwrap']" position="before">
+            <t t-nocache="WhatsApp routing is specific to the public request, Website and page.">
+                <t t-if="website and not editable">
+                    <t t-set="whatsapp_handoff" t-value="website._whatsapp_handoff_config()"/>
+                    <div t-if="whatsapp_handoff" id="marketing_whatsapp_handoff_config" hidden="hidden"
+                         t-att-data-action="whatsapp_handoff['action']"
+                         t-att-data-destination="whatsapp_handoff['destination']"
+                         t-att-data-path="whatsapp_handoff['path']"
+                         t-att-data-website-id="whatsapp_handoff['website_id']"/>
+                </t>
+            </t>
         </xpath>
     </template>
+    <record id="view_website_handoff_settings" model="ir.ui.view">
+        <field name="name">Website WhatsApp default routing</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="website.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@id='website_cookies_bar_setting']" position="after">
+                <div class="col-12 o_setting_box" id="website_whatsapp_handoff_setting"
+                     groups="marketing_center_base.group_marketing_center_admin">
+                    <div class="o_setting_right_pane">
+                        <label for="handoff_default_action_id"/>
+                        <div class="text-muted">Vincule os botões do WhatsApp em todas as páginas públicas deste site, inclusive páginas novas. Uma regra própria da página tem prioridade.</div>
+                        <div class="content-group mt16">
+                            <field name="handoff_default_action_id" class="w-100" options="{'no_create': True}"/>
+                        </div>
+                    </div>
+                </div>
+            </xpath>
+        </field>
+    </record>
     <record id="view_action_whatsapp_handoff" model="ir.ui.view">
         <field name="name">marketing.website.action.whatsapp.handoff</field>
         <field name="model">marketing.website.action</field>
