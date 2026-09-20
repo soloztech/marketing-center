@@ -31,12 +31,18 @@ _UUID = re.compile(
 
 
 def _submission_hash():
-    """Hash the original input, excluding the CSRF token and technical query."""
+    """Hash business input, excluding transient tokens and technical query."""
     digest = hashlib.sha256()
     pairs = sorted(
         (key, values)
         for key, values in request.httprequest.form.lists()
-        if key not in {"csrf_token", "mc_event", "mc_action", "mc_session"}
+        if key not in {
+            "csrf_token",
+            "recaptcha_token_response",
+            "mc_event",
+            "mc_action",
+            "mc_session",
+        }
     )
     digest.update(json.dumps(pairs, ensure_ascii=False, separators=(",", ":")).encode())
     for name, uploads in sorted(request.httprequest.files.lists()):

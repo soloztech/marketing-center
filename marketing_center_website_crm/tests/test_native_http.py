@@ -1,7 +1,7 @@
 """Exercise the public Website CRM route through its complete HTTP/MRO stack."""
 
 import uuid
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from urllib.parse import urlsplit, urlunsplit
 
 from odoo import fields
@@ -95,12 +95,12 @@ class TestNativeWebsiteSubmissionHttp(HttpCase):
             "description": "Synthetic acquisition regression",
         }
 
-    def _post_form(self, *, query=None, values=None, headers=None):
+    def _post_response(self, *, query=None, values=None, headers=None):
         referrer_query = query or (
             "utm_source=HTTPSource&utm_medium=email&utm_campaign=HTTPSeptember"
             "&gad_campaignid=23172115632&gclid=http-original-click"
         )
-        response = self.opener.post(
+        return self.opener.post(
             self.base_url() + "/website/form/crm.lead?mc_event=" + self.submission_id,
             data=self.form_values if values is None else values,
             headers={
@@ -113,6 +113,9 @@ class TestNativeWebsiteSubmissionHttp(HttpCase):
             },
             allow_redirects=False,
         )
+
+    def _post_form(self, *, query=None, values=None, headers=None):
+        response = self._post_response(query=query, values=values, headers=headers)
         self.assertEqual(response.status_code, 200, response.text)
         payload = response.json()
         self.assertIsInstance(payload, dict, response.text)
@@ -122,6 +125,83 @@ class TestNativeWebsiteSubmissionHttp(HttpCase):
         self.assertIs(type(payload.get("id")), int, response.text)
         self.env.invalidate_all()
         return payload, self.env["crm.lead"].browse(payload["id"]).exists()
+
+    def test_recaptcha_refresh_keeps_retry_idempotent_and_business_conflicts(self):
+        params = self.env["ir.config_parameter"].sudo()
+        params.set_param("recaptcha_private_key", "synthetic-native-test-secret")
+        params.set_param("recaptcha_min_score", "0.7")
+        initial_intents = self.env["marketing.website.crm.intent"].search_count([])
+        google_result = Mock(
+            json=Mock(
+                return_value={"success": True, "score": 0.9, "action": "website_form"}
+            )
+        )
+        with patch(
+            "odoo.addons.google_recaptcha.models.ir_http.requests.post",
+            return_value=google_result,
+        ) as verify:
+            first, lead = self._post_form(
+                values=dict(self.form_values, recaptcha_token_response="synthetic-first")
+            )
+            self.assertEqual(verify.call_count, 1)
+            events = self._assert_one_capture(lead, initial_intents)
+            # Google issues a fresh token on retry after a lost HTTP response.
+            # It must not turn the same business submission into a conflict.
+            second, retried = self._post_form(
+                values=dict(self.form_values, recaptcha_token_response="synthetic-new")
+            )
+            self.assertEqual(second["id"], first["id"])
+            self.assertEqual(retried, lead)
+            self.assertEqual(self._assert_one_capture(lead, initial_intents), events)
+            self.assertEqual(verify.call_count, 1)
+            self.assertEqual(lead.source_id.name, "HTTPSource")
+            self.assertEqual(lead.medium_id.name, "email")
+            self.assertEqual(lead.campaign_id.name, "HTTPSeptember")
+
+            response = self._post_response(
+                values=dict(
+                    self.form_values,
+                    description="Changed business request",
+                    recaptcha_token_response="synthetic-third",
+                )
+            )
+        self.assertEqual(response.status_code, 200, response.text)
+        conflict = response.json()
+        self.assertTrue(conflict.get("marketing_center_submission_conflict"))
+        self.assertNotIn("id", conflict)
+        self.env.invalidate_all()
+        self.assertEqual(self._assert_one_capture(lead, initial_intents), events)
+        self.assertNotIn("Changed business request", lead.description or "")
+
+    def test_recaptcha_rejection_never_creates_native_lead_or_capture(self):
+        params = self.env["ir.config_parameter"].sudo()
+        params.set_param("recaptcha_private_key", "synthetic-native-test-secret")
+        params.set_param("recaptcha_min_score", "0.7")
+        google_result = Mock(
+            json=Mock(return_value={"success": False, "error-codes": ["invalid-input-response"]})
+        )
+        with patch(
+            "odoo.addons.google_recaptcha.models.ir_http.requests.post",
+            return_value=google_result,
+        ) as verify:
+            response = self._post_response(
+                values=dict(self.form_values, recaptcha_token_response="synthetic-invalid")
+            )
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertTrue(response.json().get("error"))
+        self.assertNotIn("id", response.json())
+        self.assertEqual(verify.call_count, 1)
+        self.env.invalidate_all()
+        self.assertFalse(
+            self.env["crm.lead"].search_count(
+                [("marketing_native_event_id", "=", self.submission_id)]
+            )
+        )
+        self.assertFalse(
+            self.env["marketing.web.ingress.event"].search_count(
+                [("endpoint_id", "=", self.endpoint.id)]
+            )
+        )
 
     def _assert_one_capture(self, lead, initial_intents):
         self.assertEqual(lead.marketing_native_capture_state, "done")
