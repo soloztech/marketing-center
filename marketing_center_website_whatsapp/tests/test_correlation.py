@@ -269,9 +269,83 @@ class TestWebsiteWhatsappCorrelation(SavepointCase):
         first = self._results(self._message())
         second = self._results(self._message())
         first.with_user(self.agent).action_confirm()
+        # Confirming one chat closes the other guess for the same click.
+        self.assertEqual(second.state, "superseded")
         with self.assertRaises(ValidationError):
             second.with_user(self.agent).action_confirm()
-        self.assertEqual(second.state, "suggested")
+        self.assertEqual(second.state, "superseded")
+
+    def test_exact_reference_supersedes_earlier_temporal_guess(self):
+        handoff = self._handoff(self.when - datetime.timedelta(seconds=8))
+        guessed = self._message("Olá, quero um orçamento")
+        guess = self._results(guessed)
+        self.assertEqual(guess.state, "suggested")
+        referenced = self._message(
+            "Olá. Referência: " + handoff.reference,
+            when=self.when + datetime.timedelta(seconds=32),
+        )
+        claim = self._results(referenced)
+        self.assertEqual(claim.state, "reference")
+        self.assertEqual(guess.state, "superseded")
+        self.assertFalse(guess.reviewer_id)
+        self.assertTrue(guess.reviewed_at)
+        self.assertFalse(
+            self.matches.search([
+                ("channel_id", "=", guessed.channel_binding_id.channel_id.id),
+                ("state", "=", "suggested"),
+            ])
+        )
+        with self.assertRaises(ValidationError):
+            guess.with_user(self.agent).action_confirm()
+        lead = self.env["crm.lead"].create({
+            "name": "Synthetic referenced lead", "company_id": self.env.company.id,
+            "user_id": self.agent.id,
+        })
+        self.env["contact.center.crm.conversation.link"].with_user(self.agent)._link(
+            referenced.channel_binding_id.channel_id.with_user(self.agent),
+            lead.with_user(self.agent),
+        )
+        self.assertEqual(lead.with_user(self.agent).marketing_whatsapp_match_ids, claim)
+        # Reprocessing either message neither recreates nor revives a guess.
+        count = self.matches.search_count([("handoff_id", "=", handoff.id)])
+        self.assertEqual(self.service._analyze_inbound(guessed), guess)
+        self.assertEqual(self.service._analyze_inbound(referenced), claim)
+        self.assertEqual(guess.state, "superseded")
+        self.assertEqual(self.matches.search_count([("handoff_id", "=", handoff.id)]), count)
+        # Undoing the claim does not resurrect the superseded guess.
+        claim.with_user(self.agent).action_reject()
+        self.assertEqual(claim.state, "rejected")
+        self.assertEqual(guess.state, "superseded")
+
+    def test_confirmation_supersedes_other_clicks_for_the_same_message(self):
+        first = self._handoff(self.when - datetime.timedelta(seconds=10))
+        second = self._handoff(self.when - datetime.timedelta(seconds=90))
+        matches = self._results(self._message())
+        self.assertEqual(set(matches.mapped("state")), {"suggested"})
+        chosen = matches.filtered(lambda item: item.handoff_id == first)
+        other = matches.filtered(lambda item: item.handoff_id == second)
+        chosen.with_user(self.agent).action_confirm()
+        self.assertEqual(chosen.state, "confirmed")
+        self.assertEqual(other.state, "superseded")
+        # The released click stays available for a later message.
+        later = self._results(
+            self._message(when=self.when + datetime.timedelta(seconds=30))
+        )
+        self.assertEqual(later.handoff_id, second)
+        self.assertEqual(later.state, "suggested")
+
+    def test_unrelated_claim_keeps_pending_guess_for_review(self):
+        pending_click = self._handoff(self.when - datetime.timedelta(seconds=15))
+        pending = self._results(self._message())
+        self.assertEqual(pending.handoff_id, pending_click)
+        other = self._handoff(self.when + datetime.timedelta(seconds=1))
+        claim = self._results(self._message(
+            other.reference, when=self.when + datetime.timedelta(seconds=5),
+        ))
+        self.assertEqual(claim.state, "reference")
+        self.assertEqual(pending.state, "suggested")
+        pending.with_user(self.agent).action_confirm()
+        self.assertEqual(pending.state, "confirmed")
 
     def test_nonmember_cannot_review_or_forge(self):
         handoff = self._handoff()
