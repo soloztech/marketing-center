@@ -64,7 +64,7 @@
                                 name="webhook_page_id"
                                 string="Página da Meta"
                                 options="{'no_create': True, 'no_create_edit': True}"
-                                domain="[('company_id', '=', company_id)]"
+                                domain="[('company_id', '=', company_id), ('owner_kind', '=', 'page')]"
                             />
                             <field
                                 name="external_form_id"

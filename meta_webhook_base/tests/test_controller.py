@@ -272,15 +272,16 @@ class TestMetaWebhookController(HttpCase):
             .search_count([("endpoint_id", "=", self.endpoint.id)])
         )
 
-    def _assert_rejected_without_delivery(self, response, status, reason):
+    def _assert_rejected_without_delivery(self, response, status, reason, existing=0):
         self.assertEqual(response.status_code, status, response.text)
         self.assertEqual(response.json(), {"error": reason})
         self.assertEqual(response.headers["Cache-Control"], "no-store")
         self.env.invalidate_all()
-        self.assertFalse(
+        self.assertEqual(
             self.env["meta.webhook.delivery"]
             .sudo()
-            .search_count([("endpoint_id", "=", self.endpoint.id)])
+            .search_count([("endpoint_id", "=", self.endpoint.id)]),
+            existing,
         )
 
     def test_unknown_endpoint_returns_404(self):
@@ -319,6 +320,90 @@ class TestMetaWebhookController(HttpCase):
                 },
             )
         self._assert_rejected_without_delivery(response, 413, "payload_too_large")
+
+    def test_the_body_limit_admits_a_full_three_mebibyte_batch(self):
+        compact = self._body()
+        body = compact + b" " * (3 * 1024 * 1024 - len(compact))
+        self.assertEqual(len(body), webhook_controller.MAX_WEBHOOK_BODY_BYTES)
+
+        def post(payload):
+            return self.opener.post(
+                self.base_url() + self.path,
+                data=payload,
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Hub-Signature-256": self._signature(payload),
+                },
+            )
+
+        accepted = post(body)
+        self.assertEqual(accepted.status_code, 200, accepted.text)
+        self._assert_rejected_without_delivery(
+            post(body + b" "), 413, "payload_too_large", existing=1
+        )
+
+    def test_whatsapp_batch_keeps_no_customer_content(self):
+        waba_id = "100000000000801"
+        body = json.dumps(
+            {
+                "object": "whatsapp_business_account",
+                "entry": [
+                    {
+                        "id": waba_id,
+                        "changes": [
+                            {
+                                "field": "messages",
+                                "value": {
+                                    "messaging_product": "whatsapp",
+                                    "metadata": {"phone_number_id": "100000000000802"},
+                                    "contacts": [
+                                        {
+                                            "profile": {"name": "Cliente Sintético"},
+                                            "wa_id": "5511988887777",
+                                        }
+                                    ],
+                                    "messages": [
+                                        {
+                                            "from": "5511988887777",
+                                            "id": "wamid.synthetic",
+                                            "type": "text",
+                                            "text": {"body": "conteúdo privado"},
+                                        }
+                                    ],
+                                },
+                            }
+                        ],
+                    }
+                ],
+            },
+            separators=(",", ":"),
+        ).encode()
+        response = self.opener.post(
+            self.base_url() + self.path,
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                "X-Hub-Signature-256": self._signature(body),
+            },
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        self.env.invalidate_all()
+        delivery = (
+            self.env["meta.webhook.delivery"]
+            .sudo()
+            .search([("endpoint_id", "=", self.endpoint.id)])
+        )
+        persisted = json.dumps(
+            [
+                delivery.sanitized_envelope_json,
+                delivery.item_ids.mapped("payload_json"),
+            ],
+            ensure_ascii=False,
+        )
+        for private in ("5511", "Cliente", "privado", "wamid"):
+            self.assertNotIn(private, persisted)
+        self.assertEqual(delivery.item_ids.item_key, "entry:0:changes:0:messages:0")
+        self.assertEqual(delivery.item_ids.kind, "unknown")
 
     def test_non_json_body_returns_415(self):
         body = self._body()

@@ -30,6 +30,8 @@ _ATTEMPT_CEILING = 8
 _MAX_FIELDS = 64
 _MAX_PAGES = 200
 _MAX_SUBSCRIPTIONS = 10_000
+# App objects configured on activation, never by this reconciler.
+_MANUAL_APP_OBJECTS = frozenset({"whatsapp_business_account"})
 _MAX_PROVIDER_PAGES = 10
 _MAX_CURSOR_BYTES = 4 * 1024
 _FIELD_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
@@ -133,7 +135,13 @@ class MetaWebhookSubscriptionService(models.AbstractModel):
             self.env["meta.webhook.page"]
             .sudo()
             .search(
-                [("endpoint_id", "=", endpoint.id), ("active", "=", True)],
+                [
+                    ("endpoint_id", "=", endpoint.id),
+                    ("active", "=", True),
+                    # WhatsApp Business Account fields are configured on
+                    # activation; this reconciler never calls Meta for them.
+                    ("owner_kind", "=", "page"),
+                ],
                 order="id",
             )
         )
@@ -438,6 +446,29 @@ class MetaWebhookSubscriptionService(models.AbstractModel):
         return outcome
 
     @api.model
+    def _manual_only(self, endpoint, page_plans):
+        """Whether the endpoint has only ever had manually configured owners.
+
+        Owners are archived, never deleted, so the history is complete. A Page
+        owner ever routed here keeps the readback: its remote fields may still
+        need a manual removal. An endpoint of manual owners only, archived ones
+        included, never resolves a credential nor calls Meta.
+        """
+
+        if page_plans:
+            return False
+        owners = self.env["meta.webhook.page"].sudo().with_context(active_test=False)
+        if owners.search_count(
+            [("endpoint_id", "=", endpoint.id), ("owner_kind", "=", "page")]
+        ):
+            return False
+        return bool(
+            owners.search_count(
+                [("endpoint_id", "=", endpoint.id), ("owner_kind", "!=", "page")]
+            )
+        )
+
+    @api.model
     def _reconcile_once(
         self,
         endpoint,
@@ -449,6 +480,19 @@ class MetaWebhookSubscriptionService(models.AbstractModel):
         desired_objects, page_plans, union_hash = self._configuration(endpoint)
         if union_hash != expected_union_hash:
             return False
+        if self._manual_only(endpoint, page_plans):
+            # Nothing here is reconciled: no credential, no Graph request.
+            self._project_endpoint(
+                endpoint,
+                "manual",
+                (),
+                False,
+                False,
+                expected_endpoint_revision,
+                expected_app_revision,
+                expected_union_hash,
+            )
+            return False
         runtime, verify_token, _revision = endpoint.sudo()._locked_runtime(
             expected_revision=expected_endpoint_revision,
             expected_app_revision=expected_app_revision,
@@ -458,7 +502,9 @@ class MetaWebhookSubscriptionService(models.AbstractModel):
             raise MetaApiError("Meta webhook callback must use HTTPS")
         app_token = graph_app_access_token(runtime)
         observed_app = self._read_app_subscriptions(runtime, app_token)
-        app_in_sync = self._app_is_in_sync(desired_objects, observed_app, callback_url)
+        app_in_sync = self._app_is_in_sync(
+            desired_objects, self._managed_observation(observed_app), callback_url
+        )
         if not app_in_sync and desired_objects:
             for object_type, subscribed_fields in desired_objects.items():
                 graph_request(
@@ -482,7 +528,7 @@ class MetaWebhookSubscriptionService(models.AbstractModel):
                     "Meta App subscription readback was unavailable"
                 ) from error
             app_in_sync = self._app_is_in_sync(
-                desired_objects, observed_app, callback_url
+                desired_objects, self._managed_observation(observed_app), callback_url
             )
 
         page_states = []
@@ -490,7 +536,7 @@ class MetaWebhookSubscriptionService(models.AbstractModel):
             page = self.env["meta.webhook.page"].sudo().browse(plan["page_id"])
             page_states.append(self._reconcile_page_safely(page, plan, runtime))
 
-        if not desired_objects and observed_app:
+        if not desired_objects and self._managed_observation(observed_app):
             endpoint_state = "drift"
             error_class = "ManualRemovalRequired"
             error_message = (
@@ -592,6 +638,18 @@ class MetaWebhookSubscriptionService(models.AbstractModel):
             if page_number == _MAX_PROVIDER_PAGES:
                 raise MetaApiError("Meta App subscription page limit was exceeded")
         return tuple(records)
+
+    @api.model
+    def _managed_observation(self, observed):
+        """App subscriptions this reconciler owns.
+
+        WhatsApp Business Account fields are configured on activation, outside
+        this reconciler: they neither count as drift nor trigger a rewrite.
+        """
+
+        return tuple(
+            item for item in observed if item["object"] not in _MANUAL_APP_OBJECTS
+        )
 
     @api.model
     def _app_is_in_sync(self, desired, observed, callback_url):

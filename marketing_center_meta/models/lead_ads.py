@@ -127,6 +127,7 @@ class MarketingCenterMetaLeadRoute(models.Model):
         index=True,
         check_company=True,
         ondelete="restrict",
+        domain="[('owner_kind', '=', 'page')]",
     )
     meta_app_id = fields.Many2one(
         related="webhook_page_id.app_id",
@@ -364,6 +365,10 @@ class MarketingCenterMetaLeadRoute(models.Model):
         for route in self:
             if not _ID_RE.fullmatch(route.external_form_id or ""):
                 raise ValidationError(_("The Meta Instant Form ID is invalid."))
+            if route.webhook_page_id.owner_kind != "page":
+                raise ValidationError(
+                    _("Lead Ads routes belong only to a Facebook Page owner.")
+                )
             if (
                 route.webhook_page_id.company_id != route.company_id
                 or route.lead_profile_id.company_id != route.company_id
@@ -1742,6 +1747,7 @@ class MarketingCenterMetaLeadService(models.AbstractModel):
             and route.source_id.service == META_ADS_SERVICE
             and route.source_id.company_id == route.company_id
             and route.webhook_page_id.active
+            and route.webhook_page_id.owner_kind == "page"
             and route.webhook_page_id.endpoint_id.active
             and route.webhook_page_id.app_id == route.meta_app_id
             and route.webhook_page_id.company_id == route.company_id

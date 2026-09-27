@@ -4,4 +4,5 @@ from . import (
     test_models,
     test_sanitizer,
     test_subscription,
+    test_whatsapp_owner,
 )

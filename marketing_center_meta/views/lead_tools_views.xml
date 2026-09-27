@@ -88,7 +88,7 @@
                             name="webhook_page_id"
                             string="Página da Meta"
                             options="{'no_create': True}"
-                            domain="[('company_id', '=', company_id), ('active', '=', True)]"
+                            domain="[('company_id', '=', company_id), ('active', '=', True), ('owner_kind', '=', 'page')]"
                             attrs="{'readonly': [('state', '!=', 'draft')]}"
                         />
                         <field

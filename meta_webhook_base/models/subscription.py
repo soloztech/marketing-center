@@ -5,7 +5,7 @@ from odoo.exceptions import AccessError, ValidationError
 
 _KEY_RE = re.compile(r"^[a-z0-9][a-z0-9._:-]{0,127}$")
 _FIELD_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
-_SUPPORTED_OBJECT_TYPES = {"page", "instagram"}
+_SUPPORTED_OBJECT_TYPES = {"page", "instagram", "whatsapp_business_account"}
 
 
 class MetaWebhookSubscription(models.Model):
@@ -152,6 +152,19 @@ class MetaWebhookSubscription(models.Model):
                 raise ValidationError(_("The Meta webhook object type is unsupported."))
             if not _FIELD_RE.fullmatch(subscription.field_name or ""):
                 raise ValidationError(_("The Meta webhook field name is invalid."))
+            whatsapp_owner = (
+                subscription.page_id.owner_kind == "whatsapp_business_account"
+            )
+            whatsapp_object = subscription.object_type == "whatsapp_business_account"
+            if whatsapp_owner != whatsapp_object or (
+                whatsapp_object and subscription.field_name != "messages"
+            ):
+                raise ValidationError(
+                    _(
+                        "Only a WhatsApp Business Account owner subscribes, and only "
+                        "to its messages field."
+                    )
+                )
 
     def unlink(self):  # pylint: disable=method-required-super
         raise AccessError(_("Meta webhook subscriptions must be archived."))

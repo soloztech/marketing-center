@@ -91,7 +91,7 @@ class TestMetaSignature(SavepointCase):
 
     def test_graph_version_contract_and_limits_are_explicit(self):
         self.assertEqual(META_GRAPH_BASELINE_VERSION, "v26.0")
-        self.assertEqual(MAX_WEBHOOK_BODY_BYTES, 2 * 1024 * 1024)
+        self.assertEqual(MAX_WEBHOOK_BODY_BYTES, 3 * 1024 * 1024)
         for valid in ("v1.0", "v26.0", "v100.0"):
             with self.subTest(value=valid):
                 self.assertTrue(validate_graph_version(valid))

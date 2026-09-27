@@ -28,7 +28,11 @@ class MetaWebhookAsset(models.Model):
         related="page_id.company_id", store=True, readonly=True, index=True
     )
     platform = fields.Selection(
-        [("facebook", "Facebook"), ("instagram", "Instagram")],
+        [
+            ("facebook", "Facebook"),
+            ("instagram", "Instagram"),
+            ("whatsapp", "WhatsApp"),
+        ],
         required=True,
         index=True,
     )
@@ -110,6 +114,25 @@ class MetaWebhookAsset(models.Model):
                 raise ValidationError(_("The Meta asset object type is invalid."))
             if not _TOKEN_RE.fullmatch(asset.transport or ""):
                 raise ValidationError(_("The Meta asset transport is invalid."))
+
+    @api.constrains("page_id", "platform", "object_type", "external_asset_id")
+    def _check_owner_kind(self):
+        for asset in self:
+            whatsapp_owner = asset.page_id.owner_kind == "whatsapp_business_account"
+            if whatsapp_owner != (asset.platform == "whatsapp"):
+                raise ValidationError(
+                    _(
+                        "WhatsApp assets belong only to a WhatsApp Business "
+                        "Account owner, which routes nothing else."
+                    )
+                )
+            if whatsapp_owner and (
+                asset.object_type != "whatsapp_business_account"
+                or asset.external_asset_id != asset.page_id.external_page_id
+            ):
+                raise ValidationError(
+                    _("A WhatsApp asset must route its own business account.")
+                )
 
     def unlink(self):  # pylint: disable=method-required-super
         raise AccessError(_("Meta webhook assets must be archived."))

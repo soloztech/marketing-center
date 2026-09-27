@@ -9,6 +9,9 @@ MAX_WEBHOOK_ENTRIES = 100
 MAX_CHANGES_PER_ENTRY = 100
 MAX_MESSAGING_PER_ENTRY = 100
 MAX_WEBHOOK_ITEMS = 1_000
+WHATSAPP_OBJECT_TYPE = "whatsapp_business_account"
+# Atomic collections of one WhatsApp ``messages`` change, in sequence order.
+WHATSAPP_COLLECTIONS = ("messages", "statuses", "errors")
 
 _ID_RE = re.compile(r"^[0-9]{1,40}$")
 _FIELD_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
@@ -320,6 +323,63 @@ def _change(entry, entry_index, change, change_index, object_type):
     )
 
 
+def _whatsapp_messages_change(entry, entry_index, change, change_index):
+    """Declare one claimable key per message, status and error of a change.
+
+    Nothing of the content enters the immutable envelope: only the field, the
+    change index and the collection sizes. A consumer claims each atomic key
+    with its own sanitized item; unclaimed keys become placeholders.
+    """
+
+    value = change.get("value")
+    counts = {}
+    if isinstance(value, dict):
+        for collection in WHATSAPP_COLLECTIONS:
+            rows = value.get(collection)
+            if rows is None:
+                rows = []
+            if not isinstance(rows, list):
+                counts = None
+                break
+            counts[collection] = len(rows)
+    else:
+        counts = None
+    if counts is None:
+        item_key = "entry:%s:change:%s" % (entry_index, change_index)
+        payload = {
+            "entry": entry,
+            "field": "messages",
+            "reason": "invalid_whatsapp_messages",
+        }
+        return (
+            payload,
+            _item_spec(
+                sequence=entry_index * 1000 + change_index,
+                item_key=item_key,
+                kind="unknown",
+                object_type=WHATSAPP_OBJECT_TYPE,
+                event_field="messages",
+                target_asset_id=entry["id"],
+                occurrence_ref=item_key,
+                payload=payload,
+            ),
+            (),
+        )
+    if sum(counts.values()) > MAX_WEBHOOK_ITEMS:
+        raise MetaWebhookSanitizationError("webhook item count exceeds the local limit")
+    sanitized = {
+        "field": "messages",
+        "change_index": change_index,
+        **{"%s_count" % collection: counts[collection] for collection in counts},
+    }
+    keys = tuple(
+        "entry:%s:changes:%s:%s:%s" % (entry_index, change_index, collection, index)
+        for collection in WHATSAPP_COLLECTIONS
+        for index in range(counts[collection])
+    )
+    return sanitized, None, keys
+
+
 def _entry(value, entry_index, object_type):
     if not isinstance(value, dict):
         raise MetaWebhookSanitizationError("entry[%s] must be an object" % entry_index)
@@ -339,23 +399,35 @@ def _entry(value, entry_index, object_type):
         )
     sanitized_changes = []
     items = []
+    claimable_keys = []
     for change_index, change in enumerate(changes):
-        sanitized, item = _change(
-            entry,
-            entry_index,
-            change,
-            change_index,
-            object_type,
-        )
+        if (
+            object_type == WHATSAPP_OBJECT_TYPE
+            and isinstance(change, dict)
+            and str(change.get("field") or "").strip().lower() == "messages"
+        ):
+            sanitized, item, keys = _whatsapp_messages_change(
+                entry, entry_index, change, change_index
+            )
+            claimable_keys.extend(keys)
+        else:
+            sanitized, item = _change(
+                entry,
+                entry_index,
+                change,
+                change_index,
+                object_type,
+            )
         sanitized_changes.append(sanitized)
-        items.append(item)
+        if item:
+            items.append(item)
     sanitized_entry = dict(entry)
     sanitized_entry["changes"] = sanitized_changes
     sanitized_entry["messaging_count"] = len(messaging)
     expected_messaging_keys = tuple(
         "entry:%s:messaging:%s" % (entry_index, item_index)
         for item_index in range(len(messaging))
-    )
+    ) + tuple(claimable_keys)
     return sanitized_entry, tuple(items), expected_messaging_keys
 
 

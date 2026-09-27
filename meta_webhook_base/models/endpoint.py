@@ -103,6 +103,7 @@ class MetaWebhookEndpoint(models.Model):
             ("drift", "Drift"),
             ("error", "Error"),
             ("uncertain", "Uncertain"),
+            ("manual", "Configured on activation"),
         ],
         required=True,
         default="unknown",
