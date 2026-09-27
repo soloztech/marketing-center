@@ -45,3 +45,413 @@ msgstr ""
 "Quando a política de captura de eventos de negócio mudou pela última vez, ou"
 " quando este registro foi introduzido para uma empresa com a captura já "
 "ligada. Vazio significa que o início do estado atual é desconhecido."
+
+#. module: marketing_center_base
+#. odoo-python
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#, python-format
+msgid "%(start)s to %(stop)s"
+msgstr "%(start)s a %(stop)s"
+
+#. module: marketing_center_base
+#. odoo-python
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#, python-format
+msgid "%(value)s (measured on %(measured)s of %(days)s days)"
+msgstr "%(value)s (medido em %(measured)s de %(days)s dias)"
+
+#. module: marketing_center_base
+#. odoo-python
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#, python-format
+msgid "%s in total"
+msgstr "%s no total"
+
+#. module: marketing_center_base
+#. odoo-python
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#, python-format
+msgid "%s per day"
+msgstr "%s por dia"
+
+#. module: marketing_center_base
+#: model_terms:ir.ui.view,arch_db:marketing_center_base.view_marketing_campaign_board_kanban
+msgid "<span class=\"mx-1\">·</span>"
+msgstr "<span class=\"mx-1\">·</span>"
+
+#. module: marketing_center_base
+#: model_terms:ir.ui.view,arch_db:marketing_center_base.view_marketing_campaign_board_kanban
+msgid ""
+"<span class=\"mx-1\">·</span>\n"
+"                                    <span class=\"text-muted\">Ads: </span>"
+msgstr "<span class=\"mx-1\">·</span> <span class=\"text-muted\">Anúncios: </span>"
+
+#. module: marketing_center_base
+#: model_terms:ir.ui.view,arch_db:marketing_center_base.view_marketing_campaign_board_kanban
+msgid "<span class=\"text-muted\">Ad sets or ad groups: </span>"
+msgstr "<span class=\"text-muted\">Conjuntos ou grupos de anúncios: </span>"
+
+#. module: marketing_center_base
+#: model_terms:ir.ui.view,arch_db:marketing_center_base.view_marketing_campaign_board_kanban
+msgid "<span class=\"text-muted\">Clicks: </span>"
+msgstr "<span class=\"text-muted\">Cliques: </span>"
+
+#. module: marketing_center_base
+#: model_terms:ir.ui.view,arch_db:marketing_center_base.view_marketing_campaign_board_kanban
+msgid "<span class=\"text-muted\">Cost: </span>"
+msgstr "<span class=\"text-muted\">Custo: </span>"
+
+#. module: marketing_center_base
+#: model_terms:ir.ui.view,arch_db:marketing_center_base.view_marketing_campaign_board_kanban
+msgid "<span class=\"text-muted\">Impressions: </span>"
+msgstr "<span class=\"text-muted\">Impressões: </span>"
+
+#. module: marketing_center_base
+#: model:ir.model.fields.selection,name:marketing_center_base.selection__marketing_center_metric_daily__grain__account
+#: model_terms:ir.ui.view,arch_db:marketing_center_base.view_marketing_campaign_board_search
+msgid "Account"
+msgstr "Conta"
+
+#. module: marketing_center_base
+#. odoo-python
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#: model:ir.model.fields,field_description:marketing_center_base.field_marketing_center_connection__active
+#: model:ir.model.fields,field_description:marketing_center_base.field_marketing_center_source__active
+#: model:ir.model.fields,field_description:marketing_center_base.field_marketing_center_team__active
+#: model:ir.model.fields,field_description:marketing_center_base.field_marketing_center_team_member__active
+#: model:ir.model.fields,field_description:marketing_center_base.field_marketing_center_team_source__active
+#: model:ir.model.fields.selection,name:marketing_center_base.selection__marketing_center_external_entity__campaign_status_group__active
+#: model:ir.model.fields.selection,name:marketing_center_base.selection__marketing_center_source__state__active
+#: model_terms:ir.ui.view,arch_db:marketing_center_base.view_marketing_campaign_board_search
+#: model_terms:ir.ui.view,arch_db:marketing_center_base.view_marketing_center_source_search
+#: model_terms:ir.ui.view,arch_db:marketing_center_base.view_marketing_sync_run_search
+#, python-format
+msgid "Active"
+msgstr "Ativa"
+
+#. module: marketing_center_base
+#. odoo-python
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#, python-format
+msgid "Ad set paused"
+msgstr "Conjunto de anúncios pausado"
+
+#. module: marketing_center_base
+#: model:ir.model.fields,field_description:marketing_center_base.field_marketing_center_external_entity__campaign_group_count
+msgid "Ad sets or ad groups"
+msgstr "Conjuntos ou grupos de anúncios"
+
+#. module: marketing_center_base
+#: model:ir.model.fields,field_description:marketing_center_base.field_marketing_center_external_entity__campaign_ad_count
+msgid "Ads"
+msgstr "Anúncios"
+
+#. module: marketing_center_base
+#. odoo-python
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#, python-format
+msgid "Affected days: %(start)s to %(stop)s"
+msgstr "Dias afetados: %(start)s a %(stop)s"
+
+#. module: marketing_center_base
+#. odoo-python
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#, python-format
+msgid "Archived"
+msgstr "Arquivada"
+
+#. module: marketing_center_base
+#: model:ir.model.fields,field_description:marketing_center_base.field_marketing_center_external_entity__campaign_budget_label
+msgid "Budget"
+msgstr "Orçamento"
+
+#. module: marketing_center_base
+#. odoo-python
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#, python-format
+msgid "Budget not informed"
+msgstr "Orçamento não informado"
+
+#. module: marketing_center_base
+#. odoo-python
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#, python-format
+msgid "Budget not synchronized"
+msgstr "Orçamento não sincronizado"
+
+#. module: marketing_center_base
+#: model:ir.actions.act_window,name:marketing_center_base.action_marketing_campaign_board
+#: model:ir.ui.menu,name:marketing_center_base.menu_marketing_center_campaign_board
+msgid "Campaign Board"
+msgstr "Painel de campanhas"
+
+#. module: marketing_center_base
+#. odoo-python
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#, python-format
+msgid "Campaign paused"
+msgstr "Campanha pausada"
+
+#. module: marketing_center_base
+#: model:ir.model.fields,field_description:marketing_center_base.field_marketing_center_external_entity__campaign_status_label
+msgid "Campaign status"
+msgstr "Status da campanha"
+
+#. module: marketing_center_base
+#: model_terms:ir.actions.act_window,help:marketing_center_base.action_marketing_campaign_board
+msgid ""
+"Campaigns appear here after the daily catalog synchronization of a\n"
+"                connected advertising account. Nothing is requested from the platforms\n"
+"                when this board opens."
+msgstr "As campanhas aparecem aqui depois da sincronização diária do catálogo de uma conta de anúncios conectada. Nada é consultado nas plataformas ao abrir este painel."
+
+#. module: marketing_center_base
+#: model:ir.model.fields,field_description:marketing_center_base.field_marketing_center_external_entity__campaign_clicks_label
+#: model:ir.model.fields,field_description:marketing_center_base.field_marketing_center_metric_daily__clicks
+#: model:ir.model.fields,field_description:marketing_center_base.field_marketing_center_metric_revision__clicks
+msgid "Clicks"
+msgstr "Cliques"
+
+#. module: marketing_center_base
+#: model:ir.model.fields.selection,name:marketing_center_base.selection__marketing_center_external_entity__campaign_status_group__closed
+#: model_terms:ir.ui.view,arch_db:marketing_center_base.view_marketing_campaign_board_search
+msgid "Closed"
+msgstr "Encerrada"
+
+#. module: marketing_center_base
+#: model:ir.model.fields,field_description:marketing_center_base.field_marketing_center_external_entity__campaign_cost_label
+msgid "Cost"
+msgstr "Custo"
+
+#. module: marketing_center_base
+#: model_terms:ir.ui.view,arch_db:marketing_center_base.view_marketing_campaign_board_kanban
+msgid "Creative preview not synchronized."
+msgstr "Prévia do criativo não sincronizada."
+
+#. module: marketing_center_base
+#. odoo-python
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#, python-format
+msgid "Data for %(days)s of %(window)s days"
+msgstr "Dados de %(days)s de %(window)s dias"
+
+#. module: marketing_center_base
+#. odoo-python
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#, python-format
+msgid "Deleted"
+msgstr "Excluída"
+
+#. module: marketing_center_base
+#. odoo-python
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#, python-format
+msgid "Disapproved"
+msgstr "Reprovada"
+
+#. module: marketing_center_base
+#. odoo-python
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#, python-format
+msgid "Enabled"
+msgstr "Ativa"
+
+#. module: marketing_center_base
+#. odoo-python
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#, python-format
+msgid "Google Ads"
+msgstr "Google Ads"
+
+#. module: marketing_center_base
+#: model:ir.model.fields,field_description:marketing_center_base.field_marketing_center_external_entity__campaign_impressions_label
+#: model:ir.model.fields,field_description:marketing_center_base.field_marketing_center_metric_daily__impressions
+#: model:ir.model.fields,field_description:marketing_center_base.field_marketing_center_metric_revision__impressions
+msgid "Impressions"
+msgstr "Impressões"
+
+#. module: marketing_center_base
+#. odoo-python
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#, python-format
+msgid "In process"
+msgstr "Em processamento"
+
+#. module: marketing_center_base
+#: model:ir.model.fields.selection,name:marketing_center_base.selection__marketing_center_external_entity__campaign_performance_state__incomplete
+msgid "Incomplete synchronization"
+msgstr "Sincronização incompleta"
+
+#. module: marketing_center_base
+#: model_terms:ir.ui.view,arch_db:marketing_center_base.view_marketing_campaign_board_kanban
+msgid "Last 30 days, as reported by the platform."
+msgstr "Últimos 30 dias, conforme informado pela plataforma."
+
+#. module: marketing_center_base
+#: model:ir.model.fields.selection,name:marketing_center_base.selection__marketing_center_external_entity__campaign_performance_state__measured
+msgid "Measured"
+msgstr "Medido"
+
+#. module: marketing_center_base
+#. odoo-python
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#, python-format
+msgid "Meta Ads"
+msgstr "Meta Ads"
+
+#. module: marketing_center_base
+#: model:ir.model.fields.selection,name:marketing_center_base.selection__marketing_center_external_entity__campaign_performance_state__no_data
+msgid "No campaign performance data"
+msgstr "Sem dados de desempenho por campanha"
+
+#. module: marketing_center_base
+#: model:ir.model.fields.selection,name:marketing_center_base.selection__marketing_center_external_entity__campaign_performance_state__no_sync
+msgid "No metric synchronization"
+msgstr "Sem sincronização de métricas"
+
+#. module: marketing_center_base
+#: model_terms:ir.actions.act_window,help:marketing_center_base.action_marketing_campaign_board
+msgid "No synchronized campaign"
+msgstr "Nenhuma campanha sincronizada"
+
+#. module: marketing_center_base
+#. odoo-python
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#, python-format
+msgid "Not measured"
+msgstr "Não medido"
+
+#. module: marketing_center_base
+#: model:ir.model.fields.selection,name:marketing_center_base.selection__marketing_center_external_entity__campaign_status_group__other
+msgid "Other"
+msgstr "Outro"
+
+#. module: marketing_center_base
+#. odoo-python
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#: model:ir.model.fields.selection,name:marketing_center_base.selection__marketing_center_connection__state__paused
+#: model:ir.model.fields.selection,name:marketing_center_base.selection__marketing_center_external_entity__campaign_status_group__paused
+#: model:ir.model.fields.selection,name:marketing_center_base.selection__marketing_center_source__state__paused
+#: model_terms:ir.ui.view,arch_db:marketing_center_base.view_marketing_campaign_board_search
+#, python-format
+msgid "Paused"
+msgstr "Pausada"
+
+#. module: marketing_center_base
+#. odoo-python
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#, python-format
+msgid "Pending billing information"
+msgstr "Aguardando dados de cobrança"
+
+#. module: marketing_center_base
+#. odoo-python
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#, python-format
+msgid "Pending review"
+msgstr "Em análise"
+
+#. module: marketing_center_base
+#: model:ir.model.fields,field_description:marketing_center_base.field_marketing_center_external_entity__campaign_performance_note
+msgid "Performance note"
+msgstr "Observação de desempenho"
+
+#. module: marketing_center_base
+#: model:ir.model.fields,field_description:marketing_center_base.field_marketing_center_external_entity__campaign_performance_state
+msgid "Performance state"
+msgstr "Estado do desempenho"
+
+#. module: marketing_center_base
+#: model:ir.model.fields,field_description:marketing_center_base.field_marketing_center_external_entity__campaign_period_label
+msgid "Period"
+msgstr "Período"
+
+#. module: marketing_center_base
+#. odoo-python
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#, python-format
+msgid "Period not informed"
+msgstr "Período não informado"
+
+#. module: marketing_center_base
+#: model:ir.model.fields,field_description:marketing_center_base.field_marketing_attribution_contribution__platform
+#: model:ir.model.fields,field_description:marketing_center_base.field_marketing_attribution_effective_touchpoint__platform
+#: model:ir.model.fields,field_description:marketing_center_base.field_marketing_attribution_touchpoint__platform
+#: model:ir.model.fields,field_description:marketing_center_base.field_marketing_center_external_entity__source_service
+#: model_terms:ir.ui.view,arch_db:marketing_center_base.view_marketing_attribution_effective_touchpoint_search
+#: model_terms:ir.ui.view,arch_db:marketing_center_base.view_marketing_attribution_touchpoint_search
+#: model_terms:ir.ui.view,arch_db:marketing_center_base.view_marketing_campaign_board_search
+msgid "Platform"
+msgstr "Plataforma"
+
+#. module: marketing_center_base
+#: model:ir.model.fields,field_description:marketing_center_base.field_marketing_center_external_entity__campaign_platform_label
+msgid "Platform name"
+msgstr "Nome da plataforma"
+
+#. module: marketing_center_base
+#. odoo-python
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#, python-format
+msgid "Preapproved"
+msgstr "Pré-aprovada"
+
+#. module: marketing_center_base
+#: model:ir.model.fields,help:marketing_center_base.field_marketing_center_external_entity__source_service
+#: model:ir.model.fields,help:marketing_center_base.field_marketing_center_source__service
+msgid "Provider-neutral service key registered by an integration addon."
+msgstr "Chave de serviço neutra em relação ao provedor, registrada por um módulo de integração."
+
+#. module: marketing_center_base
+#. odoo-python
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#, python-format
+msgid "Removed"
+msgstr "Removida"
+
+#. module: marketing_center_base
+#. odoo-python
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#, python-format
+msgid "Since %s"
+msgstr "Desde %s"
+
+#. module: marketing_center_base
+#: model:ir.model.fields,field_description:marketing_center_base.field_marketing_center_external_entity__campaign_status_group
+msgid "Status group"
+msgstr "Grupo de status"
+
+#. module: marketing_center_base
+#: model:ir.model.fields.selection,name:marketing_center_base.selection__marketing_center_external_entity__campaign_performance_state__updating
+msgid "Synchronization in progress"
+msgstr "Sincronização em andamento"
+
+#. module: marketing_center_base
+#. odoo-python
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#: model:ir.model.fields.selection,name:marketing_center_base.selection__marketing_attribution_asset_resolution__target_kind__unknown
+#: model:ir.model.fields.selection,name:marketing_center_base.selection__marketing_attribution_candidate__channel_class__unknown
+#: model:ir.model.fields.selection,name:marketing_center_base.selection__marketing_attribution_effective_touchpoint__consent_state__unknown
+#: model:ir.model.fields.selection,name:marketing_center_base.selection__marketing_attribution_effective_touchpoint__touchpoint_type__unknown
+#: model:ir.model.fields.selection,name:marketing_center_base.selection__marketing_attribution_touchpoint__consent_state__unknown
+#: model:ir.model.fields.selection,name:marketing_center_base.selection__marketing_attribution_touchpoint__touchpoint_type__unknown
+#: model:ir.model.fields.selection,name:marketing_center_base.selection__marketing_center_connection__health_state__unknown
+#, python-format
+msgid "Unknown"
+msgstr "Desconhecido"
+
+#. module: marketing_center_base
+#. odoo-python
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#, python-format
+msgid "Until %s"
+msgstr "Até %s"
+
+#. module: marketing_center_base
+#. odoo-python
+#: code:addons/marketing_center_base/models/campaign_board.py:0
+#, python-format
+msgid "With issues"
+msgstr "Com problemas"
