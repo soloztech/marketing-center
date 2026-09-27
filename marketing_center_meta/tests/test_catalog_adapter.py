@@ -1,15 +1,23 @@
+import copy
 import datetime
+import json
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from odoo.tests.common import SavepointCase
 
+from odoo.addons.marketing_center_base.services.catalog_dto import (
+    canonical_json,
+    sha256_text,
+)
 from odoo.addons.meta_api_base.services.errors import MetaApiError
 
 from ..services.catalog import (
     META_CATALOG_ENTITY_TYPES,
+    META_CATALOG_STATUS_FILTER,
     decode_meta_catalog_cursor,
     fetch_meta_catalog_page,
+    meta_catalog_reporting_context,
     meta_catalog_sweep_reporting_context,
     orchestrate_meta_catalog_page,
 )
@@ -306,3 +314,75 @@ class TestMetaCatalogAdapter(SavepointCase):
                     reporting_context_hash=self.context_hash,
                 )
             request.assert_not_called()
+
+    def test_listings_request_archived_and_deleted_statuses_except_creatives(self):
+        expected = json.dumps(list(META_CATALOG_STATUS_FILTER), separators=(",", ":"))
+        self.assertEqual(len(META_CATALOG_STATUS_FILTER), 12)
+        self.assertTrue({"ARCHIVED", "DELETED"} <= set(META_CATALOG_STATUS_FILTER))
+        for entity_type in ("campaign", "group", "ad"):
+            with self.subTest(entity_type=entity_type):
+                _page, request = self._fetch(entity_type, {"data": []})
+                params = request.call_args.kwargs["params"]
+                self.assertEqual(params["effective_status"], expected)
+                self.assertNotIn(" ", params["effective_status"])
+        _page, request = self._fetch("creative", {"data": []})
+        self.assertNotIn("effective_status", request.call_args.kwargs["params"])
+
+    def test_archived_and_deleted_rows_keep_status_and_hierarchy(self):
+        page, _request = self._fetch(
+            "ad",
+            {
+                "data": [
+                    {
+                        "id": "30",
+                        "name": "Archived ad",
+                        "adset_id": "20",
+                        "campaign_id": "10",
+                        "status": "ARCHIVED",
+                        "effective_status": "ARCHIVED",
+                    },
+                    {
+                        "id": "31",
+                        "name": "Deleted ad",
+                        "adset_id": "20",
+                        "campaign_id": "10",
+                        "status": "DELETED",
+                        "effective_status": "DELETED",
+                    },
+                ]
+            },
+        )
+        archived, deleted = page.items
+        self.assertEqual(
+            (archived.remote_status, deleted.remote_status), ("archived", "deleted")
+        )
+        self.assertEqual(archived.parent_external_ref, "act_123/adsets/20")
+        self.assertEqual(
+            archived.attributes["meta.campaign_ref"], "act_123/campaigns/10"
+        )
+
+    def test_reporting_contexts_commit_to_the_status_filter(self):
+        expected = {"effective_status": list(META_CATALOG_STATUS_FILTER)}
+        context = meta_catalog_sweep_reporting_context("v26.0", "act_123")
+        self.assertEqual(
+            {stage["entity_type"]: stage["filter"] for stage in context["stages"]},
+            {
+                "campaign": expected,
+                "group": expected,
+                "ad": expected,
+                "creative": "none",
+            },
+        )
+        for entity_type in ("campaign", "creative"):
+            with self.subTest(entity_type=entity_type):
+                single = meta_catalog_reporting_context("v26.0", "act_123", entity_type)
+                self.assertEqual(
+                    single["filter"],
+                    expected if entity_type == "campaign" else "none",
+                )
+        previous = copy.deepcopy(context)
+        for stage in previous["stages"]:
+            stage["filter"] = "none"
+        self.assertNotEqual(
+            sha256_text(canonical_json(context)), sha256_text(canonical_json(previous))
+        )

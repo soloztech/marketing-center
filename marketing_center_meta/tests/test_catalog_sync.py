@@ -17,6 +17,7 @@ from odoo.addons.meta_api_base.services.errors import (
 from odoo.addons.queue_job.exception import RetryableJobError
 
 from ..services.adapter import MetaAdAccount
+from ..services.catalog import meta_catalog_sweep_reporting_context
 from .common import create_meta_profile
 
 _ADAPTER_PATH = (
@@ -537,3 +538,53 @@ class TestMetaCatalogSync(SavepointCase):
             ),
             cursor_snapshot,
         )
+
+    def test_run_planned_under_the_unfiltered_contract_goes_stale_before_io(self):
+        def previous_contract(graph_version, account_ref):
+            context = meta_catalog_sweep_reporting_context(graph_version, account_ref)
+            for stage in context["stages"]:
+                stage["filter"] = "none"
+            return context
+
+        with patch(
+            "odoo.addons.marketing_center_meta.models.catalog_sync."
+            "meta_catalog_sweep_reporting_context",
+            side_effect=previous_contract,
+        ):
+            run = self._plan()
+        result, adapter_class = self._execute(run, 0, self._page(run))
+        self.assertEqual(result, {"stale": True})
+        self.assertEqual(run.state, "stale")
+        adapter_class.return_value.fetch_catalog_page.assert_not_called()
+
+    def test_portal_archive_updates_status_and_absence_changes_nothing(self):
+        catalog = self.env["marketing.center.catalog.service"]
+        paused = catalog._upsert_entity(
+            self.env.company,
+            self.source,
+            self._entity("campaign", "act_123/campaigns/50", remote_status="PAUSED"),
+        )
+        untouched = catalog._upsert_entity(
+            self.env.company,
+            self.source,
+            self._entity("campaign", "act_123/campaigns/51", remote_status="ACTIVE"),
+        )
+        run = self._plan()
+        page = self._page(
+            run,
+            (
+                self._entity(
+                    "campaign", "act_123/campaigns/50", remote_status="ARCHIVED"
+                ),
+            ),
+        )
+        self._execute(run, 0, page)
+        archived = self.env["marketing.center.external.entity"].browse(paused.entity_id)
+        self.assertEqual(archived.remote_status, "archived")
+        self.assertEqual(archived.current_revision_sequence, 2)
+        absent = self.env["marketing.center.external.entity"].browse(
+            untouched.entity_id
+        )
+        self.assertEqual(absent.remote_status, "active")
+        self.assertFalse(absent.remote_missing_at)
+        self.assertEqual(absent.current_revision_sequence, 1)

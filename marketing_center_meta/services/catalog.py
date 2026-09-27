@@ -20,6 +20,23 @@ META_CATALOG_ENTITY_TYPES = ("campaign", "group", "ad", "creative")
 META_CATALOG_RUN_ENTITY_TYPE = "meta_account_catalog"
 META_CATALOG_CURSOR_VERSION = 1
 
+# Graph lists omit archived and deleted objects unless effective_status asks for
+# them; request every documented status so archiving in the portal reaches Odoo.
+META_CATALOG_STATUS_FILTER = (
+    "ACTIVE",
+    "PAUSED",
+    "DELETED",
+    "PENDING_REVIEW",
+    "DISAPPROVED",
+    "PREAPPROVED",
+    "PENDING_BILLING_INFO",
+    "CAMPAIGN_PAUSED",
+    "ARCHIVED",
+    "ADSET_PAUSED",
+    "IN_PROCESS",
+    "WITH_ISSUES",
+)
+
 _ACCOUNT_REF_RE = re.compile(r"^act_[0-9]+$")
 _OBJECT_ID_RE = re.compile(r"^[0-9]+$")
 _ENUM_RE = re.compile(r"^[A-Za-z0-9_:-]+$")
@@ -37,6 +54,7 @@ class MetaCatalogSpec:
     parent_entity_type: str = ""
     parent_field: str = ""
     group_type: str = ""
+    status_filter: tuple = ()
 
 
 _CATALOG_SPECS = {
@@ -59,6 +77,7 @@ _CATALOG_SPECS = {
             "created_time",
             "updated_time",
         ),
+        status_filter=META_CATALOG_STATUS_FILTER,
     ),
     "group": MetaCatalogSpec(
         entity_type="group",
@@ -84,6 +103,7 @@ _CATALOG_SPECS = {
         parent_entity_type="campaign",
         parent_field="campaign_id",
         group_type="meta_adset",
+        status_filter=META_CATALOG_STATUS_FILTER,
     ),
     "ad": MetaCatalogSpec(
         entity_type="ad",
@@ -102,6 +122,7 @@ _CATALOG_SPECS = {
         ),
         parent_entity_type="group",
         parent_field="adset_id",
+        status_filter=META_CATALOG_STATUS_FILTER,
     ),
     "creative": MetaCatalogSpec(
         entity_type="creative",
@@ -166,6 +187,12 @@ def meta_catalog_spec(entity_type):
     return spec
 
 
+def _reporting_filter(spec):
+    if not spec.status_filter:
+        return "none"
+    return {"effective_status": list(spec.status_filter)}
+
+
 def meta_catalog_reporting_context(graph_version, account_ref, entity_type):
     account_ref = _account_ref(account_ref)
     spec = meta_catalog_spec(entity_type)
@@ -178,7 +205,7 @@ def meta_catalog_reporting_context(graph_version, account_ref, entity_type):
         "entity_type": spec.entity_type,
         "edge": spec.edge,
         "fields": list(spec.fields),
-        "filter": "none",
+        "filter": _reporting_filter(spec),
         "page_limit": _PAGE_LIMIT,
     }
 
@@ -198,7 +225,7 @@ def meta_catalog_sweep_reporting_context(graph_version, account_ref):
                 "entity_type": spec.entity_type,
                 "edge": spec.edge,
                 "fields": list(spec.fields),
-                "filter": "none",
+                "filter": _reporting_filter(spec),
             }
             for spec in (_CATALOG_SPECS[key] for key in META_CATALOG_ENTITY_TYPES)
         ],
@@ -287,6 +314,10 @@ def fetch_meta_catalog_page(
         required=False,
     )
     params = {"fields": ",".join(spec.fields), "limit": _PAGE_LIMIT}
+    if spec.status_filter:
+        params["effective_status"] = json.dumps(
+            list(spec.status_filter), separators=(",", ":")
+        )
     if after:
         params["after"] = after
     payload = graph_request(

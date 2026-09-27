@@ -137,6 +137,19 @@ the source's leads: a resumed source reclassifies them, and pausing one of two
 conflicting sources can settle the conflict. A transition that keeps the source
 ineligible (for example paused to attention) schedules nothing.
 
+## Meta catalog status scope
+
+The daily Meta catalog sweep asks the campaign, ad set and ad listings for every
+documented `effective_status`, including `ARCHIVED` and `DELETED`; by default Graph
+omits archived and deleted objects. Archiving in Ads Manager is therefore observed on
+the next sweep as an `updated` entity, which schedules one reconciliation that keeps the
+leads' campaign. Deleted objects are returned only by ID and may stay at their last
+observed status; absence is never treated as deletion. The filter is part of the
+reporting context: a sweep planned before the change goes stale before any request and
+the next scheduled sweep uses the new scope. Accounts with very many archived objects
+(Meta allows up to 100,000 per type) should be counted before publishing, against the
+512-page run limit.
+
 ## Rotating Meta/Google credentials
 
 1. Inventory the exact app/profile/connection, company, current reference/revision,
