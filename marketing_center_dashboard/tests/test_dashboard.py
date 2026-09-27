@@ -1,8 +1,10 @@
 import datetime
 import decimal
+import json
 import uuid
 
 import pytz
+from lxml import etree
 
 from odoo import Command, fields
 from odoo.exceptions import AccessError
@@ -14,10 +16,16 @@ from odoo.addons.marketing_center_base.models.attribution_resolution import (
 from odoo.addons.marketing_center_base.services import (
     MarketingBusinessEventDTO,
     MarketingTouchpointDTO,
+    capture_policy,
+)
+from odoo.addons.marketing_center_base.services.business_event_dto import (
+    BUSINESS_EVENT_TYPES,
 )
 from odoo.addons.marketing_center_base.services.performance_dto import (
     MarketingPerformanceDTO,
 )
+
+from ..models import dashboard
 
 
 @tagged("post_install", "-at_install")
@@ -428,6 +436,29 @@ class TestMarketingCenterDashboard(SavepointCase):
         self.assertEqual(
             translated["timezone"]["string"], "Fuso horário dos relatórios"
         )
+        policy = summary.with_context(lang="pt_BR").fields_get(
+            ["general_capture_state", "crm_capture_state"]
+        )
+        for field_name in ("general_capture_state", "crm_capture_state"):
+            labels = dict(policy[field_name]["selection"])
+            self.assertEqual(
+                labels,
+                {
+                    "enabled": "Ligada desde antes desta janela",
+                    "enabled_in_window": "Ligada, verificada só dentro desta janela",
+                    "enabled_unknown_start": "Ligada, início desconhecido",
+                    "disabled": "Desativada",
+                    "not_applicable": "Não se aplica",
+                },
+            )
+        views = (
+            self.env["marketing.center.dashboard.overview"]
+            .with_context(lang="pt_BR")
+            .get_views([(False, "kanban"), (False, "form")])["views"]
+        )
+        self.assertIn("não medido, a captura está desligada", views["kanban"]["arch"])
+        self.assertIn("Conversas, vendas e fatos financeiros", views["kanban"]["arch"])
+        self.assertIn("não garante cobertura completa", views["form"]["arch"])
         action = self.env.ref(
             "marketing_center_dashboard.action_marketing_dashboard_overview"
         )
@@ -635,3 +666,186 @@ class TestMarketingCenterDashboard(SavepointCase):
         }
         for field_name, value in expected.items():
             self.assertEqual(summary[field_name], value)
+
+    def _summary_now(self):
+        self.env.flush_all()
+        model = self.env["marketing.center.dashboard.overview"]
+        model.invalidate_model()
+        return self._row("summary")
+
+    def _set_policy(self, flag, enabled, changed_at):
+        stamp = flag.replace("_enabled", "_changed_at")
+        self.company.write({flag: enabled})
+        # Pin the stamp explicitly; production sets it only on a real change.
+        self.company.with_context(
+            marketing_capture_stamp_token=capture_policy.CAPTURE_STAMP_TOKEN
+        ).write({stamp: changed_at})
+
+    def test_capture_policies_are_stated_per_producer(self):
+        has_crm = "marketing_crm_events_enabled" in self.company._fields
+        long_ago = self.now - datetime.timedelta(days=60)
+        self._business_event("conversation_started", 501)
+        self._business_event("lead_created", 502)
+        # Production configuration: general capture off, CRM capture on.
+        self._set_policy("marketing_business_events_enabled", False, False)
+        if has_crm:
+            self._set_policy("marketing_crm_events_enabled", True, long_ago)
+        summary = self._summary_now()
+        self.assertEqual(summary.general_capture_state, "disabled")
+        self.assertTrue(summary.cc_last_event_at)
+        self.assertEqual(
+            summary.crm_capture_state, "enabled" if has_crm else "not_applicable"
+        )
+        # Inverse: general capture enabled during the window, CRM capture off.
+        self._set_policy("marketing_business_events_enabled", True, self.now)
+        if has_crm:
+            self._set_policy("marketing_crm_events_enabled", False, self.now)
+        summary = self._summary_now()
+        self.assertEqual(summary.general_capture_state, "enabled_in_window")
+        self.assertEqual(summary.general_capture_changed_at, self.now)
+        self.assertEqual(
+            summary.crm_capture_state, "disabled" if has_crm else "not_applicable"
+        )
+        # Retained facts stay in the window after a pause and reactivation.
+        self.assertGreaterEqual(summary.conversation_started_count, 1)
+        self._set_policy("marketing_business_events_enabled", True, False)
+        self.assertEqual(
+            self._summary_now().general_capture_state, "enabled_unknown_start"
+        )
+        self._set_policy("marketing_business_events_enabled", True, long_ago)
+        self.assertEqual(self._summary_now().general_capture_state, "enabled")
+        for row_kind in ("unresolved", "source"):
+            row = self._row(row_kind, self.source if row_kind == "source" else None)
+            self.assertEqual(row.general_capture_state, "not_applicable")
+            self.assertEqual(row.crm_capture_state, "not_applicable")
+
+    def test_disabled_policy_hides_numbers_in_kanban_and_form(self):
+        views = self.env["marketing.center.dashboard.overview"].get_views(
+            [(False, "kanban"), (False, "form")]
+        )["views"]
+        kanban = etree.fromstring(views["kanban"]["arch"])
+        for name, state in (
+            ("conversation_started_count", "general_capture_state"),
+            ("lead_created_count", "crm_capture_state"),
+            ("proposal_sent_count", "general_capture_state"),
+            ("invoice_posted_count", "general_capture_state"),
+        ):
+            with self.subTest(view="kanban", field=name):
+                [node] = kanban.xpath("//templates//field[@name='%s']" % name)
+                guards = [
+                    ancestor.get("t-if", "")
+                    for ancestor in node.iterancestors()
+                    if ancestor.get("t-if")
+                ]
+                self.assertTrue(
+                    any(
+                        "%s.raw_value !== 'disabled'" % state in guard
+                        for guard in guards
+                    ),
+                    guards,
+                )
+        form = etree.fromstring(views["form"]["arch"])
+        for name, state in (
+            ("conversation_started_count", "general_capture_state"),
+            ("lead_created_count", "crm_capture_state"),
+            ("proposal_sent_count", "general_capture_state"),
+            ("invoice_posted_count", "general_capture_state"),
+        ):
+            with self.subTest(view="form", field=name):
+                [node] = form.xpath("//field[@name='%s']" % name)
+                group = node.getparent()
+                self.assertEqual(group.tag, "group")
+                modifiers = json.loads(group.get("modifiers") or "{}")
+                self.assertIn([state, "=", "disabled"], modifiers.get("invisible", []))
+        self.assertIn("not measured, capture is disabled", views["kanban"]["arch"])
+        self.assertIn("Not measured", views["form"]["arch"])
+
+    def test_general_policy_notice_does_not_depend_on_contact_center(self):
+        views = self.env["marketing.center.dashboard.overview"].get_views(
+            [(False, "kanban"), (False, "form")]
+        )["views"]
+        kanban = etree.fromstring(views["kanban"]["arch"])
+        for state in ("enabled_in_window", "enabled_unknown_start"):
+            with self.subTest(state=state):
+                nodes = kanban.xpath(
+                    "//templates//div[contains(@t-if, "
+                    "\"general_capture_state.raw_value === '%s'\")]" % state
+                )
+                self.assertEqual(len(nodes), 1)
+                guard = nodes[0].get("t-if")
+                for producer in ("has_contact_center", "has_sale", "has_account"):
+                    self.assertIn(producer, guard)
+                # Not nested in a producer block: sales or accounting alone show it.
+                self.assertFalse(
+                    [
+                        ancestor
+                        for ancestor in nodes[0].iterancestors()
+                        if "has_" in (ancestor.get("t-if") or "")
+                    ]
+                )
+        for label in ("Conversations:", "CRM:", "Sales:", "Financial facts:"):
+            self.assertIn(label, views["kanban"]["arch"])
+        form = etree.fromstring(views["form"]["arch"])
+        [notice] = form.xpath(
+            "//sheet/div[contains(., 'does not guarantee complete coverage')]"
+        )
+        modifiers = json.loads(notice.get("modifiers") or "{}")
+        self.assertEqual(modifiers.get("invisible"), [["row_kind", "!=", "summary"]])
+
+    def test_last_recorded_fact_covers_every_producer_event_type(self):
+        groups = (
+            dashboard._CC_EVENT_TYPES,
+            dashboard._CRM_EVENT_TYPES,
+            dashboard._SALE_EVENT_TYPES,
+            dashboard._ACCOUNT_EVENT_TYPES,
+        )
+        flattened = [event_type for group in groups for event_type in group]
+        self.assertEqual(len(flattened), len(set(flattened)))
+        self.assertEqual(set(flattened), set(BUSINESS_EVENT_TYPES))
+        service = self.env["marketing.business.event.service"]
+        # Later than any fixture or pre-existing fact, so the maxima are ours.
+        early = self.now - datetime.timedelta(days=3)
+        late = self.now + datetime.timedelta(hours=1)
+
+        def ingest(event_type, event_class, occurred_at, res_id, **values):
+            occurrence = str(uuid.uuid4())
+            dto = MarketingBusinessEventDTO(
+                event_class=event_class,
+                event_type=event_type,
+                source_system="test.dashboard",
+                source_model="test.dashboard.origin",
+                source_res_id=res_id,
+                source_occurrence_ref=occurrence,
+                source_evidence_ref=occurrence,
+                business_event_key="dashboard:%s:%s" % (event_type, occurrence),
+                occurred_at=occurred_at,
+                observed_at=self.now,
+                evidence_level="first_party",
+                **values,
+            )
+            service._ingest_event(self.company, dto)
+            return dto
+
+        ingest("lead_created", "lifecycle", early, 701)
+        ingest("lead_stage_changed", "lifecycle", late, 701)
+        currency = self.company.currency_id.name
+        invoice = ingest(
+            "invoice_posted",
+            "revenue",
+            early,
+            702,
+            amount_signed=decimal.Decimal("100"),
+            currency=currency,
+        )
+        ingest(
+            "invoice_posting_reversed",
+            "revenue",
+            late,
+            702,
+            amount_signed=decimal.Decimal("-100"),
+            currency=currency,
+            reverses_business_event_key=invoice.business_event_key,
+        )
+        summary = self._summary_now()
+        self.assertEqual(summary.crm_last_event_at, late)
+        self.assertEqual(summary.account_last_event_at, late)

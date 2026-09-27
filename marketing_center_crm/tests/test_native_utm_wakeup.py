@@ -51,6 +51,40 @@ class TestNativeUtmWakeupAcrossTransactions(TransactionCase):
             stale.close()
         self.assertEqual(self._states(prefix), ["done", "pending"])
 
+    @staticmethod
+    def _delete_lead_events(cr, lead_id):
+        cr.execute(
+            "SELECT id FROM marketing_business_event "
+            "WHERE source_model = 'crm.lead' AND source_res_id = %s",
+            [lead_id],
+        )
+        event_ids = [row[0] for row in cr.fetchall()]
+        if not event_ids:
+            return
+        for table in (
+            "marketing_attribution_result",
+            "marketing_business_event_crm_link",
+            "marketing_business_event_observation",
+        ):
+            cr.execute(
+                "SELECT to_regclass(%s)",
+                [table],
+            )
+            if cr.fetchone()[0]:
+                cr.execute(
+                    "DELETE FROM %s WHERE %s = ANY(%%s)"
+                    % (
+                        table,
+                        "business_event_id"
+                        if table == "marketing_attribution_result"
+                        else "event_id",
+                    ),
+                    [event_ids],
+                )
+        # Newest first: later facts reference earlier ones as root/reversal.
+        for event_id in sorted(event_ids, reverse=True):
+            cr.execute("DELETE FROM marketing_business_event WHERE id = %s", [event_id])
+
     def _delete_jobs(self, prefix):
         with self.registry.cursor() as cr:
             cr.execute(
@@ -117,6 +151,9 @@ class TestNativeUtmWakeupAcrossTransactions(TransactionCase):
                         ["marketing_native_utm:lead:%s:%%" % ids["lead"]],
                     )
                     env["crm.lead"].browse(ids["lead"]).unlink()
+                    # The committed lead also produced immutable ledger facts;
+                    # remove them so later suites in this database see no residue.
+                    self._delete_lead_events(cr, ids["lead"])
                 if ids.get("source"):
                     cr.execute(
                         "DELETE FROM marketing_center_source_access_user_rel "

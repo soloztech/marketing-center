@@ -29,3 +29,19 @@ msgstr "Histórico de aquisição"
 #: model:ir.ui.menu,name:marketing_center_base.menu_marketing_center_funnel
 msgid "Business event history"
 msgstr "Histórico de eventos comerciais"
+
+#. module: marketing_center_base
+#: model:ir.model.fields,field_description:marketing_center_base.field_res_company__marketing_business_events_changed_at
+msgid "Business-event capture changed at"
+msgstr "Captura de eventos de negócio alterada em"
+
+#. module: marketing_center_base
+#: model:ir.model.fields,help:marketing_center_base.field_res_company__marketing_business_events_changed_at
+msgid ""
+"When the business-event capture policy last changed, or when this tracking "
+"was introduced for a company with capture already enabled. Empty means the "
+"start of the current state is unknown."
+msgstr ""
+"Quando a política de captura de eventos de negócio mudou pela última vez, ou"
+" quando este registro foi introduzido para uma empresa com a captura já "
+"ligada. Vazio significa que o início do estado atual é desconhecido."

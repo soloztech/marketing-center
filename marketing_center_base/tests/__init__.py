@@ -6,6 +6,7 @@ from . import (  # noqa: F401
     test_attribution_service,
     test_business_event_dto,
     test_business_event_service,
+    test_capture_policy,
     test_catalog_dto,
     test_catalog_service,
     test_effective_touchpoint,

@@ -2,7 +2,7 @@ import datetime
 import uuid
 from unittest.mock import patch
 
-from odoo import Command
+from odoo import Command, fields
 from odoo.exceptions import AccessError
 from odoo.tests.common import SavepointCase
 
@@ -475,6 +475,8 @@ class TestMarketingAttributionAssetResolution(SavepointCase):
             )
             forms.flush_recordset()
 
+        clock = [datetime.datetime(2026, 9, 2)]
+
         def run_cron(times):
             hook = type(self.env["marketing.native.utm.service"])
             per_run = []
@@ -486,7 +488,12 @@ class TestMarketingAttributionAssetResolution(SavepointCase):
                     # cron's SQL selectors read only flushed rows.
                     self.env.flush_all()
                     before = wake.call_count
-                    self.resolver._cron_backfill(limit=200, retry_after_minutes=0)
+                    # Real runs are minutes apart. Two runs within the same
+                    # second would leave last_attempted_at unchanged and skip
+                    # the wake-up, making the old rhythm timing-dependent.
+                    clock[0] += datetime.timedelta(minutes=1)
+                    with patch.object(fields.Datetime, "now", return_value=clock[0]):
+                        self.resolver._cron_backfill(limit=200, retry_after_minutes=0)
                     per_run.append(
                         len(
                             {
