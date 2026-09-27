@@ -22,6 +22,17 @@ STATES = [
 ]
 
 
+def _transaction_wake_ref(cr):
+    """Identity suffix that coalesces wake-ups only within one transaction.
+
+    A fixed identity can lose a change committed while an older job with the
+    same identity is still pending in this transaction's REPEATABLE READ
+    snapshot: queue_job would return that job even after it completed.
+    """
+    cr.execute("SELECT txid_current()")
+    return "tx:%s" % cr.fetchone()[0]
+
+
 def _fingerprint(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()
 
@@ -166,7 +177,9 @@ class CrmLeadNativeUtm(models.Model):
             self._native_utm_write({"marketing_utm_default_json": expected})
 
     def _enqueue_native_utm(self):
-        for lead in self.exists():
+        leads = self.exists()
+        wake_ref = _transaction_wake_ref(self.env.cr) if leads else ""
+        for lead in leads:
             company = (
                 lead.marketing_event_company_id or lead.company_id or self.env.company
             )
@@ -183,7 +196,7 @@ class CrmLeadNativeUtm(models.Model):
             lead.sudo().with_company(company).with_context(
                 allowed_company_ids=[company.id]
             ).with_delay(
-                identity_key="marketing_native_utm:lead:%s" % lead.id,
+                identity_key="marketing_native_utm:lead:%s:%s" % (lead.id, wake_ref),
                 max_retries=5,
                 description="Resolve native CRM campaign #%s" % lead.id,
             )._job_resolve_native_utm()
@@ -488,6 +501,7 @@ class MarketingNativeUtmCrmHook(models.AbstractModel):
         }
         if not any(scope.values()):
             return result
+        wake_ref = _transaction_wake_ref(self.env.cr)
         for company in self.env.companies:
             if not (scope["source_ids"] or scope["entity_ids"]):
                 enabled = (
@@ -518,8 +532,8 @@ class MarketingNativeUtmCrmHook(models.AbstractModel):
             company.sudo().with_company(company).with_context(
                 allowed_company_ids=[company.id]
             ).with_delay(
-                identity_key="marketing_native_utm:scope:%s:%s"
-                % (company.id, _fingerprint(scope)),
+                identity_key="marketing_native_utm:scope:%s:%s:%s"
+                % (company.id, _fingerprint(scope), wake_ref),
                 max_retries=5,
             )._job_reconcile_native_utm(
                 scope

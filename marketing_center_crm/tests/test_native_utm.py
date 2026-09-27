@@ -9,6 +9,7 @@ from odoo.addons.marketing_center_base.models.attribution_resolution import (
 )
 from odoo.addons.marketing_center_base.services import MarketingTouchpointDTO
 from odoo.addons.marketing_center_base.services.catalog_dto import ExternalEntityDTO
+from odoo.addons.queue_job.tests.common import trap_jobs
 
 
 class TestCrmNativeUtm(SavepointCase):
@@ -43,10 +44,11 @@ class TestCrmNativeUtm(SavepointCase):
             }
         )
 
-    def _point(self, external_id="123"):
+    def _point(self, external_id="123", source=None):
+        source = source or self.source
         result = self.env["marketing.center.catalog.service"]._upsert_entity(
             self.env.company,
-            self.source,
+            source,
             ExternalEntityDTO(
                 entity_type="campaign",
                 external_ref="campaigns/" + external_id,
@@ -83,10 +85,10 @@ class TestCrmNativeUtm(SavepointCase):
                 "asset_value": entity.external_ref,
                 "target_kind": "entity",
                 "provider_key": "test",
-                "service_key": "test.ads",
+                "service_key": source.service,
                 "mapped_entity_type": "campaign",
                 "canonical_external_ref": entity.external_ref,
-                "source_id": self.source.id,
+                "source_id": source.id,
                 "entity_id": entity.id,
                 "state": "resolved",
                 "reason": "test_identity",
@@ -277,3 +279,174 @@ class TestCrmNativeUtm(SavepointCase):
         )
         self.assertTrue(jobs)
         self.assertFalse(entity.native_utm_campaign_id)
+
+    def _upsert(self, entity_type="campaign", ref="campaigns/123", **overrides):
+        values = {
+            "entity_type": entity_type,
+            "external_ref": ref,
+            "external_id": ref.rsplit("/", 1)[1],
+            "name": "Remote %s %s" % (entity_type, ref.rsplit("/", 1)[1]),
+            "observed_at": datetime.datetime(2026, 9, 15, 12),
+        }
+        values.update(overrides)
+        return self.env["marketing.center.catalog.service"]._upsert_entity(
+            self.env.company, self.source, ExternalEntityDTO(**values)
+        )
+
+    def _scope_jobs(self, trap):
+        return [
+            job
+            for job in trap.enqueued_jobs
+            if job.method_name == "_job_reconcile_native_utm"
+        ]
+
+    def _point_on_child_ad(self):
+        """Classified lead whose resolution points at an ad under a campaign."""
+        entity, point, link = self._point()
+        ad = self.env["marketing.center.external.entity"].browse(
+            self._upsert(
+                "ad",
+                "ads/456",
+                parent_entity_type="campaign",
+                parent_external_ref="campaigns/123",
+            ).entity_id
+        )
+        self.assertEqual(ad.parent_id, entity)
+        resolution = point.asset_resolution_ids
+        resolution.with_context(
+            marketing_asset_resolution_write_token=ASSET_RESOLUTION_WRITE_TOKEN
+        ).write(
+            {
+                "entity_id": ad.id,
+                "mapped_entity_type": "ad",
+                "asset_value": ad.external_ref,
+                "canonical_external_ref": ad.external_ref,
+            }
+        )
+        return entity, ad, point, link
+
+    def test_only_real_catalog_changes_schedule_descendant_reconciliation(self):
+        entity, ad, _point, _link = self._point_on_child_ad()
+        with trap_jobs() as trap:
+            self.assertEqual(self._upsert().disposition, "duplicate")
+        self.assertFalse(self._scope_jobs(trap))
+        for status in ("ARCHIVED", "ACTIVE"):
+            with self.subTest(status=status), trap_jobs() as trap:
+                self.assertEqual(
+                    self._upsert(remote_status=status).disposition, "updated"
+                )
+                jobs = self._scope_jobs(trap)
+                self.assertEqual(len(jobs), 1)
+                self.assertEqual(jobs[0].args[0]["entity_ids"], [entity.id])
+                # The descendant ad's lead is in the reconciliation scope.
+                trap.perform_enqueued_jobs()
+                lead_jobs = [
+                    job
+                    for job in trap.enqueued_jobs
+                    if job.method_name == "_job_resolve_native_utm"
+                ]
+                self.assertEqual(
+                    [job.recordset.id for job in lead_jobs], [self.lead.id]
+                )
+        # A duplicate observation that fixes a missing parent is a real change.
+        orphan = self._upsert(
+            "ad",
+            "ads/789",
+            parent_entity_type="campaign",
+            parent_external_ref="campaigns/777",
+        )
+        self.assertFalse(
+            self.env["marketing.center.external.entity"]
+            .browse(orphan.entity_id)
+            .parent_id
+        )
+        self._upsert(ref="campaigns/777")
+        with trap_jobs() as trap:
+            repeated = self._upsert(
+                "ad",
+                "ads/789",
+                parent_entity_type="campaign",
+                parent_external_ref="campaigns/777",
+            )
+        self.assertEqual(repeated.disposition, "duplicate")
+        self.assertEqual(
+            [job.args[0]["entity_ids"] for job in self._scope_jobs(trap)],
+            [[orphan.entity_id]],
+        )
+
+    def test_archiving_or_removing_campaign_keeps_lead_attribution(self):
+        entity, _ad, _point, _link = self._point_on_child_ad()
+        self.assertEqual(
+            self.classifier._classify(self.lead, apply=True)["state"], "applied"
+        )
+        campaign = self.lead.campaign_id
+        receipt = self.lead.marketing_utm_receipt_id
+        self.assertTrue(campaign)
+        for status in ("ARCHIVED", "REMOVED"):
+            with self.subTest(status=status), trap_jobs() as trap:
+                self._upsert(remote_status=status)
+                self.assertEqual(entity.remote_status, status.lower())
+                trap.perform_enqueued_jobs()
+                trap.perform_enqueued_jobs()
+            self.assertEqual(self.lead.campaign_id, campaign)
+            self.assertEqual(self.lead.source_id, self.utm_source)
+            self.assertEqual(self.lead.marketing_utm_receipt_id, receipt)
+            result = self.classifier._classify(self.lead, apply=True)
+            self.assertEqual(
+                (result["state"], result["reason"]),
+                ("present", "native_values_already_match"),
+            )
+
+    def test_source_becoming_eligible_again_reconciles_its_leads(self):
+        _entity, _point, _link = self._point()
+        self.source.write({"state": "paused"})
+        self.assertNotEqual(
+            self.classifier._classify(self.lead, apply=True)["state"], "applied"
+        )
+        self.assertFalse(self.lead.campaign_id)
+        for values in ({"state": "paused"}, {"state": "attention"}):
+            with self.subTest(values=values), trap_jobs() as trap:
+                self.source.write(values)
+            self.assertFalse(self._scope_jobs(trap))
+        with trap_jobs() as trap:
+            self.source.write({"state": "active"})
+            jobs = self._scope_jobs(trap)
+            self.assertEqual(
+                [job.args[0]["source_ids"] for job in jobs], [[self.source.id]]
+            )
+            trap.perform_enqueued_jobs()
+            trap.perform_enqueued_jobs()
+        self.assertTrue(self.lead.campaign_id)
+        with trap_jobs() as trap:
+            self.source.write({"state": "active"})
+        self.assertFalse(self._scope_jobs(trap))
+
+    def test_pausing_one_of_two_conflicting_sources_settles_the_lead(self):
+        entity, _point, _link = self._point()
+        other_source = self.env["marketing.center.source"].create(
+            {
+                "name": "Other native CRM source",
+                "service": "test.other",
+                "state": "active",
+                "external_account_ref": "crm-other",
+                "native_utm_mode": "apply",
+                "native_utm_source_id": self.utm_source.id,
+                "native_utm_medium_id": self.utm_medium.id,
+            }
+        )
+        self._point("456", source=other_source)
+        self.assertEqual(
+            self.classifier._classify(self.lead, apply=True)["reason"],
+            "multiple_campaign_classifications",
+        )
+        self.assertFalse(self.lead.campaign_id)
+        with trap_jobs() as trap:
+            other_source.write({"state": "paused"})
+            jobs = self._scope_jobs(trap)
+            self.assertEqual(
+                [job.args[0]["source_ids"] for job in jobs], [[other_source.id]]
+            )
+            trap.perform_enqueued_jobs()
+            trap.perform_enqueued_jobs()
+        self.assertTrue(self.lead.campaign_id)
+        self.assertEqual(self.lead.campaign_id, entity.native_utm_campaign_id)

@@ -199,13 +199,26 @@ class TestMarketingNativeUtm(SavepointCase):
         self.assertEqual(result["reason"], "remote_campaign_missing")
         self.assertEqual(entity.native_utm_campaign_id.id, campaign_id)
 
-    def test_remote_deleted_status_does_not_create_native_campaign(self):
-        entity = self._entity(remote_status="REMOVED")
+    def test_platform_status_never_invalidates_native_attribution(self):
+        # Operator decision (2026-09-26): archiving, removing or deleting a
+        # campaign in the ad platform does not undo where its leads came from.
+        for index, status in enumerate(("REMOVED", "ARCHIVED", "DELETED")):
+            with self.subTest(status=status):
+                ref = "account-1/campaigns/9%s" % index
+                entity = self._entity(external_ref=ref, remote_status=status)
+                created = self.service._resolve_entity(entity, apply=True)
+                self.assertEqual(created["state"], "ready")
+                self.assertTrue(created["created"])
+                self.assertTrue(entity.native_utm_campaign_id)
+        mapped = self._entity(external_ref="account-1/campaigns/95")
+        campaign = self.service._resolve_entity(mapped, apply=True)["campaign_id"]
+        self._entity(external_ref="account-1/campaigns/95", remote_status="ARCHIVED")
+        self.assertEqual(mapped.remote_status, "archived")
+        result = self.service._resolve_entity(mapped, apply=True)
         self.assertEqual(
-            self.service._resolve_entity(entity, apply=True)["reason"],
-            "remote_campaign_inactive",
+            (result["state"], result["reason"], result["campaign_id"]),
+            ("ready", "explicit_campaign_mapping", campaign),
         )
-        self.assertFalse(entity.native_utm_campaign_id)
 
     def test_configuration_requires_explicit_source_and_medium(self):
         with self.assertRaises(ValidationError), self.cr.savepoint():

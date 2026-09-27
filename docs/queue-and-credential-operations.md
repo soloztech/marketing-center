@@ -75,6 +75,68 @@ budget; recovery requires explicit requeue. Missing/cancelled jobs remain recove
 The new lead-history feature is owned separately and is not rewritten by this bridge
 change.
 
+## Meta form references and catalog-driven reconciliation
+
+No Meta catalog sync produces lead form entities (`META_CATALOG_ENTITY_TYPES` in
+`marketing_center_meta/services/catalog.py`). A form reference (`meta.form_id`,
+`meta.leadgen_form_id`, or a canonical `act_…/forms/…` value in `meta.source_id`) is
+therefore resolved as `unsupported` with reason `catalog_entity_type_not_synchronized`
+and leaves the unresolved retry queue. Other references of the same touchpoint (account,
+campaign, ad) resolve as before. Classification is re-evaluated when the catalog really
+changes: an `updated` or `tombstone` upsert, or a repeated observation that fixes the
+parent, schedules one reconciliation for that entity and its descendants. A repeated
+observation without change schedules nothing.
+
+These rows do not come back on their own. Re-project them explicitly, one company at a
+time, in bounded, de-duplicated batches. Both procedures select by company, provider
+`meta`, service `meta.ads`, mapped entity type `form`, state `unsupported` and reason
+`catalog_entity_type_not_synchronized`, so mixed-case namespaces and canonical `forms`
+references in `meta.source_id` are included.
+
+**After rolling this change back.** The helper below is removed with the code, so use
+only the base resolver API, after the previous code is deployed. The previous resolver
+marks the rows `unresolved` again (and the old retry rhythm returns):
+
+```python
+rows = env["marketing.attribution.asset.resolution"].sudo().search(
+    [
+        ("company_id", "=", COMPANY_ID),
+        ("provider_key", "=", "meta"),
+        ("service_key", "=", "meta.ads"),
+        ("mapped_entity_type", "=", "form"),
+        ("state", "=", "unsupported"),
+        ("reason", "=", "catalog_entity_type_not_synchronized"),
+    ],
+    order="id",
+)
+keys = list(dict.fromkeys((row.company_id.id, row.canonical_key) for row in rows))[:200]
+print(len(keys))  # dry run
+env["marketing.attribution.asset.resolution.service"].sudo()._resolve_keys_safely(keys)
+env.cr.commit()
+```
+
+**Once a Meta sync produces form entities** (the type is added to
+`META_CATALOG_ENTITY_TYPES`), use the helper shipped with this code:
+
+```python
+service = env["marketing.attribution.asset.resolution.service"].sudo()
+company = env["res.company"].browse(COMPANY_ID)
+keys = service._reactivate_uncatalogued_forms(company)  # dry run: keys only
+service._reactivate_uncatalogued_forms(company, dry_run=False)  # re-project batch
+env.cr.commit()
+```
+
+In both cases commit after each non-dry-run batch (the Odoo shell rolls back on exit),
+then repeat the dry run in a fresh transaction until it returns no key. Increasing
+`_RESOLVER_VERSION` is the broad alternative: the regular cron re-projects every key
+once.
+
+A change in source eligibility (`active` and state `active`) in either direction, for
+example a paused read, a health issue or its recovery, schedules one reconciliation for
+the source's leads: a resumed source reclassifies them, and pausing one of two
+conflicting sources can settle the conflict. A transition that keeps the source
+ineligible (for example paused to attention) schedules nothing.
+
 ## Rotating Meta/Google credentials
 
 1. Inventory the exact app/profile/connection, company, current reference/revision,

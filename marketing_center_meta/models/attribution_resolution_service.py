@@ -7,6 +7,8 @@ from odoo.addons.marketing_center_base.models.attribution_resolution_service imp
     AssetResolverSpec,
 )
 
+from ..services import catalog as meta_catalog
+
 _META_PROVIDER_KEY = "meta"
 _META_SERVICE_KEY = "meta.ads"
 
@@ -86,6 +88,8 @@ _META_SEGMENT_TYPES = {
     "creatives": "creative",
     "forms": "form",
 }
+_UNCATALOGUED_REASON = "catalog_entity_type_not_synchronized"
+_REACTIVATION_LIMIT = 200
 
 
 class MarketingAttributionAssetResolutionServiceMeta(models.AbstractModel):
@@ -108,6 +112,18 @@ class MarketingAttributionAssetResolutionServiceMeta(models.AbstractModel):
                 assets,
                 specs,
             )
+        uncatalogued = self._meta_uncatalogued_entity_type(spec, value)
+        if uncatalogued:
+            # No Meta sync produces this entity type, so a retry can never
+            # resolve it; keep it out of the unresolved retry queue.
+            base.update(
+                {
+                    "state": "unsupported",
+                    "reason": _UNCATALOGUED_REASON,
+                    "mapped_entity_type": uncatalogued,
+                }
+            )
+            return base
         account_hints = self._meta_account_hints(
             assets,
             specs,
@@ -144,6 +160,60 @@ class MarketingAttributionAssetResolutionServiceMeta(models.AbstractModel):
             value,
             account_hints,
         )
+
+    @api.model
+    def _meta_uncatalogued_entity_type(self, spec, value):
+        """Return a concrete entity type that the Meta catalog never produces."""
+
+        entity_type = spec.entity_type
+        if spec.polymorphic:
+            canonical = _META_CANONICAL_REF_RE.fullmatch(value)
+            entity_type = _META_SEGMENT_TYPES[canonical.group(2)] if canonical else ""
+        if entity_type and entity_type not in meta_catalog.META_CATALOG_ENTITY_TYPES:
+            return entity_type
+        return ""
+
+    @api.model
+    def _reactivate_uncatalogued_forms(
+        self, company, limit=_REACTIVATION_LIMIT, dry_run=True
+    ):
+        """Re-project form references parked as unsupported by this resolver.
+
+        Use once a Meta sync starts producing form entities (a rollback of this
+        code needs the self-contained procedure in the operations guide, since
+        this helper is removed with it). The selector does not depend on the
+        namespace spelling, so mixed-case aliases and canonical ``forms``
+        references in ``meta.source_id`` are included. ``dry_run`` only
+        returns the bounded, de-duplicated keys.
+        """
+
+        company = company.sudo().ensure_one()
+        limit = max(1, min(int(limit), _REACTIVATION_LIMIT))
+        rows = (
+            self.env["marketing.attribution.asset.resolution"]
+            .sudo()
+            .search(
+                [
+                    ("company_id", "=", company.id),
+                    ("provider_key", "=", _META_PROVIDER_KEY),
+                    ("service_key", "=", _META_SERVICE_KEY),
+                    ("mapped_entity_type", "=", "form"),
+                    ("state", "=", "unsupported"),
+                    ("reason", "=", _UNCATALOGUED_REASON),
+                ],
+                order="id",
+            )
+        )
+        keys = []
+        for row in rows:
+            key = (row.company_id.id, row.canonical_key)
+            if key not in keys:
+                keys.append(key)
+            if len(keys) >= limit:
+                break
+        if dry_run:
+            return keys
+        return self._resolve_keys_safely(keys)
 
     @api.model
     def _meta_resolve_source(self, base, effective, spec, value):

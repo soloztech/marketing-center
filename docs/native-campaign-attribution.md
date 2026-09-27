@@ -146,6 +146,16 @@ manual sempre prevalece. **Undo automatic classification** também restaura esse
 estado e marca a classificação como manual, evitando reaplicação no próximo job.
 Desabilitar a fonte pausa a classificação; não limpa em lote as UTMs já aplicadas.
 
+O status da campanha na plataforma não invalida a atribuição: arquivar, remover
+ou excluir uma campanha no Gerenciador da Meta ou no Google Ads não desfaz a
+origem dos leads já classificados, e um touchpoint novo de uma campanha
+arquivada que existe no catálogo continua sendo classificado. Continuam
+recusando a classificação: fonte desativada, campanha bloqueada
+(`native_utm_blocked`), ausência no catálogo/tombstone, conflito e as regras de
+privacidade. Uma mudança real no catálogo (nova revisão, tombstone ou correção
+de pai) agenda a reconciliação da entidade e de seus descendentes; uma
+observação repetida sem mudança não agenda nada.
+
 Os recibos são imutáveis, delimitados pela empresa e pela visibilidade do lead.
 Guardar uma previsão ou recibo não significa alterar a evidência original.
 
@@ -164,8 +174,12 @@ Guardar uma previsão ou recibo não significa alterar a evidência original.
 
 Os métodos com `_` são internos, não endpoints RPC. Metadados de procedência e
 recibos não são graváveis por RPC, nem por um booleano forjado no contexto.
-Jobs utilizam identidades estáveis, lotes delimitados por empresa e locks que
-fazem transações concorrentes repetir com um snapshot atualizado.
+Jobs utilizam lotes delimitados por empresa e locks que fazem transações
+concorrentes repetir com um snapshot atualizado. As identidades dos jobs de
+reconciliação (escopo e lead) incluem a transação que os agendou: chamadas da
+mesma transação são agrupadas, e cada transação posterior ganha seu próprio
+despertar, mesmo que um job anterior de mesmo escopo termine enquanto ela
+ainda enxerga o snapshot antigo.
 
 ## Atualização e diagnóstico
 
