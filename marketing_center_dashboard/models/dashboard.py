@@ -3,6 +3,34 @@ import datetime
 from odoo import _, api, fields, models, tools
 from odoo.exceptions import AccessError
 
+_CAPTURE_STATES = [
+    ("enabled", "Enabled since before this window"),
+    ("enabled_in_window", "Verified enabled only during this window"),
+    ("enabled_unknown_start", "Enabled, start unknown"),
+    ("disabled", "Disabled"),
+    ("not_applicable", "Not applicable"),
+]
+_CC_EVENT_TYPES = (
+    "conversation_started",
+    "first_human_response",
+    "interaction_started",
+    "response_episode_answered",
+)
+_CRM_EVENT_TYPES = ("lead_created", "lead_stage_changed", "qualified", "won", "lost")
+_SALE_EVENT_TYPES = ("proposal_sent", "order_confirmed", "order_cancelled")
+_ACCOUNT_EVENT_TYPES = (
+    "invoice_posted",
+    "invoice_posting_reversed",
+    "credit_note_posted",
+    "credit_note_posting_reversed",
+    "payment_allocated",
+    "payment_allocation_reversed",
+)
+
+
+def _sql_in(values):
+    return "(%s)" % ", ".join("'%s'" % value for value in values)
+
 
 class MarketingCenterDashboardOverview(models.Model):
     """Live, read-only overview over canonical Marketing Center projections.
@@ -133,6 +161,37 @@ class MarketingCenterDashboardOverview(models.Model):
             "one unique marketing source. This is technical coverage, not causal "
             "attribution."
         ),
+    )
+    general_capture_state = fields.Selection(
+        _CAPTURE_STATES,
+        string="Capture policy (conversations, sales, finance)",
+        readonly=True,
+        help=(
+            "Capture policy of marketing business events, not measurement "
+            "completeness. Governs conversation, sales and financial facts."
+        ),
+    )
+    general_capture_changed_at = fields.Datetime(
+        string="Capture policy changed at", readonly=True
+    )
+    crm_capture_state = fields.Selection(
+        _CAPTURE_STATES,
+        string="CRM capture policy",
+        readonly=True,
+        help="Capture policy of CRM events, independent of the general policy.",
+    )
+    crm_capture_changed_at = fields.Datetime(
+        string="CRM capture policy changed at", readonly=True
+    )
+    cc_last_event_at = fields.Datetime(
+        string="Last recorded conversation fact", readonly=True
+    )
+    crm_last_event_at = fields.Datetime(string="Last recorded CRM fact", readonly=True)
+    sale_last_event_at = fields.Datetime(
+        string="Last recorded sales fact", readonly=True
+    )
+    account_last_event_at = fields.Datetime(
+        string="Last recorded financial fact", readonly=True
     )
     has_contact_center = fields.Boolean(readonly=True)
     has_crm = fields.Boolean(readonly=True)
@@ -500,6 +559,35 @@ class MarketingCenterDashboardOverview(models.Model):
                   AND occurred_at < bounds.window_end
                 GROUP BY company_id
             ),
+            event_last AS (
+                SELECT
+                    company_id,
+                    MAX(occurred_at) FILTER (WHERE event_type IN __CC_TYPES__)
+                        AS cc_last_event_at,
+                    MAX(occurred_at) FILTER (WHERE event_type IN __CRM_TYPES__)
+                        AS crm_last_event_at,
+                    MAX(occurred_at) FILTER (WHERE event_type IN __SALE_TYPES__)
+                        AS sale_last_event_at,
+                    MAX(occurred_at) FILTER (WHERE event_type IN __ACCOUNT_TYPES__)
+                        AS account_last_event_at
+                FROM marketing_business_event
+                GROUP BY company_id
+            ),
+            capture_policy AS (
+                -- Read through to_jsonb: the CRM columns exist only with the
+                -- optional CRM module, and the view must not depend on it.
+                SELECT
+                    company.id AS company_id,
+                    (to_jsonb(company) ->> 'marketing_business_events_enabled')::boolean
+                        AS general_enabled,
+                    (to_jsonb(company) ->> 'marketing_business_events_changed_at')::timestamp
+                        AS general_changed_at,
+                    (to_jsonb(company) ->> 'marketing_crm_events_enabled')::boolean
+                        AS crm_enabled,
+                    (to_jsonb(company) ->> 'marketing_crm_events_changed_at')::timestamp
+                        AS crm_changed_at
+                FROM res_company AS company
+            ),
             module_flags AS (
                 SELECT
                     EXISTS (
@@ -610,7 +698,15 @@ class MarketingCenterDashboardOverview(models.Model):
                     0::bigint AS invoice_posted_count,
                     0::bigint AS credit_note_posted_count,
                     0::bigint AS payment_allocated_count,
-                    0::bigint AS payment_allocation_reversed_count
+                    0::bigint AS payment_allocation_reversed_count,
+                    'not_applicable'::varchar AS general_capture_state,
+                    NULL::timestamp AS general_capture_changed_at,
+                    'not_applicable'::varchar AS crm_capture_state,
+                    NULL::timestamp AS crm_capture_changed_at,
+                    NULL::timestamp AS cc_last_event_at,
+                    NULL::timestamp AS crm_last_event_at,
+                    NULL::timestamp AS sale_last_event_at,
+                    NULL::timestamp AS account_last_event_at
                 FROM source_scope AS source
                 CROSS JOIN module_flags AS flags
                 LEFT JOIN metric_run_quality AS quality
@@ -688,13 +784,40 @@ class MarketingCenterDashboardOverview(models.Model):
                     COALESCE(event.payment_allocated_count, 0)
                         AS payment_allocated_count,
                     COALESCE(event.payment_allocation_reversed_count, 0)
-                        AS payment_allocation_reversed_count
+                        AS payment_allocation_reversed_count,
+                    CASE
+                        WHEN policy.general_enabled IS NOT TRUE THEN 'disabled'
+                        WHEN policy.general_changed_at IS NULL
+                            THEN 'enabled_unknown_start'
+                        WHEN policy.general_changed_at > bounds.window_start
+                            THEN 'enabled_in_window'
+                        ELSE 'enabled'
+                    END::varchar AS general_capture_state,
+                    policy.general_changed_at AS general_capture_changed_at,
+                    CASE
+                        WHEN NOT flags.has_crm OR policy.crm_enabled IS NULL
+                            THEN 'not_applicable'
+                        WHEN policy.crm_enabled IS NOT TRUE THEN 'disabled'
+                        WHEN policy.crm_changed_at IS NULL
+                            THEN 'enabled_unknown_start'
+                        WHEN policy.crm_changed_at > bounds.window_start
+                            THEN 'enabled_in_window'
+                        ELSE 'enabled'
+                    END::varchar AS crm_capture_state,
+                    policy.crm_changed_at AS crm_capture_changed_at,
+                    last_event.cc_last_event_at,
+                    last_event.crm_last_event_at,
+                    last_event.sale_last_event_at,
+                    last_event.account_last_event_at
                 FROM company_scope AS company
                 CROSS JOIN module_flags AS flags
                 CROSS JOIN dashboard_window AS bounds
                 LEFT JOIN touchpoint_company_stats AS touchpoint
                   ON touchpoint.company_id = company.id
                 LEFT JOIN event_stats AS event ON event.company_id = company.id
+                LEFT JOIN capture_policy AS policy ON policy.company_id = company.id
+                LEFT JOIN event_last AS last_event
+                  ON last_event.company_id = company.id
             ),
             unresolved_rows AS (
                 SELECT
@@ -752,7 +875,15 @@ class MarketingCenterDashboardOverview(models.Model):
                     0::bigint AS invoice_posted_count,
                     0::bigint AS credit_note_posted_count,
                     0::bigint AS payment_allocated_count,
-                    0::bigint AS payment_allocation_reversed_count
+                    0::bigint AS payment_allocation_reversed_count,
+                    'not_applicable'::varchar AS general_capture_state,
+                    NULL::timestamp AS general_capture_changed_at,
+                    'not_applicable'::varchar AS crm_capture_state,
+                    NULL::timestamp AS crm_capture_changed_at,
+                    NULL::timestamp AS cc_last_event_at,
+                    NULL::timestamp AS crm_last_event_at,
+                    NULL::timestamp AS sale_last_event_at,
+                    NULL::timestamp AS account_last_event_at
                 FROM company_scope AS company
                 CROSS JOIN module_flags AS flags
                 CROSS JOIN dashboard_window AS bounds
@@ -764,7 +895,12 @@ class MarketingCenterDashboardOverview(models.Model):
             SELECT * FROM unresolved_rows
             UNION ALL
             SELECT * FROM source_rows
-            """
+            """.replace(
+                "__CC_TYPES__", _sql_in(_CC_EVENT_TYPES)
+            )
+            .replace("__CRM_TYPES__", _sql_in(_CRM_EVENT_TYPES))
+            .replace("__SALE_TYPES__", _sql_in(_SALE_EVENT_TYPES))
+            .replace("__ACCOUNT_TYPES__", _sql_in(_ACCOUNT_EVENT_TYPES))
         )
 
     @api.model_create_multi

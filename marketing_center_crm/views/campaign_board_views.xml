@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_marketing_campaign_board_kanban_crm" model="ir.ui.view">
+        <field name="name">marketing.center.external.entity.campaign.kanban.crm</field>
+        <field name="model">marketing.center.external.entity</field>
+        <field
+            name="inherit_id"
+            ref="marketing_center_base.view_marketing_campaign_board_kanban"
+        />
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='campaign_ad_count']" position="after">
+                <field name="campaign_lead_label" />
+            </xpath>
+            <xpath
+                expr="//div[hasclass('o_marketing_campaign_extra')]"
+                position="inside"
+            >
+                <div class="mt-1 small"><field name="campaign_lead_label" /></div>
+            </xpath>
+        </field>
+    </record>
+</odoo>

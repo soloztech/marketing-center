@@ -5,6 +5,8 @@ from odoo import _, api, models
 from odoo.exceptions import ValidationError
 
 from ..services.sanitizer import (
+    WHATSAPP_COLLECTIONS,
+    WHATSAPP_OBJECT_TYPE,
     MetaWebhookSanitizationError,
     canonical_digest,
     validate_sanitized_payload,
@@ -12,6 +14,13 @@ from ..services.sanitizer import (
 from ..services.tokens import META_WEBHOOK_INTERNAL_TOKEN
 
 _ITEM_KEY_RE = re.compile(r"^entry:([0-9]{1,3}):messaging:([0-9]{1,3})$")
+_WHATSAPP_KEY_RE = re.compile(
+    r"^entry:([0-9]{1,3}):changes:([0-9]{1,3}):(messages|statuses|errors):([0-9]{1,3})$"
+)
+# WhatsApp atomic items sit above every legacy sequence (< 100,000): with at
+# most 100 entries, 100 changes and 1,000 items, each term keeps its range and
+# the total stays below 2**31.
+_WHATSAPP_SEQUENCE_BASE = 100_000_000
 _TOKEN_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 _ID_RE = re.compile(r"^[0-9]{1,40}$")
 _MAX_ITEM_BYTES = 64 * 1024
@@ -26,7 +35,9 @@ class MetaWebhookDispatcher(models.AbstractModel):
         """Return sanitized messaging item specs from installed consumers.
 
         Consumer addons must call ``super()`` and append only entries matching an
-        ``entry:N:messaging:N`` carrier in the original bounded envelope. They may
+        ``entry:N:messaging:N`` carrier, or a WhatsApp atomic key
+        ``entry:N:changes:C:messages|statuses|errors:M``, declared by the
+        sanitizer for the original bounded envelope. They may
         persist short-lived provider-private artifacts in the same transaction,
         while the shared immutable item must contain only their sanitized reference.
         """
@@ -74,14 +85,45 @@ class MetaWebhookDispatcher(models.AbstractModel):
         return items
 
     @api.model
+    def _claimable_key(self, item_key):
+        """Parse one claimable key into its entry, sequence and origin."""
+
+        match = _ITEM_KEY_RE.fullmatch(item_key)
+        if match:
+            entry_index, item_index = (int(value) for value in match.groups())
+            return {
+                "entry_index": entry_index,
+                "sequence": entry_index * 1000 + 500 + item_index,
+                "whatsapp": False,
+                "item_index": item_index,
+            }
+        match = _WHATSAPP_KEY_RE.fullmatch(item_key)
+        if match:
+            entry_index, change_index = int(match.group(1)), int(match.group(2))
+            collection, item_index = match.group(3), int(match.group(4))
+            return {
+                "entry_index": entry_index,
+                "sequence": _WHATSAPP_SEQUENCE_BASE
+                + entry_index * 1_000_000
+                + change_index * 10_000
+                + WHATSAPP_COLLECTIONS.index(collection) * 1_000
+                + item_index,
+                "whatsapp": True,
+                "change_index": change_index,
+                "collection": collection,
+                "item_index": item_index,
+            }
+        return None
+
+    @api.model
     def _validated_messaging_spec(self, incoming, sanitized):
         if not isinstance(incoming, dict):
             raise ValidationError(_("A Meta consumer item must be an object."))
         item_key = str(incoming.get("item_key") or "")
-        match = _ITEM_KEY_RE.fullmatch(item_key)
-        if not match:
+        parsed = self._claimable_key(item_key)
+        if not parsed:
             raise ValidationError(_("A Meta consumer item key is invalid."))
-        entry_index, item_index = (int(value) for value in match.groups())
+        entry_index = parsed["entry_index"]
         if item_key not in set(sanitized.expected_messaging_keys):
             raise ValidationError(_("A Meta consumer item is outside the envelope."))
         entry = sanitized.envelope["entry"][entry_index]
@@ -113,6 +155,10 @@ class MetaWebhookDispatcher(models.AbstractModel):
         target_asset_id = str(incoming.get("target_asset_id") or "").strip()
         if object_type != sanitized.object_type or not _TOKEN_RE.fullmatch(event_field):
             raise ValidationError(_("A Meta consumer routing key is invalid."))
+        if parsed["whatsapp"] and (
+            object_type != WHATSAPP_OBJECT_TYPE or event_field != "messages"
+        ):
+            raise ValidationError(_("A Meta consumer routing key is invalid."))
         if not _ID_RE.fullmatch(target_asset_id) or target_asset_id != entry["id"]:
             raise ValidationError(_("A Meta consumer target is invalid."))
         occurrence_ref = str(incoming.get("occurrence_ref") or "").strip()
@@ -123,7 +169,7 @@ class MetaWebhookDispatcher(models.AbstractModel):
         ):
             raise ValidationError(_("A Meta consumer occurrence is invalid."))
         return {
-            "sequence": entry_index * 1000 + 500 + item_index,
+            "sequence": parsed["sequence"],
             "item_key": item_key,
             "kind": "messaging",
             "object_type": object_type,
@@ -136,9 +182,39 @@ class MetaWebhookDispatcher(models.AbstractModel):
 
     @api.model
     def _messaging_placeholder(self, item_key, sanitized):
-        match = _ITEM_KEY_RE.fullmatch(item_key)
-        entry_index, item_index = (int(value) for value in match.groups())
+        parsed = self._claimable_key(item_key)
+        entry_index, item_index = parsed["entry_index"], parsed["item_index"]
         entry = sanitized.envelope["entry"][entry_index]
+        if parsed["whatsapp"]:
+            payload = {
+                "schema_version": "meta.webhook.v1",
+                "object": sanitized.object_type,
+                "entry": {
+                    "id": entry["id"],
+                    **({"time": entry["time"]} if "time" in entry else {}),
+                },
+                "change_index": parsed["change_index"],
+                "collection": parsed["collection"],
+                "index": item_index,
+                "reason": "consumer_unavailable",
+            }
+            return {
+                "sequence": parsed["sequence"],
+                "item_key": item_key,
+                "kind": "unknown",
+                "object_type": sanitized.object_type,
+                "event_field": "messages",
+                "target_asset_id": entry["id"],
+                "occurrence_ref": "wa:%s:%s:%s:%s"
+                % (
+                    entry["id"],
+                    parsed["change_index"],
+                    parsed["collection"],
+                    item_index,
+                ),
+                "payload_json": payload,
+                "event_sha256": canonical_digest(payload),
+            }
         payload = {
             "schema_version": "meta.webhook.v1",
             "object": sanitized.object_type,

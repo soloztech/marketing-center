@@ -273,6 +273,8 @@ msgid "Delayed"
 msgstr "Com atraso"
 
 #. module: marketing_center_dashboard
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__crm_capture_state__disabled
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__general_capture_state__disabled
 #: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__source_state__disabled
 msgid "Disabled"
 msgstr "Desativada"
@@ -441,7 +443,9 @@ msgid "No unique source"
 msgstr "Sem fonte única"
 
 #. module: marketing_center_dashboard
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__crm_capture_state__not_applicable
 #: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__freshness_state__not_applicable
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__general_capture_state__not_applicable
 msgid "Not applicable"
 msgstr "Não se aplica"
 
@@ -475,11 +479,6 @@ msgstr "Fatos do Odoo e correlações são exibidos sem crédito causal para fon
 #, python-format
 msgid "Only Marketing Analysts can inspect business events."
 msgstr "Somente analistas de marketing podem consultar eventos de negócio."
-
-#. module: marketing_center_dashboard
-#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
-msgid "Operational correlation and counts; no value has been credited to a campaign."
-msgstr "Correlação e contagem operacional; nenhum valor foi creditado a uma campanha."
 
 #. module: marketing_center_dashboard
 #: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__order_cancelled_count
@@ -737,3 +736,175 @@ msgstr "com fonte única"
 #: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
 msgid "without a unique source"
 msgstr "sem fonte única"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "; earlier days in this window may be unmeasured."
+msgstr "; dias anteriores nesta janela podem não ter sido medidos."
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__crm_capture_state
+msgid "CRM capture policy"
+msgstr "Política de captura do CRM"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__crm_capture_changed_at
+msgid "CRM capture policy changed at"
+msgstr "Política de captura do CRM alterada em"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_form
+msgid "Capture is enabled; its start date is unknown."
+msgstr "A captura está ligada; a data de início é desconhecida."
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__general_capture_state
+msgid "Capture policy (conversations, sales, finance)"
+msgstr "Política de captura (conversas, vendas, financeiro)"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__general_capture_changed_at
+msgid "Capture policy changed at"
+msgstr "Política de captura alterada em"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,help:marketing_center_dashboard.field_marketing_center_dashboard_overview__crm_capture_state
+msgid "Capture policy of CRM events, independent of the general policy."
+msgstr ""
+"Política de captura dos eventos do CRM, independente da política geral."
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,help:marketing_center_dashboard.field_marketing_center_dashboard_overview__general_capture_state
+msgid ""
+"Capture policy of marketing business events, not measurement completeness. "
+"Governs conversation, sales and financial facts."
+msgstr ""
+"Política de captura dos eventos de negócio de marketing, não a completude da"
+" medição. Rege os fatos de conversas, vendas e financeiro."
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_form
+msgid ""
+"Capture is verified as enabled only since a date inside this window; earlier"
+" days may be unmeasured."
+msgstr ""
+"A captura só está verificada como ligada desde uma data dentro desta janela; "
+"os dias anteriores podem não ter sido medidos."
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__crm_capture_state__enabled_in_window
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__general_capture_state__enabled_in_window
+msgid "Verified enabled only during this window"
+msgstr "Ligada, verificada só dentro desta janela"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__crm_capture_state__enabled
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__general_capture_state__enabled
+msgid "Enabled since before this window"
+msgstr "Ligada desde antes desta janela"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__crm_capture_state__enabled_unknown_start
+#: model:ir.model.fields.selection,name:marketing_center_dashboard.selection__marketing_center_dashboard_overview__general_capture_state__enabled_unknown_start
+msgid "Enabled, start unknown"
+msgstr "Ligada, início desconhecido"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__crm_last_event_at
+msgid "Last recorded CRM fact"
+msgstr "Último fato de CRM registrado"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__cc_last_event_at
+msgid "Last recorded conversation fact"
+msgstr "Último fato de conversa registrado"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "Last recorded fact:"
+msgstr "Último fato registrado:"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__account_last_event_at
+msgid "Last recorded financial fact"
+msgstr "Último fato financeiro registrado"
+
+#. module: marketing_center_dashboard
+#: model:ir.model.fields,field_description:marketing_center_dashboard.field_marketing_center_dashboard_overview__sale_last_event_at
+msgid "Last recorded sales fact"
+msgstr "Último fato de vendas registrado"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_form
+msgid ""
+"Not measured: capture is disabled. The numbers of this section are hidden "
+"instead of shown as zero."
+msgstr ""
+"Não medido: a captura está desligada. Os números desta seção ficam ocultos "
+"em vez de aparecerem como zero."
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid ""
+"Operational correlation and counts; no value has been credited to a campaign.\n"
+"                                    Facts recorded in the last 30 days (UTC). Enabling capture or installing a module does not guarantee complete coverage of earlier periods; historical facts may be rebuilt when evidence exists."
+msgstr ""
+"Correlação e contagem operacional; nenhum valor foi creditado a uma "
+"campanha. Fatos registrados nos últimos 30 dias (UTC). Ligar a captura ou "
+"instalar um módulo não garante cobertura completa de períodos anteriores; "
+"fatos históricos podem ser reconstruídos quando houver evidência."
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "since"
+msgstr "desde"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "since an unknown date"
+msgstr "desde uma data desconhecida"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "<strong>CRM:</strong> not measured, capture is disabled"
+msgstr "<strong>CRM:</strong> não medido, a captura está desligada"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "<strong>Conversations:</strong> not measured, capture is disabled"
+msgstr "<strong>Conversas:</strong> não medido, a captura está desligada"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "<strong>Financial facts:</strong> not measured, capture is disabled"
+msgstr "<strong>Fatos financeiros:</strong> não medido, a captura está desligada"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "<strong>Sales:</strong> not measured, capture is disabled"
+msgstr "<strong>Vendas:</strong> não medido, a captura está desligada"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "CRM: capture enabled, verified since"
+msgstr "CRM: captura ligada, verificada desde"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "CRM: capture enabled; start date unknown."
+msgstr "CRM: captura ligada; data de início desconhecida."
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "Conversations, sales and financial facts: capture enabled, verified since"
+msgstr "Conversas, vendas e fatos financeiros: captura ligada, verificada desde"
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_kanban
+msgid "Conversations, sales and financial facts: capture enabled; start date unknown."
+msgstr "Conversas, vendas e fatos financeiros: captura ligada; data de início desconhecida."
+
+#. module: marketing_center_dashboard
+#: model_terms:ir.ui.view,arch_db:marketing_center_dashboard.view_marketing_dashboard_overview_form
+msgid "Facts recorded in the last 30 days (UTC). Enabling capture or installing a module does not guarantee complete coverage of earlier periods; historical facts may be rebuilt when evidence exists."
+msgstr "Fatos registrados nos últimos 30 dias (UTC). Ligar a captura ou instalar um módulo não garante cobertura completa de períodos anteriores; fatos históricos podem ser reconstruídos quando houver evidência."

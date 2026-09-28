@@ -95,6 +95,7 @@
             <tree decoration-muted="not active">
                 <field name="company_id" invisible="1" />
                 <field name="name" />
+                <field name="owner_kind" />
                 <field name="external_page_id" />
                 <field name="endpoint_id" />
                 <field name="subscription_state" />
@@ -115,7 +116,7 @@
                         type="object"
                         string="Reconcile subscribed_apps"
                         class="oe_highlight"
-                        attrs="{'invisible': [('active', '=', False)]}"
+                        attrs="{'invisible': ['|', ('active', '=', False), ('owner_kind', '!=', 'page')]}"
                     />
                     <field name="subscription_state" widget="statusbar" />
                 </header>
@@ -124,6 +125,10 @@
                         <group>
                             <field name="name" />
                             <field name="endpoint_id" options="{'no_create': True}" />
+                            <field
+                                name="owner_kind"
+                                attrs="{'readonly': [('id', '!=', False)]}"
+                            />
                             <field name="external_page_id" />
                             <field name="active" />
                         </group>

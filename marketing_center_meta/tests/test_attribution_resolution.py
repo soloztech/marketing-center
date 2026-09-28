@@ -1,10 +1,14 @@
 import datetime
 import uuid
+from unittest.mock import patch
 
-from odoo import Command
+from odoo import Command, fields
 from odoo.exceptions import AccessError
 from odoo.tests.common import SavepointCase
 
+from odoo.addons.marketing_center_base.models.attribution_resolution import (
+    ASSET_RESOLUTION_WRITE_TOKEN,
+)
 from odoo.addons.marketing_center_base.services.catalog_dto import ExternalEntityDTO
 from odoo.addons.marketing_center_base.services.dto import MarketingTouchpointDTO
 
@@ -120,8 +124,10 @@ class TestMarketingAttributionAssetResolution(SavepointCase):
             "meta.adset_id": self._entity(source, "group", "adsets", "20"),
             "meta.ad_id": self._entity(source, "ad", "ads", "30"),
             "meta.creative_id": self._entity(source, "creative", "creatives", "40"),
-            "meta.form_id": self._entity(source, "form", "forms", "50"),
         }
+        # Even a manually catalogued form is not looked up: no Meta sync
+        # produces forms, so the reference is parked as unsupported.
+        self._entity(source, "form", "forms", "50")
         result = self._touchpoint(
             {
                 "meta.ad_account_id": "123",
@@ -135,7 +141,12 @@ class TestMarketingAttributionAssetResolution(SavepointCase):
 
         resolutions = self._resolutions(result)
         self.assertEqual(len(resolutions), 6)
-        self.assertEqual(set(resolutions.mapped("state")), {"resolved"})
+        form = resolutions.filtered(lambda item: item.asset_namespace == "meta.form_id")
+        self.assertEqual(
+            (form.state, form.reason, form.mapped_entity_type, form.entity_id.id),
+            ("unsupported", "catalog_entity_type_not_synchronized", "form", False),
+        )
+        self.assertEqual(set((resolutions - form).mapped("state")), {"resolved"})
         account = resolutions.filtered(
             lambda item: item.asset_namespace == "meta.ad_account_id"
         )
@@ -387,3 +398,219 @@ class TestMarketingAttributionAssetResolution(SavepointCase):
         hidden = self._resolutions(hidden_result).filtered("entity_id")
         with self.assertRaises(AccessError):
             hidden.with_user(viewer).check_access_rule("read")
+
+    def _by_namespace(self, result):
+        return {item.asset_namespace: item for item in self._resolutions(result)}
+
+    def test_uncatalogued_form_references_are_unsupported_without_retry(self):
+        source = self._source("551")
+        campaign = self._entity(source, "campaign", "campaigns", "10")
+        ad = self._entity(source, "ad", "ads", "30")
+        result = self._touchpoint(
+            {
+                "meta.ad_account_ref": "act_551",
+                "meta.campaign_id": "10",
+                "meta.ad_id": "30",
+                "meta.form_id": "50",
+                "Meta.Leadgen_Form_ID": "51",
+                "meta.source_id": "act_551/forms/52",
+            }
+        )
+        rows = self._by_namespace(result)
+        for namespace in ("meta.form_id", "Meta.Leadgen_Form_ID", "meta.source_id"):
+            with self.subTest(namespace=namespace):
+                row = rows[namespace]
+                self.assertEqual(row.state, "unsupported")
+                self.assertEqual(row.reason, "catalog_entity_type_not_synchronized")
+                self.assertEqual(row.mapped_entity_type, "form")
+                self.assertEqual(row.provider_key, "meta")
+                self.assertFalse(row.entity_id)
+        self.assertEqual(rows["meta.campaign_id"].entity_id, campaign)
+        self.assertEqual(rows["meta.ad_id"].entity_id, ad)
+        self.assertEqual(rows["meta.ad_account_ref"].state, "resolved")
+        # Unsupported rows never qualify for the periodic retry.
+        self.assertNotIn(
+            (self.company.id, result.canonical_key),
+            self.resolver._retry_projection_keys(1000, 0),
+        )
+
+    def test_cron_stops_reprojecting_lead_ads_forms_after_one_pass(self):
+        source = self._source("561")
+        self._entity(source, "campaign", "campaigns", "10")
+        self._entity(source, "ad", "ads", "30")
+        results = [
+            self._touchpoint(
+                {
+                    "meta.ad_account_ref": "act_561",
+                    "meta.campaign_id": "10",
+                    "meta.ad_id": "30",
+                    "meta.form_id": str(900 + index),
+                }
+            )
+            for index in range(50)
+        ]
+        keys = {result.canonical_key for result in results}
+        forms = (
+            self.env["marketing.attribution.asset.resolution"]
+            .sudo()
+            .search(
+                [
+                    ("canonical_key", "in", list(keys)),
+                    ("asset_namespace", "=", "meta.form_id"),
+                ]
+            )
+        )
+        self.assertEqual(len(forms), 50)
+
+        def park_as_before_this_release():
+            # Rows written by the previous resolver stayed unresolved forever.
+            forms.with_context(
+                marketing_asset_resolution_write_token=ASSET_RESOLUTION_WRITE_TOKEN
+            ).write(
+                {
+                    "state": "unresolved",
+                    "reason": "entity_not_in_catalog",
+                    "last_attempted_at": datetime.datetime(2026, 9, 1),
+                }
+            )
+            forms.flush_recordset()
+
+        clock = [datetime.datetime(2026, 9, 2)]
+
+        def run_cron(times):
+            hook = type(self.env["marketing.native.utm.service"])
+            per_run = []
+            with patch.object(
+                hook, "_after_native_utm_change", autospec=True, return_value=True
+            ) as wake:
+                for _index in range(times):
+                    # Each production cron run is a new transaction; the
+                    # cron's SQL selectors read only flushed rows.
+                    self.env.flush_all()
+                    before = wake.call_count
+                    # Real runs are minutes apart. Two runs within the same
+                    # second would leave last_attempted_at unchanged and skip
+                    # the wake-up, making the old rhythm timing-dependent.
+                    clock[0] += datetime.timedelta(minutes=1)
+                    with patch.object(fields.Datetime, "now", return_value=clock[0]):
+                        self.resolver._cron_backfill(limit=200, retry_after_minutes=0)
+                    per_run.append(
+                        len(
+                            {
+                                point_id
+                                for call in wake.call_args_list[before:]
+                                for point_id in call.kwargs.get("touchpoint_ids") or []
+                            }
+                        )
+                    )
+            return per_run
+
+        park_as_before_this_release()
+        with patch.object(
+            type(self.resolver), "_meta_uncatalogued_entity_type", return_value=""
+        ):
+            old_rhythm = run_cron(3)
+        self.assertEqual(old_rhythm, [50, 50, 50])
+        attempts = sum(forms.mapped("attempt_count"))
+
+        park_as_before_this_release()
+        new_rhythm = run_cron(12)
+        self.assertEqual(new_rhythm, [50] + [0] * 11)
+        self.assertEqual(set(forms.mapped("state")), {"unsupported"})
+        self.assertEqual(sum(forms.mapped("attempt_count")), attempts + 50)
+
+    def test_reactivation_selects_parked_forms_by_type_not_namespace(self):
+        source = self._source("571")
+        first = self._touchpoint(
+            {"meta.ad_account_ref": "act_571", "Meta.Form_ID": "61"}
+        )
+        second = self._touchpoint(
+            {
+                "meta.ad_account_ref": "act_571",
+                "meta.source_id": "act_571/forms/62",
+                "meta.leadgen_form_id": "63",
+            }
+        )
+        other = self._touchpoint({"meta.ad_account_ref": "act_571", "meta.ad_id": "99"})
+        expected = [
+            (self.company.id, first.canonical_key),
+            (self.company.id, second.canonical_key),
+        ]
+        dry_run = self.resolver._reactivate_uncatalogued_forms(self.company)
+        self.assertEqual(sorted(dry_run), sorted(expected))
+        self.assertEqual(
+            self.resolver._reactivate_uncatalogued_forms(self.company, limit=1),
+            [dry_run[0]],
+        )
+        self.assertEqual(self._by_namespace(first)["Meta.Form_ID"].state, "unsupported")
+        # Still uncatalogued: re-projection parks them again, idempotently.
+        self.assertEqual(
+            self.resolver._reactivate_uncatalogued_forms(self.company, dry_run=False),
+            2,
+        )
+        self.assertEqual(
+            self._by_namespace(second)["meta.source_id"].state, "unsupported"
+        )
+        with patch(
+            "odoo.addons.marketing_center_meta.services.catalog."
+            "META_CATALOG_ENTITY_TYPES",
+            ("campaign", "group", "ad", "creative", "form"),
+        ):
+            self.assertEqual(
+                self.resolver._reactivate_uncatalogued_forms(
+                    self.company, dry_run=False
+                ),
+                2,
+            )
+        for result, namespace in (
+            (first, "Meta.Form_ID"),
+            (second, "meta.source_id"),
+            (second, "meta.leadgen_form_id"),
+        ):
+            with self.subTest(namespace=namespace):
+                row = self._by_namespace(result)[namespace]
+                self.assertEqual(
+                    (row.state, row.reason), ("unresolved", "entity_not_in_catalog")
+                )
+                self.assertEqual(row.source_id, source)
+        self.assertFalse(self.resolver._reactivate_uncatalogued_forms(self.company))
+        self.assertEqual(self._by_namespace(other)["meta.ad_id"].state, "unresolved")
+
+    def test_rollback_procedure_uses_only_the_base_resolver_api(self):
+        self._source("581")
+        result = self._touchpoint(
+            {"meta.ad_account_ref": "act_581", "meta.form_id": "71"}
+        )
+        self.assertEqual(
+            self._by_namespace(result)["meta.form_id"].state, "unsupported"
+        )
+        # Documented rollback snippet, run against the previous resolver rule.
+        with patch.object(
+            type(self.resolver), "_meta_uncatalogued_entity_type", return_value=""
+        ):
+            rows = (
+                self.env["marketing.attribution.asset.resolution"]
+                .sudo()
+                .search(
+                    [
+                        ("company_id", "=", self.company.id),
+                        ("provider_key", "=", "meta"),
+                        ("service_key", "=", "meta.ads"),
+                        ("mapped_entity_type", "=", "form"),
+                        ("state", "=", "unsupported"),
+                        ("reason", "=", "catalog_entity_type_not_synchronized"),
+                    ],
+                    order="id",
+                )
+            )
+            keys = list(
+                dict.fromkeys((row.company_id.id, row.canonical_key) for row in rows)
+            )[:200]
+            self.assertIn((self.company.id, result.canonical_key), keys)
+            self.env[
+                "marketing.attribution.asset.resolution.service"
+            ].sudo()._resolve_keys_safely(keys)
+        row = self._by_namespace(result)["meta.form_id"]
+        self.assertEqual(
+            (row.state, row.reason), ("unresolved", "entity_not_in_catalog")
+        )

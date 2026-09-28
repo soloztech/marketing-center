@@ -97,6 +97,20 @@ class TestMarketingCoreIngestionConcurrency(TransactionCase):
                 [fixture["source_id"]],
             )
             entity_ids = [row[0] for row in cr.fetchall()]
+            cr.execute("SELECT to_regclass('queue_job') IS NOT NULL")
+            has_queue_job = cr.fetchone()[0]
+            if entity_ids and has_queue_job:
+                # A committed catalog revision schedules native UTM
+                # reconciliation when a CRM bridge (and queue_job) is installed.
+                cr.execute(
+                    "DELETE FROM queue_job "
+                    "WHERE method_name = '_job_reconcile_native_utm' "
+                    "AND identity_key LIKE 'marketing_native_utm:scope:%%' "
+                    "AND EXISTS (SELECT 1 FROM jsonb_array_elements_text("
+                    "(args::jsonb -> 0 -> 'entity_ids')) AS scoped(id) "
+                    "WHERE scoped.id::integer = ANY(%s))",
+                    [entity_ids],
+                )
             if entity_ids:
                 cr.execute(
                     "DELETE FROM marketing_attribution_asset_resolution "

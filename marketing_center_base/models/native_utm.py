@@ -6,6 +6,7 @@ records, not an alternative catalog, and their display names are never keys.
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 
+from ..services.catalog_dto import CatalogDTOValidationError, ExternalEntityDTO
 from ..services.serialization import acquire_advisory_xact_lock
 from ..services.tokens import MARKETING_CATALOG_WRITE_TOKEN
 from .attribution_resolution import ASSET_RESOLUTION_WRITE_TOKEN
@@ -67,8 +68,17 @@ class MarketingCenterSourceNativeUtm(models.Model):
                     )
                 )
 
+    def _native_utm_eligible(self):
+        self.ensure_one()
+        return bool(self.active and self.state == "active")
+
     def write(self, values):
         changed = bool(_SOURCE_FIELDS.intersection(values))
+        eligible_before = (
+            {source.id: source._native_utm_eligible() for source in self}
+            if {"active", "state"}.intersection(values)
+            else {}
+        )
         if changed:
             # Same row lock as automatic classification: disabling a source or
             # changing its tuple must serialize with an in-flight writer.
@@ -76,9 +86,18 @@ class MarketingCenterSourceNativeUtm(models.Model):
             self.check_access_rule("write")
             self._lock_identity_scope()
         result = super().write(values)
-        if changed:
+        woken = self if changed else self.browse()
+        # Eligibility changes in either direction alter which candidates the
+        # CRM classifier considers (a resumed source reclassifies its leads;
+        # pausing one of two conflicting sources can settle the conflict).
+        # Transitions that keep the source ineligible schedule nothing.
+        woken |= self.filtered(
+            lambda source: source.id in eligible_before
+            and eligible_before[source.id] != source._native_utm_eligible()
+        )
+        if woken:
             self.env["marketing.native.utm.service"]._after_native_utm_change(
-                source_ids=self.ids
+                source_ids=woken.ids
             )
         return result
 
@@ -362,12 +381,8 @@ class MarketingNativeUtmService(models.AbstractModel):
             entity.current_revision_id and entity.current_revision_id.is_tombstone
         ):
             return self._result("missing", "remote_campaign_missing", **values)
-        if (entity.remote_status or "").strip().lower() in {
-            "removed",
-            "deleted",
-            "archived",
-        }:
-            return self._result("missing", "remote_campaign_inactive", **values)
+        # A campaign archived, removed or deleted in the ad platform still
+        # originated its leads: its status never invalidates the attribution.
         if not source.native_utm_source_id or not source.native_utm_medium_id:
             return self._result("missing", "native_source_or_medium_missing", **values)
         campaign = entity.native_utm_campaign_id.with_context(
@@ -407,6 +422,60 @@ class MarketingNativeUtmService(models.AbstractModel):
         )
         values.update(campaign_id=campaign.id, created=True)
         return self._result("ready", "native_campaign_created", **values)
+
+
+class MarketingCatalogNativeUtmReconcile(models.AbstractModel):
+    _inherit = "marketing.center.catalog.service"
+
+    @api.model
+    def _upsert_entity(self, company, source, payload, sync_run=None):
+        previous_parent = self._native_utm_previous_parent(source, payload)
+        result = super()._upsert_entity(company, source, payload, sync_run=sync_run)
+        entity = (
+            self.env["marketing.center.external.entity"].sudo().browse(result.entity_id)
+        )
+        # Only a real catalog change can alter a classification; a repeated
+        # observation without a new parent must not schedule reconciliation.
+        if result.disposition in {"updated", "tombstone"} or (
+            result.disposition == "duplicate"
+            and previous_parent is not None
+            and entity.parent_id != previous_parent
+        ):
+            self.env["marketing.native.utm.service"]._after_native_utm_change(
+                entity_ids=entity.ids
+            )
+        return result
+
+    @api.model
+    def _native_utm_previous_parent(self, source, payload):
+        """Parent of the catalogued entity before this upsert, or None if new."""
+
+        try:
+            dto = (
+                payload
+                if isinstance(payload, ExternalEntityDTO)
+                else ExternalEntityDTO.from_dict(payload)
+            )
+        except CatalogDTOValidationError:
+            return None  # The upsert itself reports the invalid payload.
+        if (
+            getattr(source, "_name", "") != "marketing.center.source"
+            or len(source) != 1
+        ):
+            return None
+        entity = (
+            self.env["marketing.center.external.entity"]
+            .sudo()
+            .search(
+                [
+                    ("source_id", "=", source.id),
+                    ("entity_type", "=", dto.entity_type),
+                    ("external_ref", "=", dto.external_ref),
+                ],
+                limit=1,
+            )
+        )
+        return entity.parent_id if entity else None
 
 
 class MarketingAssetResolutionNativeUtm(models.AbstractModel):

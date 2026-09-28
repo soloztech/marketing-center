@@ -22,3 +22,4 @@ from . import attribution_resolution  # isort: skip  # noqa: E402
 from . import attribution_resolution_service  # isort: skip  # noqa: E402
 
 from . import native_utm  # isort: skip  # noqa: E402
+from . import campaign_board  # isort: skip  # noqa: E402

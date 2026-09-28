@@ -49,7 +49,11 @@ class MarketingCenterMetaLeadDiscovery(models.TransientModel):
         default=lambda self: self.env.company,
     )
     webhook_page_id = fields.Many2one(
-        "meta.webhook.page", string="Página Meta", required=True, check_company=True
+        "meta.webhook.page",
+        string="Página Meta",
+        required=True,
+        check_company=True,
+        domain="[('owner_kind', '=', 'page')]",
     )
     lead_profile_id = fields.Many2one(
         "marketing.center.meta.profile",
@@ -109,6 +113,7 @@ class MarketingCenterMetaLeadDiscovery(models.TransientModel):
             ("company_id", "=", company_id),
             ("active", "=", True),
             ("webhook_page_id.active", "=", True),
+            ("webhook_page_id.owner_kind", "=", "page"),
             ("webhook_page_id.endpoint_id.active", "=", True),
             ("webhook_page_id.app_id.active", "=", True),
             ("lead_profile_id.active", "=", True),
@@ -221,6 +226,7 @@ class MarketingCenterMetaLeadDiscovery(models.TransientModel):
                 not page
                 or not profile
                 or not source
+                or page.owner_kind != "page"
                 or page.company_id != wizard.company_id
                 or page.endpoint_id.company_id != wizard.company_id
                 or page.app_id.company_id != wizard.company_id

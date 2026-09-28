@@ -43,6 +43,14 @@
                 <field name="has_crm" />
                 <field name="has_sale" />
                 <field name="has_account" />
+                <field name="general_capture_state" />
+                <field name="general_capture_changed_at" />
+                <field name="crm_capture_state" />
+                <field name="crm_capture_changed_at" />
+                <field name="cc_last_event_at" />
+                <field name="crm_last_event_at" />
+                <field name="sale_last_event_at" />
+                <field name="account_last_event_at" />
                 <field name="conversation_started_count" />
                 <field name="conversation_first_response_count" />
                 <field name="response_episode_started_count" />
@@ -123,7 +131,18 @@
                                 </div>
                                 <div
                                     class="mt-3"
-                                    t-if="record.has_contact_center.raw_value"
+                                    t-if="record.has_contact_center.raw_value and record.general_capture_state.raw_value === 'disabled'"
+                                >
+                                    <div class="text-muted small">
+                                        <strong>Conversations:</strong> not measured, capture is disabled
+                                        <t t-if="record.general_capture_changed_at.raw_value">since <field name="general_capture_changed_at" /></t>
+                                        <t t-else="">since an unknown date</t>.
+                                        <t t-if="record.cc_last_event_at.raw_value">Last recorded fact: <field name="cc_last_event_at" />.</t>
+                                    </div>
+                                </div>
+                                <div
+                                    class="mt-3"
+                                    t-if="record.has_contact_center.raw_value and record.general_capture_state.raw_value !== 'disabled'"
                                 >
                                     <strong><field
                                             name="conversation_started_count"
@@ -141,7 +160,7 @@
                                 </div>
                                 <div
                                     class="mt-1"
-                                    t-if="record.has_contact_center.raw_value"
+                                    t-if="record.has_contact_center.raw_value and record.general_capture_state.raw_value !== 'disabled'"
                                 >
                                     <strong><field
                                             name="response_episode_started_count"
@@ -153,7 +172,21 @@
                                         /></strong>
                                     <span class="text-muted"> answered episodes</span>
                                 </div>
-                                <div class="mt-1" t-if="record.has_crm.raw_value">
+                                <div
+                                    class="mt-1"
+                                    t-if="record.has_crm.raw_value and record.crm_capture_state.raw_value === 'disabled'"
+                                >
+                                    <div class="text-muted small">
+                                        <strong>CRM:</strong> not measured, capture is disabled
+                                        <t t-if="record.crm_capture_changed_at.raw_value">since <field name="crm_capture_changed_at" /></t>
+                                        <t t-else="">since an unknown date</t>.
+                                        <t t-if="record.crm_last_event_at.raw_value">Last recorded fact: <field name="crm_last_event_at" />.</t>
+                                    </div>
+                                </div>
+                                <div
+                                    class="mt-1"
+                                    t-if="record.has_crm.raw_value and record.crm_capture_state.raw_value !== 'disabled'"
+                                >
                                     <strong><field name="lead_created_count" /></strong>
                                     <span class="text-muted"> leads</span>
                                     <span class="mx-1">·</span>
@@ -164,8 +197,30 @@
                                     <span class="mx-1">·</span>
                                     <strong><field name="won_count" /></strong>
                                     <span class="text-muted"> won transitions</span>
+                                    <div
+                                        class="text-muted small"
+                                        t-if="record.crm_capture_state.raw_value === 'enabled_in_window'"
+                                    >CRM: capture enabled, verified since <field name="crm_capture_changed_at" />; earlier days in this window may be unmeasured.</div>
+                                    <div
+                                        class="text-muted small"
+                                        t-if="record.crm_capture_state.raw_value === 'enabled_unknown_start'"
+                                    >CRM: capture enabled; start date unknown.</div>
                                 </div>
-                                <div class="mt-1" t-if="record.has_sale.raw_value">
+                                <div
+                                    class="mt-1"
+                                    t-if="record.has_sale.raw_value and record.general_capture_state.raw_value === 'disabled'"
+                                >
+                                    <div class="text-muted small">
+                                        <strong>Sales:</strong> not measured, capture is disabled
+                                        <t t-if="record.general_capture_changed_at.raw_value">since <field name="general_capture_changed_at" /></t>
+                                        <t t-else="">since an unknown date</t>.
+                                        <t t-if="record.sale_last_event_at.raw_value">Last recorded fact: <field name="sale_last_event_at" />.</t>
+                                    </div>
+                                </div>
+                                <div
+                                    class="mt-1"
+                                    t-if="record.has_sale.raw_value and record.general_capture_state.raw_value !== 'disabled'"
+                                >
                                     <strong><field
                                             name="proposal_sent_count"
                                         /></strong>
@@ -181,7 +236,21 @@
                                         /></strong>
                                     <span class="text-muted"> cancelled</span>
                                 </div>
-                                <div class="mt-1" t-if="record.has_account.raw_value">
+                                <div
+                                    class="mt-1"
+                                    t-if="record.has_account.raw_value and record.general_capture_state.raw_value === 'disabled'"
+                                >
+                                    <div class="text-muted small">
+                                        <strong>Financial facts:</strong> not measured, capture is disabled
+                                        <t t-if="record.general_capture_changed_at.raw_value">since <field name="general_capture_changed_at" /></t>
+                                        <t t-else="">since an unknown date</t>.
+                                        <t t-if="record.account_last_event_at.raw_value">Last recorded fact: <field name="account_last_event_at" />.</t>
+                                    </div>
+                                </div>
+                                <div
+                                    class="mt-1"
+                                    t-if="record.has_account.raw_value and record.general_capture_state.raw_value !== 'disabled'"
+                                >
                                     <strong><field
                                             name="invoice_posted_count"
                                         /></strong>
@@ -201,8 +270,17 @@
                                         /></strong>
                                     <span class="text-muted"> payment allocations</span>
                                 </div>
+                                <div
+                                    class="mt-1 text-muted small"
+                                    t-if="(record.has_contact_center.raw_value or record.has_sale.raw_value or record.has_account.raw_value) and record.general_capture_state.raw_value === 'enabled_in_window'"
+                                >Conversations, sales and financial facts: capture enabled, verified since <field name="general_capture_changed_at" />; earlier days in this window may be unmeasured.</div>
+                                <div
+                                    class="mt-1 text-muted small"
+                                    t-if="(record.has_contact_center.raw_value or record.has_sale.raw_value or record.has_account.raw_value) and record.general_capture_state.raw_value === 'enabled_unknown_start'"
+                                >Conversations, sales and financial facts: capture enabled; start date unknown.</div>
                                 <div class="mt-3 small text-muted">
                                     Operational correlation and counts; no value has been credited to a campaign.
+                                    Facts recorded in the last 30 days (UTC). Enabling capture or installing a module does not guarantee complete coverage of earlier periods; historical facts may be rebuilt when evidence exists.
                                 </div>
                                 <button
                                     name="action_open_business_events"
@@ -400,6 +478,8 @@
                     <field name="has_crm" invisible="1" />
                     <field name="has_sale" invisible="1" />
                     <field name="has_account" invisible="1" />
+                    <field name="general_capture_state" invisible="1" />
+                    <field name="crm_capture_state" invisible="1" />
                     <div class="oe_title">
                         <label for="display_name" />
                         <h1><field name="display_name" /></h1>
@@ -409,6 +489,11 @@
                         role="status"
                         attrs="{'invisible': [('row_kind', '!=', 'summary')]}"
                     >Odoo facts and correlations are shown without causal credit to a source, campaign or ad.</div>
+                    <div
+                        class="alert alert-info"
+                        role="status"
+                        attrs="{'invisible': [('row_kind', '!=', 'summary')]}"
+                    >Facts recorded in the last 30 days (UTC). Enabling capture or installing a module does not guarantee complete coverage of earlier periods; historical facts may be rebuilt when evidence exists.</div>
                     <div
                         class="alert alert-warning"
                         role="status"
@@ -496,7 +581,29 @@
                             string="Customer service"
                             attrs="{'invisible': ['|', ('row_kind', '!=', 'summary'), ('has_contact_center', '=', False)]}"
                         >
+                            <div
+                                class="alert alert-warning"
+                                role="status"
+                                attrs="{'invisible': [('general_capture_state', '!=', 'disabled')]}"
+                            >Not measured: capture is disabled. The numbers of this section are hidden instead of shown as zero.</div>
+                            <div
+                                class="alert alert-info"
+                                role="status"
+                                attrs="{'invisible': [('general_capture_state', '!=', 'enabled_in_window')]}"
+                            >Capture is verified as enabled only since a date inside this window; earlier days may be unmeasured.</div>
+                            <div
+                                class="alert alert-info"
+                                role="status"
+                                attrs="{'invisible': [('general_capture_state', '!=', 'enabled_unknown_start')]}"
+                            >Capture is enabled; its start date is unknown.</div>
                             <group>
+                                <field name="general_capture_state" />
+                                <field name="general_capture_changed_at" />
+                                <field name="cc_last_event_at" />
+                            </group>
+                            <group
+                                attrs="{'invisible': [('general_capture_state', '=', 'disabled')]}"
+                            >
                                 <field name="conversation_started_count" />
                                 <field name="conversation_first_response_count" />
                                 <field name="response_episode_started_count" />
@@ -507,7 +614,29 @@
                             string="CRM"
                             attrs="{'invisible': ['|', ('row_kind', '!=', 'summary'), ('has_crm', '=', False)]}"
                         >
+                            <div
+                                class="alert alert-warning"
+                                role="status"
+                                attrs="{'invisible': [('crm_capture_state', '!=', 'disabled')]}"
+                            >Not measured: capture is disabled. The numbers of this section are hidden instead of shown as zero.</div>
+                            <div
+                                class="alert alert-info"
+                                role="status"
+                                attrs="{'invisible': [('crm_capture_state', '!=', 'enabled_in_window')]}"
+                            >Capture is verified as enabled only since a date inside this window; earlier days may be unmeasured.</div>
+                            <div
+                                class="alert alert-info"
+                                role="status"
+                                attrs="{'invisible': [('crm_capture_state', '!=', 'enabled_unknown_start')]}"
+                            >Capture is enabled; its start date is unknown.</div>
                             <group>
+                                <field name="crm_capture_state" />
+                                <field name="crm_capture_changed_at" />
+                                <field name="crm_last_event_at" />
+                            </group>
+                            <group
+                                attrs="{'invisible': [('crm_capture_state', '=', 'disabled')]}"
+                            >
                                 <field name="lead_created_count" />
                                 <field name="qualified_count" />
                                 <field name="won_count" />
@@ -518,7 +647,29 @@
                             string="Sales"
                             attrs="{'invisible': ['|', ('row_kind', '!=', 'summary'), ('has_sale', '=', False)]}"
                         >
+                            <div
+                                class="alert alert-warning"
+                                role="status"
+                                attrs="{'invisible': [('general_capture_state', '!=', 'disabled')]}"
+                            >Not measured: capture is disabled. The numbers of this section are hidden instead of shown as zero.</div>
+                            <div
+                                class="alert alert-info"
+                                role="status"
+                                attrs="{'invisible': [('general_capture_state', '!=', 'enabled_in_window')]}"
+                            >Capture is verified as enabled only since a date inside this window; earlier days may be unmeasured.</div>
+                            <div
+                                class="alert alert-info"
+                                role="status"
+                                attrs="{'invisible': [('general_capture_state', '!=', 'enabled_unknown_start')]}"
+                            >Capture is enabled; its start date is unknown.</div>
                             <group>
+                                <field name="general_capture_state" />
+                                <field name="general_capture_changed_at" />
+                                <field name="sale_last_event_at" />
+                            </group>
+                            <group
+                                attrs="{'invisible': [('general_capture_state', '=', 'disabled')]}"
+                            >
                                 <field name="proposal_sent_count" />
                                 <field name="order_confirmed_count" />
                                 <field name="order_cancelled_count" />
@@ -528,10 +679,32 @@
                             string="Financial facts"
                             attrs="{'invisible': ['|', ('row_kind', '!=', 'summary'), ('has_account', '=', False)]}"
                         >
+                            <div
+                                class="alert alert-warning"
+                                role="status"
+                                attrs="{'invisible': [('general_capture_state', '!=', 'disabled')]}"
+                            >Not measured: capture is disabled. The numbers of this section are hidden instead of shown as zero.</div>
+                            <div
+                                class="alert alert-info"
+                                role="status"
+                                attrs="{'invisible': [('general_capture_state', '!=', 'enabled_in_window')]}"
+                            >Capture is verified as enabled only since a date inside this window; earlier days may be unmeasured.</div>
+                            <div
+                                class="alert alert-info"
+                                role="status"
+                                attrs="{'invisible': [('general_capture_state', '!=', 'enabled_unknown_start')]}"
+                            >Capture is enabled; its start date is unknown.</div>
+                            <group>
+                                <field name="general_capture_state" />
+                                <field name="general_capture_changed_at" />
+                                <field name="account_last_event_at" />
+                            </group>
                             <div class="alert alert-info" role="status">
                                 Historical posting and allocation occurrences, including repostings. They represent neither currently posted documents nor net revenue. Values with different currencies or bases are not added together.
                             </div>
-                            <group>
+                            <group
+                                attrs="{'invisible': [('general_capture_state', '=', 'disabled')]}"
+                            >
                                 <field name="invoice_posted_count" />
                                 <field name="credit_note_posted_count" />
                                 <field name="payment_allocated_count" />

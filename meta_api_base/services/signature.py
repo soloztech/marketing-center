@@ -3,7 +3,8 @@ import hmac
 import re
 
 META_GRAPH_BASELINE_VERSION = "v26.0"
-MAX_WEBHOOK_BODY_BYTES = 2 * 1024 * 1024
+# WhatsApp Cloud API batches up to 1,000 updates in at most 3 MB.
+MAX_WEBHOOK_BODY_BYTES = 3 * 1024 * 1024
 
 _SIGNATURE_PATTERN = re.compile(r"^sha256=([0-9a-fA-F]{64})$")
 _GRAPH_VERSION_PATTERN = re.compile(r"^v[1-9][0-9]{0,2}\.0$")

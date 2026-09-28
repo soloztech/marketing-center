@@ -60,7 +60,8 @@ class WebsiteWhatsappMatch(models.Model):
         [("reference", "Vinculado pela referência"),
          ("suggested", "Associação sugerida"),
          ("confirmed", "Confirmado pela equipe"),
-         ("rejected", "Descartado / desfeito")],
+         ("rejected", "Descartado / desfeito"),
+         ("superseded", "Superada por outro vínculo")],
         required=True, readonly=True, index=True,
     )
     delta_seconds = fields.Integer(string="Intervalo (segundos)", readonly=True)
@@ -152,6 +153,8 @@ class WebsiteWhatsappMatch(models.Model):
         self._authorized_review()
         if self.state in CLAIMED_STATES:
             return True
+        # Version the click before reading competitors (stale-snapshot fence).
+        service._fence_handoffs(self.handoff_id)
         if self.state != "suggested":
             raise ValidationError(_("Apenas sugestões pendentes podem ser confirmadas."))
         competitors = self._service().search([
@@ -173,7 +176,25 @@ class WebsiteWhatsappMatch(models.Model):
                     "Concurrent WhatsApp confirmation requires a fresh snapshot"
                 ) from error
             raise
+        self._supersede_competitors()
         return True
+
+    def _supersede_competitors(self):
+        """Close pending suggestions of the same click or message as this claim."""
+        self.ensure_one()
+        if self.state not in CLAIMED_STATES:
+            return self.browse()
+        competitors = self._service().search([
+            ("id", "!=", self.id), ("state", "=", "suggested"),
+            "|", ("handoff_id", "=", self.handoff_id.id),
+            ("message_binding_id", "=", self.message_binding_id.id),
+        ])
+        if competitors:
+            competitors._service().write({
+                "state": "superseded", "reviewer_id": False,
+                "reviewed_at": fields.Datetime.now(),
+            })
+        return competitors
 
     def action_reject(self):
         self._authorized_review()
@@ -204,6 +225,24 @@ class WebsiteWhatsappCorrelation(models.AbstractModel):
         acquire_advisory_xact_lock(
             self.env.cr, "marketing_website_whatsapp:account:%s" % account.id,
         )
+
+    @api.model
+    def _fence_handoffs(self, handoffs):
+        """Version clicks before acting on their associations.
+
+        The account lock serializes writers but does not renew an older
+        REPEATABLE READ snapshot. Every association writer updates the click
+        rows it relies on, so a transaction whose snapshot predates another
+        committed claim or suggestion fails with a serialization error and is
+        retried instead of acting on associations it cannot see.
+        """
+        if handoffs:
+            self.env.cr.execute(
+                "UPDATE marketing_website_whatsapp_handoff SET write_date = now() "
+                "WHERE id IN %s",
+                [tuple(sorted(handoffs.ids))],
+            )
+            handoffs.invalidate_recordset(["write_date"])
 
     @api.model
     def _eligible(self, message):
@@ -241,6 +280,8 @@ class WebsiteWhatsappCorrelation(models.AbstractModel):
             ("message_binding_id", "=", message.id),
         ], limit=1)
         if existing:
+            if state == "reference":
+                existing._supersede_competitors()
             return existing
         delta = int((message.message_id.date - handoff.clicked_at).total_seconds())
         reason = (
@@ -253,7 +294,7 @@ class WebsiteWhatsappCorrelation(models.AbstractModel):
             reason += _(" Há pelo menos %s candidatos; exibindo somente os %s mais próximos.") % (count, CANDIDATE_LIMIT)
         try:
             with self.env.cr.savepoint():
-                return matches.create({
+                association = matches.create({
                     "handoff_id": handoff.id, "message_binding_id": message.id,
                     "state": state, "delta_seconds": delta, "score": score,
                     "candidate_count": count, "reason": reason,
@@ -265,6 +306,10 @@ class WebsiteWhatsappCorrelation(models.AbstractModel):
                     "Concurrent WhatsApp association requires a fresh snapshot"
                 ) from error
             raise
+        if state == "reference":
+            # The exact reference outranks every proximity guess for this click.
+            association._supersede_competitors()
+        return association
 
     @api.model
     def _analyze_inbound(self, message):
@@ -301,6 +346,7 @@ class WebsiteWhatsappCorrelation(models.AbstractModel):
             ], limit=1)
             if not handoff:
                 return empty
+            self._fence_handoffs(handoff)
             claimed = matches.search([
                 ("handoff_id", "=", handoff.id), ("state", "in", CLAIMED_STATES),
             ], limit=1)
@@ -324,6 +370,9 @@ class WebsiteWhatsappCorrelation(models.AbstractModel):
             ("match_ids", "not in", claimed_query),
         ], order="clicked_at desc, id desc", limit=CANDIDATE_LIMIT + 1)
         truncated = len(candidates) > CANDIDATE_LIMIT
+        # A candidate claimed by a transaction committed after this snapshot
+        # makes the fence fail, so no suggestion is based on a stale claim view.
+        self._fence_handoffs(candidates[:CANDIDATE_LIMIT])
         result = empty
         for handoff in candidates[:CANDIDATE_LIMIT]:
             delta = max(0, (when - handoff.clicked_at).total_seconds())

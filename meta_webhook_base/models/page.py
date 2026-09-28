@@ -17,6 +17,17 @@ from odoo.addons.meta_api_base.services.credentials import (
 from ..services.tokens import META_WEBHOOK_INTERNAL_TOKEN, META_WEBHOOK_RUNTIME_TOKEN
 
 _PAGE_ID_RE = re.compile(r"^[0-9]{1,40}$")
+PAGE_OWNER = "page"
+WHATSAPP_OWNER = "whatsapp_business_account"
+# Owner kind -> the routing asset created with the owner.
+_OWNER_ASSETS = {
+    PAGE_OWNER: {"platform": "facebook", "object_type": "page", "transport": "page"},
+    WHATSAPP_OWNER: {
+        "platform": "whatsapp",
+        "object_type": "whatsapp_business_account",
+        "transport": "whatsapp_cloud",
+    },
+}
 
 
 def _uuid(_recordset):
@@ -31,6 +42,19 @@ class MetaWebhookPage(models.Model):
 
     name = fields.Char(required=True, index=True)
     active = fields.Boolean(default=True, index=True)
+    owner_kind = fields.Selection(
+        [
+            (PAGE_OWNER, "Facebook Page"),
+            (WHATSAPP_OWNER, "WhatsApp Business Account"),
+        ],
+        required=True,
+        default=PAGE_OWNER,
+        index=True,
+        help=(
+            "A WhatsApp Business Account owner keeps the account ID and a system "
+            "user token reference; its webhook fields are configured on activation."
+        ),
+    )
     public_ref = fields.Char(
         required=True,
         default=_uuid,
@@ -84,6 +108,7 @@ class MetaWebhookPage(models.Model):
             ("drift", "Drift"),
             ("error", "Error"),
             ("uncertain", "Uncertain"),
+            ("manual", "Configured on activation"),
         ],
         required=True,
         default="unknown",
@@ -143,6 +168,8 @@ class MetaWebhookPage(models.Model):
             values["access_token_ref"] = str(
                 values.get("access_token_ref") or ""
             ).strip()
+            if values.get("owner_kind", PAGE_OWNER) not in _OWNER_ASSETS:
+                raise ValidationError(_("The Meta webhook owner kind is invalid."))
             normalized.append(values)
         pages = super().create(normalized)
         asset_model = (
@@ -152,14 +179,17 @@ class MetaWebhookPage(models.Model):
         )
         for page in pages:
             asset_model.create(
-                {
-                    "page_id": page.id,
-                    "platform": "facebook",
-                    "object_type": "page",
-                    "transport": "page",
-                    "external_asset_id": page.external_page_id,
-                }
+                dict(
+                    _OWNER_ASSETS[page.owner_kind],
+                    page_id=page.id,
+                    external_asset_id=page.external_page_id,
+                )
             )
+        manual = pages.filtered(lambda page: page.owner_kind != PAGE_OWNER)
+        if manual:
+            manual.with_context(
+                meta_webhook_internal=META_WEBHOOK_INTERNAL_TOKEN
+            ).write(manual._manual_subscription_state())
         paused = pages.filtered(lambda page: not page.app_id.active)
         if paused:
             paused.with_context(
@@ -198,6 +228,10 @@ class MetaWebhookPage(models.Model):
             for page in self
         ):
             raise AccessError(_("The external Meta Page ID is immutable."))
+        if "owner_kind" in values and any(
+            page.owner_kind != values["owner_kind"] for page in self
+        ):
+            raise AccessError(_("The Meta webhook owner kind is immutable."))
         if "access_token_ref" in values:
             values["access_token_ref"] = str(
                 values.get("access_token_ref") or ""
@@ -237,15 +271,7 @@ class MetaWebhookPage(models.Model):
                 page_values["revision"] = row[0] + 1
                 changed_endpoints |= page.endpoint_id
             if changed and not internal:
-                page_values.update(
-                    {
-                        "subscription_state": "unknown",
-                        "observed_fields_json": False,
-                        "verified_at": False,
-                        "last_error_class": False,
-                        "last_error_message": False,
-                    }
-                )
+                page_values.update(page._reset_subscription_state())
             super(MetaWebhookPage, page).write(page_values)
             page.flush_recordset(list(page_values))
             page.invalidate_recordset(["revision"])
@@ -268,18 +294,47 @@ class MetaWebhookPage(models.Model):
                     _("The Meta Page token reference is invalid.")
                 ) from None
 
-    def _resolved_access_token(self, expected_revision=None):
+    def _manual_subscription_state(self):
+        return {
+            "subscription_state": "manual",
+            "observed_fields_json": False,
+            "verified_at": False,
+            "last_error_class": False,
+            "last_error_message": False,
+        }
+
+    def _reset_subscription_state(self):
+        """Runtime state after a configuration change of this owner."""
+
+        self.ensure_one()
+        if self.owner_kind != PAGE_OWNER:
+            # Not reconciled here: its webhook fields are set on activation.
+            return self._manual_subscription_state()
+        return {
+            "subscription_state": "unknown",
+            "observed_fields_json": False,
+            "verified_at": False,
+            "last_error_class": False,
+            "last_error_message": False,
+        }
+
+    def _resolved_access_token(self, expected_revision=None, expected_owner_kind=None):
         """Resolve only the Page token for the subscription reconciler."""
 
         _app_id, backend, token_ref, _revision = self._locked_configuration(
-            expected_revision
+            expected_revision, expected_owner_kind=expected_owner_kind
         )
         return resolve_secret(backend, token_ref)
 
-    def _locked_configuration(self, expected_revision=None):
-        """Return one coherent Page configuration under a shared row lock."""
+    def _locked_configuration(self, expected_revision=None, expected_owner_kind=None):
+        """Return one coherent Page configuration under a shared row lock.
+
+        Page consumers receive only Page owners: another owner kind is refused
+        before any secret is resolved, unless the caller asks for that kind.
+        """
 
         self.ensure_one()
+        expected_owner_kind = expected_owner_kind or PAGE_OWNER
         if expected_revision is not None and (
             isinstance(expected_revision, bool)
             or not isinstance(expected_revision, int)
@@ -292,6 +347,7 @@ class MetaWebhookPage(models.Model):
             [
                 "active",
                 "endpoint_id",
+                "owner_kind",
                 "credential_backend",
                 "access_token_ref",
                 "revision",
@@ -312,14 +368,18 @@ class MetaWebhookPage(models.Model):
             raise MetaCredentialResolutionError("Meta webhook endpoint is paused")
         self.env.cr.execute(
             "SELECT active, endpoint_id, credential_backend, access_token_ref, "
-            "revision "
+            "revision, owner_kind "
             "FROM meta_webhook_page WHERE id = %s FOR SHARE",
             [self.id],
         )
         row = self.env.cr.fetchone()
         if not row:
             raise MetaCredentialResolutionError("Meta Page is unavailable")
-        page_active, endpoint_id, backend, token_ref, revision = row
+        page_active, endpoint_id, backend, token_ref, revision, owner_kind = row
+        if owner_kind != expected_owner_kind:
+            raise MetaCredentialResolutionError(
+                "Meta webhook owner is not of the expected kind"
+            )
         if endpoint_id != endpoint.id:
             raise MetaCredentialResolutionError("Meta Page configuration changed")
         if expected_revision is not None and revision != expected_revision:
@@ -332,6 +392,7 @@ class MetaWebhookPage(models.Model):
         self,
         expected_page_revision=None,
         expected_app_revision=None,
+        expected_owner_kind=None,
     ):
         """Resolve a fenced App/Page runtime without persisting either secret.
 
@@ -350,7 +411,7 @@ class MetaWebhookPage(models.Model):
         self.check_access_rights("read")
         self.check_access_rule("read")
         app_id, backend, token_ref, page_revision = self._locked_configuration(
-            expected_page_revision
+            expected_page_revision, expected_owner_kind=expected_owner_kind
         )
         runtime = (
             self.env["meta.api.app"]
@@ -382,14 +443,7 @@ class MetaWebhookPage(models.Model):
             # lifecycle so cache invalidation, modified fields and write metadata
             # stay coherent with the revision fence.
             super(MetaWebhookPage, page).write(
-                {
-                    "revision": row[0] + 1,
-                    "subscription_state": "unknown",
-                    "observed_fields_json": False,
-                    "verified_at": False,
-                    "last_error_class": False,
-                    "last_error_message": False,
-                }
+                dict(page._reset_subscription_state(), revision=row[0] + 1)
             )
         endpoints._meta_subscription_configuration_changed()
         return True

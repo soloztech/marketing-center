@@ -376,6 +376,7 @@ class MarketingCenterMetaLeadHistory(models.Model):
             and route.source_id.active
             and route.reconcile_enabled
             and route.webhook_page_id.active
+            and route.webhook_page_id.owner_kind == "page"
             and route.webhook_page_id.endpoint_id.active
             and route.lead_profile_id.active
             and route.meta_app_id.active

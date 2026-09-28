@@ -11,5 +11,43 @@ msgstr ""
 #. module: marketing_center_crm
 #: model:ir.ui.menu,name:marketing_center_crm.menu_marketing_leads
 #: model:ir.actions.act_window,name:marketing_center_crm.action_marketing_leads
+#: model:ir.model.fields,field_description:marketing_center_crm.field_marketing_center_external_entity__campaign_lead_label
 msgid "Leads"
 msgstr "Leads"
+
+#. module: marketing_center_crm
+#: model:ir.model.fields,field_description:marketing_center_crm.field_res_company__marketing_crm_events_changed_at
+msgid "CRM event capture changed at"
+msgstr "Captura de eventos do CRM alterada em"
+
+#. module: marketing_center_crm
+#: model:ir.model.fields,help:marketing_center_crm.field_res_company__marketing_crm_events_changed_at
+msgid ""
+"When the CRM event capture policy last changed, or when this tracking was "
+"introduced for a company with capture already enabled. Empty means the start"
+" of the current state is unknown."
+msgstr ""
+"Quando a política de captura de eventos do CRM mudou pela última vez, ou "
+"quando este registro foi introduzido para uma empresa com a captura já "
+"ligada. Vazio significa que o início do estado atual é desconhecido."
+
+#. module: marketing_center_crm
+#. odoo-python
+#: code:addons/marketing_center_crm/models/campaign_board.py:0
+#, python-format
+msgid "%(count)s leads visible to you in %(days)s days"
+msgstr "%(count)s leads visíveis para você em %(days)s dias"
+
+#. module: marketing_center_crm
+#. odoo-python
+#: code:addons/marketing_center_crm/models/campaign_board.py:0
+#, python-format
+msgid "No CRM access"
+msgstr "Sem acesso ao CRM"
+
+#. module: marketing_center_crm
+#. odoo-python
+#: code:addons/marketing_center_crm/models/campaign_board.py:0
+#, python-format
+msgid "No linked UTM campaign"
+msgstr "Sem campanha UTM vinculada"

@@ -3,6 +3,8 @@ import uuid
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+from lxml import etree
+
 from odoo import Command
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests.common import SavepointCase
@@ -10,7 +12,10 @@ from odoo.tests.common import SavepointCase
 from odoo.addons.marketing_center_base.services.serialization import (
     MarketingSerializationFailure,
 )
+from odoo.addons.meta_api_base.services.credentials import MetaCredentialResolutionError
 from odoo.addons.meta_api_base.services.errors import MetaApiError
+from odoo.addons.meta_webhook_base.models import page as page_module
+from odoo.addons.meta_webhook_base.services.tokens import META_WEBHOOK_RUNTIME_TOKEN
 from odoo.addons.queue_job.tests.common import trap_jobs
 
 from ..services.lead_forms import (
@@ -512,6 +517,46 @@ class TestMetaLeadFormDiscovery(SavepointCase):
         )
         with self.env.cr.savepoint(), self.assertRaises(ValidationError):
             self.Wizard.create(self._values(source_id=other_source.id))
+
+    def test_a_whatsapp_account_owner_is_never_a_lead_ads_page(self):
+        waba = self.env["meta.webhook.page"].create(
+            {
+                "name": "Discovery WhatsApp account",
+                "endpoint_id": self.endpoint.id,
+                "owner_kind": "whatsapp_business_account",
+                "external_page_id": "100000000000109",
+                "credential_backend": "environment",
+                "access_token_ref": "ODOO_META_DISCOVERY_WABA",
+            }
+        )
+        with patch(_ADAPTER) as adapter, patch.object(
+            page_module, "resolve_secret"
+        ) as resolve:
+            with self.env.cr.savepoint(), self.assertRaises(ValidationError):
+                self.Wizard.create(self._values(webhook_page_id=waba.id))
+            with self.env.cr.savepoint(), self.assertRaises(ValidationError):
+                self._existing(webhook_page_id=waba.id)
+            with self.assertRaises(MetaCredentialResolutionError):
+                waba.with_context(
+                    meta_webhook_runtime=META_WEBHOOK_RUNTIME_TOKEN
+                )._resolve_graph_runtime()
+        adapter.assert_not_called()
+        resolve.assert_not_called()
+        for model in (self.Route, self.Wizard):
+            self.assertEqual(
+                model._fields["webhook_page_id"].domain,
+                "[('owner_kind', '=', 'page')]",
+            )
+            arch = etree.fromstring(
+                model.get_views([(False, "form")])["views"]["form"]["arch"]
+            )
+            for node in arch.iter("field"):
+                if node.get("name") == "webhook_page_id":
+                    self.assertIn(
+                        "('owner_kind', '=', 'page')",
+                        node.get("domain") or "",
+                        "the form selector offers only Facebook Pages",
+                    )
 
     def test_rpc_cannot_forge_provider_results_or_reassign_line_to_another_wizard(self):
         wizard = self._discover()

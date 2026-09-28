@@ -11,6 +11,12 @@ versioned local stage envelope. The provider ``paging.next`` URL is never follow
 or persisted. Missing catalog objects are not tombstoned by this first sweep because
 a page scan alone is not authoritative deletion evidence.
 
+Campaign, ad set and ad listings request every documented ``effective_status``,
+including ``ARCHIVED`` and ``DELETED``, because Graph omits archived and deleted objects
+unless asked. An object archived in Ads Manager therefore reaches the catalog with its
+status (its leads keep their campaign). Deleted objects may still be absent from
+listings, since Meta returns them only by ID; they keep their last observed status.
+
 The Insights reader projects the last seven closed days at account and campaign
 grain. Its initial contract requests only impressions, clicks and spend, converts
 spend exactly to micros, respects the ad-account timezone and preserves missing

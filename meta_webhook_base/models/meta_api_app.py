@@ -70,6 +70,12 @@ class MetaApiApp(models.Model):
                 }
             )
             active_pages = endpoint.page_ids.filtered("active")
+            manual_pages = active_pages.filtered(lambda page: page.owner_kind != "page")
+            if manual_pages and not app_paused:
+                manual_pages.with_context(
+                    meta_webhook_internal=META_WEBHOOK_INTERNAL_TOKEN
+                ).write(manual_pages._manual_subscription_state())
+                active_pages -= manual_pages
             if active_pages:
                 active_pages.with_context(
                     meta_webhook_internal=META_WEBHOOK_INTERNAL_TOKEN
