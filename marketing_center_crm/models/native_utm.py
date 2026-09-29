@@ -73,13 +73,19 @@ class MarketingCrmUtmApplication(models.Model):
         return super().create(values_list)
 
     def write(self, values):
+        # Audit receipts reject all mutation, including via super.
+        # pylint: disable=method-required-super
         raise AccessError(_("Classification receipts are immutable."))
 
     def unlink(self):
+        # Audit receipts reject all mutation, including via super.
+        # pylint: disable=method-required-super
         raise AccessError(_("Classification receipts are immutable."))
 
 
 class CrmLeadNativeUtm(models.Model):
+    # Keep this feature in its own cooperative ORM extension.
+    # pylint: disable=consider-merging-classes-inherited
     _inherit = "crm.lead"
 
     marketing_utm_state = fields.Selection(
@@ -320,6 +326,69 @@ class MarketingCrmNativeUtmService(models.AbstractModel):
         return receipt
 
     @api.model
+    def _classify_ready(self, lead, ready, before, resolver, apply=False):
+        """Apply one unambiguous classification without replacing manual values."""
+        evidence, after = {}, before
+        # Several touchpoints may support one classification. Distinct unmapped
+        # entities are not merged by name; mapped entities may share a tuple.
+        identities = {
+            (
+                item.get("campaign_id") or ("entity", item["entity_id"]),
+                item.get("utm_source_id"),
+                item.get("medium_id"),
+            )
+            for item in ready
+        }
+        if len(identities) != 1:
+            state, reason = "conflict", "multiple_campaign_classifications"
+        else:
+            evidence = dict(ready[0])
+            evidence["touchpoint_ids"] = sorted(item["touchpoint_id"] for item in ready)
+            desired = {
+                "campaign_id": evidence.get("campaign_id") or False,
+                "source_id": evidence.get("utm_source_id") or False,
+                "medium_id": evidence.get("medium_id") or False,
+            }
+            last = lead.marketing_utm_receipt_id
+            writable = (
+                not any(before.values())
+                or before == lead.marketing_utm_default_json
+                or (last and before == last.after_json)
+            )
+            if not writable and before != desired:
+                state, reason = "conflict", "existing_native_values_preserved"
+            elif evidence.get("campaign_id") and before == desired:
+                state, reason = "present", "native_values_already_match"
+            elif not apply or any(item.get("source_mode") != "apply" for item in ready):
+                state, reason = (
+                    "simulation",
+                    "would_create_campaign"
+                    if not desired["campaign_id"]
+                    else "would_classify",
+                )
+            else:
+                resolved = resolver._resolve_touchpoint(
+                    self.env["marketing.attribution.touchpoint"].browse(
+                        evidence["touchpoint_id"]
+                    ),
+                    apply=True,
+                )
+                if resolved["state"] != "ready":
+                    state, reason = "missing", resolved.get(
+                        "reason", "campaign_unavailable"
+                    )
+                else:
+                    evidence.update(resolved)
+                    after = {
+                        "campaign_id": resolved["campaign_id"],
+                        "source_id": resolved["utm_source_id"],
+                        "medium_id": resolved["medium_id"],
+                    }
+                    lead._native_utm_write(after)
+                    state, reason = "applied", "confirmed_campaign_classification"
+        return state, reason, evidence, after
+
+    @api.model
     def _classify(self, lead, apply=False):
         lead.ensure_one()
         if lead._name != "crm.lead":
@@ -369,67 +438,9 @@ class MarketingCrmNativeUtmService(models.AbstractModel):
         elif any(item["reason"] == "campaign_resolution_pending" for item in active):
             state, reason = "missing", "campaign_resolution_pending"
         elif ready:
-            # Several touchpoints may support one classification. Distinct unmapped
-            # entities are not merged by name; mapped entities may share a tuple.
-            identities = {
-                (
-                    item.get("campaign_id") or ("entity", item["entity_id"]),
-                    item.get("utm_source_id"),
-                    item.get("medium_id"),
-                )
-                for item in ready
-            }
-            if len(identities) != 1:
-                state, reason = "conflict", "multiple_campaign_classifications"
-            else:
-                evidence = dict(ready[0])
-                evidence["touchpoint_ids"] = sorted(
-                    item["touchpoint_id"] for item in ready
-                )
-                desired = {
-                    "campaign_id": evidence.get("campaign_id") or False,
-                    "source_id": evidence.get("utm_source_id") or False,
-                    "medium_id": evidence.get("medium_id") or False,
-                }
-                last = lead.marketing_utm_receipt_id
-                writable = (
-                    not any(before.values())
-                    or before == lead.marketing_utm_default_json
-                    or (last and before == last.after_json)
-                )
-                if not writable and before != desired:
-                    state, reason = "conflict", "existing_native_values_preserved"
-                elif evidence.get("campaign_id") and before == desired:
-                    state, reason = "present", "native_values_already_match"
-                elif not apply or any(
-                    item.get("source_mode") != "apply" for item in ready
-                ):
-                    state, reason = (
-                        "simulation",
-                        "would_create_campaign"
-                        if not desired["campaign_id"]
-                        else "would_classify",
-                    )
-                else:
-                    resolved = resolver._resolve_touchpoint(
-                        self.env["marketing.attribution.touchpoint"].browse(
-                            evidence["touchpoint_id"]
-                        ),
-                        apply=True,
-                    )
-                    if resolved["state"] != "ready":
-                        state, reason = "missing", resolved.get(
-                            "reason", "campaign_unavailable"
-                        )
-                    else:
-                        evidence.update(resolved)
-                        after = {
-                            "campaign_id": resolved["campaign_id"],
-                            "source_id": resolved["utm_source_id"],
-                            "medium_id": resolved["medium_id"],
-                        }
-                        lead._native_utm_write(after)
-                        state, reason = "applied", "confirmed_campaign_classification"
+            state, reason, evidence, after = self._classify_ready(
+                lead, ready, before, resolver, apply=apply
+            )
         elif candidates and not active:
             state, reason = "disabled", "source_classification_disabled"
         # A previously owned tuple must not keep claiming evidence which has
@@ -542,6 +553,8 @@ class MarketingNativeUtmCrmHook(models.AbstractModel):
 
 
 class CompanyNativeUtmReconcile(models.Model):
+    # Keep this feature in its own cooperative ORM extension.
+    # pylint: disable=consider-merging-classes-inherited
     _inherit = "res.company"
 
     def _job_reconcile_native_utm(self, scope, after_id=0):
@@ -561,7 +574,10 @@ class CompanyNativeUtmReconcile(models.Model):
         ):
             raise ValidationError(_("Invalid classification reconciliation cursor."))
         domains = []
-        prefix = "marketing_utm_effective_link_ids.touchpoint_id.touchpoint_id.asset_resolution_ids."
+        prefix = (
+            "marketing_utm_effective_link_ids.touchpoint_id."
+            "touchpoint_id.asset_resolution_ids."
+        )
         if scope["source_ids"]:
             domains.append([(prefix + "source_id", "in", scope["source_ids"])])
         if scope["entity_ids"]:

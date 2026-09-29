@@ -67,18 +67,22 @@ class IrHttp(models.AbstractModel):
             or not endpoint._capture_policy_allows()
         ):
             return False
-        action = request.env["marketing.website.action"].sudo().search(
-            [
-                ("public_ref", "=", config["form"]),
-                ("binding_id", "=", binding.id),
-                ("website_id", "=", website.id),
-                ("company_id", "=", website.company_id.id),
-                ("source_path", "=", request.httprequest.path),
-                ("active", "=", True),
-                ("kind", "=", "form_submission"),
-                ("form_model_id.website_form_access", "=", True),
-            ],
-            limit=2,
+        action = (
+            request.env["marketing.website.action"]
+            .sudo()
+            .search(
+                [
+                    ("public_ref", "=", config["form"]),
+                    ("binding_id", "=", binding.id),
+                    ("website_id", "=", website.id),
+                    ("company_id", "=", website.company_id.id),
+                    ("source_path", "=", request.httprequest.path),
+                    ("active", "=", True),
+                    ("kind", "=", "form_submission"),
+                    ("form_model_id.website_form_access", "=", True),
+                ],
+                limit=2,
+            )
         )
         return bool(len(action) == 1 and action.form_model_name == "crm.lead")
 

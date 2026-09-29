@@ -64,7 +64,10 @@
             <field name="privacy_legal_basis_code" />
             <field name="privacy_policy_justification" />
             <field name="retention_mode" />
-            <field name="identifier_retention_days" attrs="{'invisible': [('retention_mode', '=', 'manual')]}" />
+            <field
+                            name="identifier_retention_days"
+                            attrs="{'invisible': [('retention_mode', '=', 'manual')]}"
+                        />
             <field name="privacy_policy_set_by" />
             <field name="privacy_policy_set_at" />
           </group>

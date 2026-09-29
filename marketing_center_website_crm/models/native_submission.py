@@ -86,6 +86,8 @@ def utc_iso(value):
 
 
 class CrmLead(models.Model):
+    # Keep this feature in its own cooperative ORM extension.
+    # pylint: disable=consider-merging-classes-inherited
     _inherit = "crm.lead"
 
     marketing_native_website_id = fields.Many2one(

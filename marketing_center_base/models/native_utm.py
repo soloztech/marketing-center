@@ -64,7 +64,8 @@ class MarketingCenterSourceNativeUtm(models.Model):
             ):
                 raise ValidationError(
                     _(
-                        "Select a native source and medium before enabling native classification."
+                        "Select a native source and medium before enabling "
+                        "native classification."
                     )
                 )
 
@@ -103,6 +104,8 @@ class MarketingCenterSourceNativeUtm(models.Model):
 
 
 class MarketingCenterExternalEntityNativeUtm(models.Model):
+    # Keep this feature in its own cooperative ORM extension.
+    # pylint: disable=consider-merging-classes-inherited
     _inherit = "marketing.center.external.entity"
 
     native_utm_campaign_id = fields.Many2one(
@@ -115,7 +118,8 @@ class MarketingCenterExternalEntityNativeUtm(models.Model):
     native_utm_blocked = fields.Boolean(
         string="Block Native Classification",
         copy=False,
-        help="Prevent automatic classification and campaign creation for this external campaign.",
+        help="Prevent automatic classification and campaign creation "
+        "for this external campaign.",
     )
     native_utm_mapping_origin = fields.Selection(
         [("manual", "Manual"), ("automatic", "Automatic")],
@@ -142,7 +146,8 @@ class MarketingCenterExternalEntityNativeUtm(models.Model):
     def _lock_native_utm_mapping(self):
         self.flush_recordset()
         self.env.cr.execute(
-            "SELECT id FROM marketing_center_external_entity WHERE id = ANY(%s) ORDER BY id FOR UPDATE",
+            "SELECT id FROM marketing_center_external_entity "
+            "WHERE id = ANY(%s) ORDER BY id FOR UPDATE",
             [self.ids],
         )
         self.invalidate_recordset()
@@ -306,6 +311,15 @@ class MarketingNativeUtmService(models.AbstractModel):
                 [resolutions.ids],
             )
             resolutions.invalidate_recordset()
+        return self._resolve_campaign_resolutions(
+            effective, resolutions, apply=apply, lock=lock
+        )
+
+    @api.model
+    def _resolve_campaign_resolutions(
+        self, effective, resolutions, apply=False, lock=False
+    ):
+        """Validate the resolved hierarchy before mapping one native campaign."""
         campaigns = self.env["marketing.center.external.entity"]
         for resolution in resolutions:
             if resolution.state == "ambiguous":
@@ -425,6 +439,8 @@ class MarketingNativeUtmService(models.AbstractModel):
 
 
 class MarketingCatalogNativeUtmReconcile(models.AbstractModel):
+    # Keep this feature in its own cooperative ORM extension.
+    # pylint: disable=consider-merging-classes-inherited
     _inherit = "marketing.center.catalog.service"
 
     @api.model
@@ -491,6 +507,8 @@ class MarketingAssetResolutionNativeUtm(models.AbstractModel):
 
 
 class MarketingAttributionNativeUtmFence(models.AbstractModel):
+    # Keep this feature in its own cooperative ORM extension.
+    # pylint: disable=consider-merging-classes-inherited
     _inherit = "marketing.attribution.service"
 
     @api.model
@@ -521,6 +539,8 @@ class MarketingAttributionNativeUtmFence(models.AbstractModel):
 
 
 class MarketingTouchpointNativeUtmRetention(models.Model):
+    # Keep this feature in its own cooperative ORM extension.
+    # pylint: disable=consider-merging-classes-inherited
     _inherit = "marketing.attribution.touchpoint"
 
     def _erase_private_values(self, *, token, now):

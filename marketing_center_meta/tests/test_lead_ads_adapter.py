@@ -132,33 +132,25 @@ class TestMetaLeadAdsAdapter(SavepointCase):
 
     def test_free_text_answer_preserves_internal_multiline_whitespace(self):
         answer = "\t Primeira\tlinha\nSegunda linha\r\nTerceira\rlinha\r "
-        payload = self._payload(
-            field_data=[{"name": "comments", "values": [answer]}]
-        )
+        payload = self._payload(field_data=[{"name": "comments", "values": [answer]}])
         lead = normalize_meta_lead(payload)
         self.assertEqual(lead.fields[0].values, (answer.strip(),))
         self.assertEqual(
             lead.payload_sha256, normalize_meta_lead(payload).payload_sha256
         )
         changed = normalize_meta_lead(
-            self._payload(
-                field_data=[{"name": "comments", "values": [answer.strip()]}]
-            )
+            self._payload(field_data=[{"name": "comments", "values": [answer.strip()]}])
         )
         self.assertEqual(lead.payload_sha256, changed.payload_sha256)
 
     def test_previously_accepted_value_keeps_normalization_and_hash(self):
-        plain = self._payload(
-            field_data=[{"name": "comments", "values": ["answer"]}]
-        )
+        plain = self._payload(field_data=[{"name": "comments", "values": ["answer"]}])
         padded = self._payload(
             field_data=[{"name": "comments", "values": ["\t answer\r\n"]}]
         )
         lead = normalize_meta_lead(padded)
         self.assertEqual(lead.fields[0].values, ("answer",))
-        self.assertEqual(
-            lead.payload_sha256, normalize_meta_lead(plain).payload_sha256
-        )
+        self.assertEqual(lead.payload_sha256, normalize_meta_lead(plain).payload_sha256)
 
     def test_free_text_answer_rejects_other_controls_and_keeps_value_bounds(self):
         for codepoint in set(range(32)) - {9, 10, 13}:

@@ -27,46 +27,85 @@ class TestNativeWebsiteWhatsAppHttp(HttpCase):
         cls.proxy_host = local.netloc
         cls.origin = urlunsplit(("https", local.netloc, "", "", ""))
         cls.website.domain = cls.origin
-        cls.endpoint = cls.env["marketing.web.ingress.endpoint"].create({
-            "name": "Synthetic native WhatsApp HTTP", "company_id": cls.website.company_id.id,
-            "allowed_origins": cls.origin, "allowed_hosts": local.hostname,
-            "capture_enabled": True, "capture_purpose": "website_attribution",
-            "website_tracking_policy": "informational_notice",
-            "privacy_legal_basis_code": False, "privacy_policy_version": "handoff-http-v1",
-            "privacy_notice_version": "handoff-http-v1",
-            "privacy_policy_justification": "Synthetic HTTP regression fixture",
-            "identifier_retention_days": 30,
-        })
-        cls.binding = cls.env["marketing.website.ingress.binding"].search([
-            ("website_id", "=", cls.website.id),
-        ], limit=1)
+        cls.endpoint = cls.env["marketing.web.ingress.endpoint"].create(
+            {
+                "name": "Synthetic native WhatsApp HTTP",
+                "company_id": cls.website.company_id.id,
+                "allowed_origins": cls.origin,
+                "allowed_hosts": local.hostname,
+                "capture_enabled": True,
+                "capture_purpose": "website_attribution",
+                "website_tracking_policy": "informational_notice",
+                "privacy_legal_basis_code": False,
+                "privacy_policy_version": "handoff-http-v1",
+                "privacy_notice_version": "handoff-http-v1",
+                "privacy_policy_justification": "Synthetic HTTP regression fixture",
+                "identifier_retention_days": 30,
+            }
+        )
+        cls.binding = cls.env["marketing.website.ingress.binding"].search(
+            [
+                ("website_id", "=", cls.website.id),
+            ],
+            limit=1,
+        )
         if cls.binding:
-            cls.binding.write({"endpoint_id": cls.endpoint.id, "active": True, "capture_mode": "native"})
+            cls.binding.write(
+                {
+                    "endpoint_id": cls.endpoint.id,
+                    "active": True,
+                    "capture_mode": "native",
+                }
+            )
         else:
-            cls.binding = cls.env["marketing.website.ingress.binding"].create({
-                "website_id": cls.website.id, "endpoint_id": cls.endpoint.id, "capture_mode": "native",
-            })
+            cls.binding = cls.env["marketing.website.ingress.binding"].create(
+                {
+                    "website_id": cls.website.id,
+                    "endpoint_id": cls.endpoint.id,
+                    "capture_mode": "native",
+                }
+            )
         cls.page_path = "/whatsapp-handoff-http-test"
-        view = cls.env["ir.ui.view"].create({
-            "name": "Synthetic WhatsApp handoff page", "type": "qweb",
-            "key": "marketing_center_website_whatsapp.http_page",
-            "arch_db": '<t t-name="marketing_center_website_whatsapp.http_page"><div>Test</div></t>',
-        })
-        cls.page = cls.env["website.page"].create({
-            "name": "Synthetic WhatsApp handoff page", "url": cls.page_path,
-            "website_id": cls.website.id, "view_id": view.id, "is_published": True,
-        })
-        cls.account = cls.env["contact.center.account"].create({
-            "name": "Synthetic WhatsApp destination", "company_id": cls.website.company_id.id,
-            "platform": "whatsapp", "own_external_identity": "5519999999999:5@s.whatsapp.net",
-        })
-        cls.action = cls.env["marketing.website.action"].create({
-            "name": "Synthetic native WhatsApp action", "binding_id": cls.binding.id,
-            "kind": "whatsapp_handoff", "route_ref": "whatsapp.native.http",
-            "source_path": cls.page_path, "whatsapp_destination": "5519999999999",
-            "whatsapp_message": "Olá! Quero saber mais.", "handoff_enabled": True,
-            "handoff_account_id": cls.account.id, "handoff_reference_prefix": "CP",
-        })
+        view = cls.env["ir.ui.view"].create(
+            {
+                "name": "Synthetic WhatsApp handoff page",
+                "type": "qweb",
+                "key": "marketing_center_website_whatsapp.http_page",
+                "arch_db": '<t t-name="marketing_center_website_whatsapp.http_page">'
+                "<div>Test</div></t>",
+            }
+        )
+        cls.page = cls.env["website.page"].create(
+            {
+                "name": "Synthetic WhatsApp handoff page",
+                "url": cls.page_path,
+                "website_id": cls.website.id,
+                "view_id": view.id,
+                "is_published": True,
+            }
+        )
+        cls.account = cls.env["contact.center.account"].create(
+            {
+                "name": "Synthetic WhatsApp destination",
+                "company_id": cls.website.company_id.id,
+                "platform": "whatsapp",
+                "own_external_identity": "5519999999999:5@s.whatsapp.net",
+            }
+        )
+        cls.action = cls.env["marketing.website.action"].create(
+            {
+                "name": "Synthetic native WhatsApp action",
+                "binding_id": cls.binding.id,
+                "kind": "whatsapp_handoff",
+                "route_ref": "whatsapp.native.http",
+                "source_path": cls.page_path,
+                "whatsapp_destination": "5519999999999",
+                "whatsapp_message": "Olá! Quero saber mais.",
+                "handoff_enabled": True,
+                "handoff_account_id": cls.account.id,
+                "handoff_reference_prefix": "CP",
+            }
+        )
 
     def setUp(self):
         super().setUp()
@@ -78,24 +117,36 @@ class TestNativeWebsiteWhatsAppHttp(HttpCase):
     def _post(self, *, payload=None, headers=None, query=None):
         return self.opener.post(
             self.base_url() + "/marketing/website-whatsapp/claim",
-            data=json.dumps(payload if payload is not None else {
-                "action_ref": self.action.public_ref, "event_id": self.event_id,
-            }).encode(),
+            data=json.dumps(
+                payload
+                if payload is not None
+                else {
+                    "action_ref": self.action.public_ref,
+                    "event_id": self.event_id,
+                }
+            ).encode(),
             headers={
-                "Content-Type": "application/json", "Origin": self.origin,
-                "Referer": self.origin + self.page_path + "?" + (
-                    query or "gad_campaignid=23172115632&gclid=synthetic-click"
-                ),
-                "X-Forwarded-Host": self.proxy_host, "X-Forwarded-Proto": "https",
-                "Sec-Fetch-Site": "same-origin", **(headers or {}),
-            }, allow_redirects=False,
+                "Content-Type": "application/json",
+                "Origin": self.origin,
+                "Referer": self.origin
+                + self.page_path
+                + "?"
+                + (query or "gad_campaignid=23172115632&gclid=synthetic-click"),
+                "X-Forwarded-Host": self.proxy_host,
+                "X-Forwarded-Proto": "https",
+                "Sec-Fetch-Site": "same-origin",
+                **(headers or {}),
+            },
+            allow_redirects=False,
         )
 
     def _clicks(self):
         self.env.invalidate_all()
-        return self.env["marketing.website.whatsapp.handoff"].search([
-            ("action_id", "=", self.action.id),
-        ])
+        return self.env["marketing.website.whatsapp.handoff"].search(
+            [
+                ("action_id", "=", self.action.id),
+            ]
+        )
 
     def _global_default(self):
         action = self._page_action("/", "WEB")
@@ -103,39 +154,63 @@ class TestNativeWebsiteWhatsAppHttp(HttpCase):
         return action
 
     def _page_action(self, path, prefix="CP", **values):
-        return self.env["marketing.website.action"].create({
-            "name": "Synthetic WhatsApp page action",
-            "binding_id": self.binding.id, "kind": "whatsapp_handoff",
-            "route_ref": "whatsapp.page." + uuid.uuid4().hex,
-            "source_path": path, "whatsapp_destination": "5519999999999",
-            "whatsapp_message": "Olá! Quero saber mais.", "handoff_enabled": True,
-            "handoff_account_id": self.account.id, "handoff_reference_prefix": prefix,
-            **values,
-        })
+        return self.env["marketing.website.action"].create(
+            {
+                "name": "Synthetic WhatsApp page action",
+                "binding_id": self.binding.id,
+                "kind": "whatsapp_handoff",
+                "route_ref": "whatsapp.page." + uuid.uuid4().hex,
+                "source_path": path,
+                "whatsapp_destination": "5519999999999",
+                "whatsapp_message": "Olá! Quero saber mais.",
+                "handoff_enabled": True,
+                "handoff_account_id": self.account.id,
+                "handoff_reference_prefix": prefix,
+                **values,
+            }
+        )
 
     def _public_page(self, path, website=None, **values):
         key = "marketing_center_website_whatsapp.global_" + uuid.uuid4().hex
         root = etree.Element("t", {"t-name": key})
         layout = etree.SubElement(root, "t", {"t-call": "website.layout"})
         wrap = etree.SubElement(layout, "div", {"id": "wrap"})
-        etree.SubElement(wrap, "a", {
-            "href": "https://wa.me/5519999999999?text=Quero%20o%20documento",
-            "id": "global-whatsapp-cta",
-        }).text = "Solicitar documento"
-        view = self.env["ir.ui.view"].create({
-            "name": "Synthetic global WhatsApp page", "type": "qweb", "key": key,
-            "arch_db": etree.tostring(root, encoding="unicode"),
-        })
-        return self.env["website.page"].create({
-            "name": "Synthetic global WhatsApp page", "url": path,
-            "website_id": (website or self.website).id, "view_id": view.id,
-            "is_published": True, **values,
-        })
+        etree.SubElement(
+            wrap,
+            "a",
+            {
+                "href": "https://wa.me/5519999999999?text=Quero%20o%20documento",
+                "id": "global-whatsapp-cta",
+            },
+        ).text = "Solicitar documento"
+        view = self.env["ir.ui.view"].create(
+            {
+                "name": "Synthetic global WhatsApp page",
+                "type": "qweb",
+                "key": key,
+                "arch_db": etree.tostring(root, encoding="unicode"),
+            }
+        )
+        return self.env["website.page"].create(
+            {
+                "name": "Synthetic global WhatsApp page",
+                "url": path,
+                "website_id": (website or self.website).id,
+                "view_id": view.id,
+                "is_published": True,
+                **values,
+            }
+        )
 
     def _render_page(self, path):
-        response = self.opener.get(self.base_url() + path, headers={
-            "X-Forwarded-Host": self.proxy_host, "X-Forwarded-Proto": "https",
-        }, allow_redirects=False)
+        response = self.opener.get(
+            self.base_url() + path,
+            headers={
+                "X-Forwarded-Host": self.proxy_host,
+                "X-Forwarded-Proto": "https",
+            },
+            allow_redirects=False,
+        )
         self.assertEqual(response.status_code, 200, response.text[:500])
         return html.fromstring(response.content)
 
@@ -163,22 +238,35 @@ class TestNativeWebsiteWhatsAppHttp(HttpCase):
         self.assertEqual(result.status_code, 202, result.text)
         self.assertTrue(result.json()["reference"].startswith("WEB-"))
         self.env.invalidate_all()
-        click = self.env["marketing.website.whatsapp.handoff"].search([
-            ("reference", "=", result.json()["reference"]),
-        ])
+        click = self.env["marketing.website.whatsapp.handoff"].search(
+            [
+                ("reference", "=", result.json()["reference"]),
+            ]
+        )
         self.assertEqual(click.action_id, default)
         self.assertEqual(click.page_url, self.origin + page.url)
         self.assertEqual(click.acquisition_json["gclid"], "global-synthetic-click")
-        self.assertFalse(self.env["marketing.website.action"].search([
-            ("website_id", "=", self.website.id), ("source_path", "=", page.url),
-        ]), "A newly published page must not create an action rule")
+        self.assertFalse(
+            self.env["marketing.website.action"].search(
+                [
+                    ("website_id", "=", self.website.id),
+                    ("source_path", "=", page.url),
+                ]
+            ),
+            "A newly published page must not create an action rule",
+        )
 
     def test_page_overrides_keep_cp_es_and_reject_global_action_claim(self):
         default = self._global_default()
-        for prefix, path in (("CP", "/global-carport-lp"), ("ES", "/global-estrutura-lp")):
+        for prefix, path in (
+            ("CP", "/global-carport-lp"),
+            ("ES", "/global-estrutura-lp"),
+        ):
             self._public_page(path)
             specific = self._page_action(path, prefix)
-            self.assertEqual(self._handoff_config(path)["data-action"], specific.public_ref)
+            self.assertEqual(
+                self._handoff_config(path)["data-action"], specific.public_ref
+            )
             self.event_id = str(uuid.uuid4())
             rejected = self._post_page(path, default)
             self.assertEqual(rejected.status_code, 400, rejected.text)
@@ -199,7 +287,9 @@ class TestNativeWebsiteWhatsAppHttp(HttpCase):
         for action in (default, first, second):
             self.assertEqual(self._post_page(page.url, action).status_code, 400)
         second.active = False
-        self.assertEqual(self._handoff_config(page.url)["data-action"], first.public_ref)
+        self.assertEqual(
+            self._handoff_config(page.url)["data-action"], first.public_ref
+        )
         self.assertEqual(self._post_page(page.url, first).status_code, 202)
 
     def test_removed_or_disabled_default_leaves_published_link_usable(self):
@@ -219,27 +309,43 @@ class TestNativeWebsiteWhatsAppHttp(HttpCase):
         self.assertFalse(self._handoff_config(page.url))
         self.assertEqual(self._post_page(page.url, default).status_code, 400)
 
-    def test_global_scope_rejects_unpublished_private_reserved_and_other_company_pages(self):
+    def test_global_scope_rejects_unpublished_private_reserved_and_other_company_pages(
+        self,
+    ):
         default = self._global_default()
         for suffix, changes in (
             ("unpublished", {"is_published": False}),
             ("connected", {"visibility": "connected"}),
-            ("password", {"visibility": "password", "visibility_password": "synthetic"}),
+            (
+                "password",
+                {"visibility": "password", "visibility_password": "synthetic"},
+            ),
         ):
             page = self._public_page("/global-private-" + suffix, **changes)
             self.assertEqual(self._post_page(page.url, default).status_code, 400)
         self._public_page("/my/global-whatsapp-reserved")
-        self.assertEqual(self._post_page("/my/global-whatsapp-reserved", default).status_code, 400)
-        company = self.env["res.company"].create({"name": "Synthetic other Website company"})
-        foreign = self.env["website"].create({
-            "name": "Foreign synthetic WhatsApp Website", "company_id": company.id,
-            "domain": "https://foreign-company-whatsapp.invalid",
-        })
+        self.assertEqual(
+            self._post_page("/my/global-whatsapp-reserved", default).status_code, 400
+        )
+        company = self.env["res.company"].create(
+            {"name": "Synthetic other Website company"}
+        )
+        foreign = self.env["website"].create(
+            {
+                "name": "Foreign synthetic WhatsApp Website",
+                "company_id": company.id,
+                "domain": "https://foreign-company-whatsapp.invalid",
+            }
+        )
         page = self._public_page("/global-other-company-only", website=foreign)
         self.assertEqual(self._post_page(page.url, default).status_code, 400)
-        self.assertFalse(self.env["marketing.website.whatsapp.handoff"].search([
-            ("action_id", "=", default.id),
-        ]))
+        self.assertFalse(
+            self.env["marketing.website.whatsapp.handoff"].search(
+                [
+                    ("action_id", "=", default.id),
+                ]
+            )
+        )
 
     def test_private_website_page_shadows_a_public_shared_page(self):
         default = self._global_default()
@@ -269,30 +375,43 @@ class TestNativeWebsiteWhatsAppHttp(HttpCase):
         self.assertEqual(second.status_code, 202, second.text)
         self.assertNotEqual(first.json()["reference"], second.json()["reference"])
         self.env.invalidate_all()
-        clicks = self.env["marketing.website.whatsapp.handoff"].search([
-            ("action_id", "=", default.id),
-        ])
-        self.assertEqual(set(clicks.mapped("page_url")), {
-            self.origin + first_page.url, self.origin + second_page.url,
-        })
+        clicks = self.env["marketing.website.whatsapp.handoff"].search(
+            [
+                ("action_id", "=", default.id),
+            ]
+        )
+        self.assertEqual(
+            set(clicks.mapped("page_url")),
+            {
+                self.origin + first_page.url,
+                self.origin + second_page.url,
+            },
+        )
 
     def test_published_thank_you_has_whatsapp_without_ga_or_form_measurement(self):
         default = self._global_default()
         self.website.google_analytics_key = "G-TEST1234"
-        page = self.env["website.page"].search([
-            ("url", "=", "/contactus-thank-you"),
-            ("website_id", "in", [False, self.website.id]),
-        ], limit=1)
+        page = self.env["website.page"].search(
+            [
+                ("url", "=", "/contactus-thank-you"),
+                ("website_id", "in", [False, self.website.id]),
+            ],
+            limit=1,
+        )
         if not page:
             page = self._public_page("/contactus-thank-you")
         page.write({"is_published": True, "visibility": ""})
         arch = etree.fromstring(page.view_id.arch_db.encode())
         if not arch.xpath("//*[@id='global-whatsapp-cta']"):
             wrap = arch.xpath("//*[@id='wrap']")[0]
-            etree.SubElement(wrap, "a", {
-                "href": "https://wa.me/5519999999999?text=Quero%20o%20documento",
-                "id": "global-whatsapp-cta",
-            }).text = "Solicitar documento"
+            etree.SubElement(
+                wrap,
+                "a",
+                {
+                    "href": "https://wa.me/5519999999999?text=Quero%20o%20documento",
+                    "id": "global-whatsapp-cta",
+                },
+            ).text = "Solicitar documento"
             page.view_id.arch_db = etree.tostring(arch, encoding="unicode")
         document = self._render_page(page.url)
         self.assertEqual(len(document.xpath("//a[@id='global-whatsapp-cta']")), 1)
@@ -301,21 +420,30 @@ class TestNativeWebsiteWhatsAppHttp(HttpCase):
         self.assertEqual(configs[0].get("data-action"), default.public_ref)
         self.assertEqual(configs[0].get("data-path"), page.url)
         self.assertFalse(document.xpath("//*[@id='marketing_measurement_config']"))
-        self.assertFalse(document.xpath("//script[@id='tracking_code' or @id='tracking_code_config']"))
+        self.assertFalse(
+            document.xpath(
+                "//script[@id='tracking_code' or @id='tracking_code_config']"
+            )
+        )
         response = self._post_page(page.url, default)
         self.assertEqual(response.status_code, 202, response.text)
         self.env.invalidate_all()
-        click = self.env["marketing.website.whatsapp.handoff"].search([
-            ("reference", "=", response.json()["reference"]),
-        ])
+        click = self.env["marketing.website.whatsapp.handoff"].search(
+            [
+                ("reference", "=", response.json()["reference"]),
+            ]
+        )
         self.assertEqual(click.page_url, self.origin + "/contactus-thank-you")
 
     def test_default_action_cannot_be_assigned_to_another_website(self):
         default = self._global_default()
-        other = self.env["website"].create({
-            "name": "Other default Website", "company_id": self.website.company_id.id,
-            "domain": "https://other-default-whatsapp.invalid",
-        })
+        other = self.env["website"].create(
+            {
+                "name": "Other default Website",
+                "company_id": self.website.company_id.id,
+                "domain": "https://other-default-whatsapp.invalid",
+            }
+        )
         with self.assertRaises(ValidationError), self.env.cr.savepoint():
             other.handoff_default_action_id = default
 
@@ -330,9 +458,12 @@ class TestNativeWebsiteWhatsAppHttp(HttpCase):
         self.assertEqual(len(handoff), 1)
         self.assertRegex(handoff.reference, r"^CP-[A-Z0-9]{12}$")
         self.assertEqual(result.json()["reference"], handoff.reference)
-        self.assertEqual(parse_qs(target.query)["text"], [
-            self.action.whatsapp_message + "\n\nReferência: " + handoff.reference,
-        ])
+        self.assertEqual(
+            parse_qs(target.query)["text"],
+            [
+                self.action.whatsapp_message + "\n\nReferência: " + handoff.reference,
+            ],
+        )
         self.assertEqual(handoff.account_id, self.account)
         self.assertTrue(handoff.visitor_id)
         self.assertRegex(handoff.session_key, r"^[a-f0-9]{64}$")
@@ -341,9 +472,14 @@ class TestNativeWebsiteWhatsAppHttp(HttpCase):
         self.assertEqual(handoff.page_url, self.origin + self.page_path)
         self.assertNotIn("session", result.text)
         self.assertIn("no-store", result.headers["Cache-Control"])
-        self.assertFalse(self.env["marketing.web.ingress.event"].search([
-            ("endpoint_id", "=", self.endpoint.id),
-        ]), "Native handoff must not restart legacy acquisition ingestion")
+        self.assertFalse(
+            self.env["marketing.web.ingress.event"].search(
+                [
+                    ("endpoint_id", "=", self.endpoint.id),
+                ]
+            ),
+            "Native handoff must not restart legacy acquisition ingestion",
+        )
 
     def test_http_retry_and_rapid_second_click_keep_one_reference(self):
         first = self._post()
@@ -359,12 +495,14 @@ class TestNativeWebsiteWhatsAppHttp(HttpCase):
     def test_retry_after_account_change_cannot_reuse_old_account_reference(self):
         first = self._post()
         self.assertEqual(first.status_code, 202, first.text)
-        other_account = self.env["contact.center.account"].create({
-            "name": "Other synthetic WhatsApp destination",
-            "company_id": self.website.company_id.id,
-            "platform": "whatsapp",
-            "own_external_identity": "5519999999999@s.whatsapp.net",
-        })
+        other_account = self.env["contact.center.account"].create(
+            {
+                "name": "Other synthetic WhatsApp destination",
+                "company_id": self.website.company_id.id,
+                "platform": "whatsapp",
+                "own_external_identity": "5519999999999@s.whatsapp.net",
+            }
+        )
         self.action.handoff_account_id = other_account
         retry = self._post()
         self.assertEqual(retry.status_code, 400, retry.text)
@@ -373,11 +511,19 @@ class TestNativeWebsiteWhatsAppHttp(HttpCase):
         self.assertEqual(clicks.account_id, self.account)
 
     def test_spoofed_identity_destination_origin_and_page_are_rejected(self):
-        for extra in ({"visitor_id": 1}, {"session_key": "a" * 64}, {"url": "https://evil.invalid"},
-                      {"text": "Browser-supplied text must never enter the capture service"}):
-            result = self._post(payload={
-                "action_ref": self.action.public_ref, "event_id": self.event_id, **extra,
-            })
+        for extra in (
+            {"visitor_id": 1},
+            {"session_key": "a" * 64},
+            {"url": "https://evil.invalid"},
+            {"text": "Browser-supplied text must never enter the capture service"},
+        ):
+            result = self._post(
+                payload={
+                    "action_ref": self.action.public_ref,
+                    "event_id": self.event_id,
+                    **extra,
+                }
+            )
             self.assertEqual(result.status_code, 400, result.text)
         for headers, status in (
             ({"Origin": "https://evil.invalid"}, 404),
@@ -404,42 +550,65 @@ class TestNativeWebsiteWhatsAppHttp(HttpCase):
         self.binding.capture_mode = "legacy"
         self.assertEqual(self._post().status_code, 400)
         self.binding.capture_mode = "native"
-        self.endpoint.write({
-            "website_tracking_policy": "individual_consent",
-            "privacy_legal_basis_code": "consent",
-        })
+        self.endpoint.write(
+            {
+                "website_tracking_policy": "individual_consent",
+                "privacy_legal_basis_code": "consent",
+            }
+        )
         self.assertEqual(self._post().status_code, 400)
         self.assertFalse(self._clicks())
 
     def test_other_website_action_cannot_be_used_from_current_website(self):
-        other_site = self.env["website"].create({
-            "name": "Other synthetic website", "domain": "https://other-handoff.invalid",
-            "company_id": self.website.company_id.id,
-        })
-        other_binding = self.env["marketing.website.ingress.binding"].create({
-            "website_id": other_site.id, "endpoint_id": self.endpoint.id, "capture_mode": "native",
-        })
-        other_action = self.env["marketing.website.action"].create({
-            "name": "Other website WhatsApp", "binding_id": other_binding.id,
-            "kind": "whatsapp_handoff", "route_ref": "other.whatsapp.native.http",
-            "source_path": self.page_path, "whatsapp_destination": "5519999999999",
-            "handoff_enabled": True, "handoff_account_id": self.account.id,
-        })
-        result = self._post(payload={"action_ref": other_action.public_ref, "event_id": self.event_id})
+        other_site = self.env["website"].create(
+            {
+                "name": "Other synthetic website",
+                "domain": "https://other-handoff.invalid",
+                "company_id": self.website.company_id.id,
+            }
+        )
+        other_binding = self.env["marketing.website.ingress.binding"].create(
+            {
+                "website_id": other_site.id,
+                "endpoint_id": self.endpoint.id,
+                "capture_mode": "native",
+            }
+        )
+        other_action = self.env["marketing.website.action"].create(
+            {
+                "name": "Other website WhatsApp",
+                "binding_id": other_binding.id,
+                "kind": "whatsapp_handoff",
+                "route_ref": "other.whatsapp.native.http",
+                "source_path": self.page_path,
+                "whatsapp_destination": "5519999999999",
+                "handoff_enabled": True,
+                "handoff_account_id": self.account.id,
+            }
+        )
+        result = self._post(
+            payload={"action_ref": other_action.public_ref, "event_id": self.event_id}
+        )
         self.assertEqual(result.status_code, 400, result.text)
         self.assertFalse(self._clicks())
 
     def test_individual_cookie_grant_is_verified_and_revocation_stops_new_clicks(self):
         self.website.cookies_bar = True
-        self.endpoint.write({
-            "website_tracking_policy": "individual_consent", "privacy_legal_basis_code": "consent",
-        })
+        self.endpoint.write(
+            {
+                "website_tracking_policy": "individual_consent",
+                "privacy_legal_basis_code": "consent",
+            }
+        )
         consent = self.env["marketing.website.consent"]
         decision = consent._decide(self.binding, True)
         cookie = decision._cookie()
-        self.opener.cookies.update({
-            "mc_website_consent": cookie, "website_cookies_bar": '{"required":true,"optional":true}',
-        })
+        self.opener.cookies.update(
+            {
+                "mc_website_consent": cookie,
+                "website_cookies_bar": '{"required":true,"optional":true}',
+            }
+        )
         first = self._post()
         self.assertEqual(first.status_code, 202, first.text)
         consent._decide(self.binding, False, previous_cookie=cookie)
@@ -450,9 +619,11 @@ class TestNativeWebsiteWhatsAppHttp(HttpCase):
     def test_application_failure_rolls_back_click_and_returns_fallback_signal(self):
         capture_type = type(self.env["marketing.website.whatsapp.handoff"])
         original = capture_type._record_click
+
         def create_then_fail(model, *args, **kwargs):
             original(model, *args, **kwargs)
             raise RuntimeError("Synthetic failure after write")
+
         with patch.object(capture_type, "_record_click", new=create_then_fail):
             result = self._post()
         self.assertEqual(result.status_code, 503)
@@ -471,25 +642,41 @@ class TestNativeWebsiteWhatsAppHttp(HttpCase):
         visitor = self.env["website.visitor"].create({"access_token": uuid.uuid4().hex})
         now = fields.Datetime.now()
         track_model = self.env["website.track"]
-        original = track_model.create({
-            "visitor_id": visitor.id, "url": self.origin + "/?gclid=first&gad_campaignid=123",
-            "visit_datetime": now - datetime.timedelta(minutes=2),
-        })
-        track_model.create({
-            "visitor_id": visitor.id, "url": self.origin + self.page_path,
-            "visit_datetime": now - datetime.timedelta(minutes=1),
-        })
-        track_model.create({
-            "visitor_id": visitor.id, "url": "https://other.invalid/?gclid=wrong-site",
-            "visit_datetime": now - datetime.timedelta(seconds=30),
-        })
-        track_model.create({
-            "visitor_id": visitor.id, "url": self.origin + "/?gclid=later-tab",
-            "visit_datetime": now - datetime.timedelta(seconds=20),
-        })
+        original = track_model.create(
+            {
+                "visitor_id": visitor.id,
+                "url": self.origin + "/?gclid=first&gad_campaignid=123",
+                "visit_datetime": now - datetime.timedelta(minutes=2),
+            }
+        )
+        track_model.create(
+            {
+                "visitor_id": visitor.id,
+                "url": self.origin + self.page_path,
+                "visit_datetime": now - datetime.timedelta(minutes=1),
+            }
+        )
+        track_model.create(
+            {
+                "visitor_id": visitor.id,
+                "url": "https://other.invalid/?gclid=wrong-site",
+                "visit_datetime": now - datetime.timedelta(seconds=30),
+            }
+        )
+        track_model.create(
+            {
+                "visitor_id": visitor.id,
+                "url": self.origin + "/?gclid=later-tab",
+                "visit_datetime": now - datetime.timedelta(seconds=20),
+            }
+        )
         snapshot = self.env["marketing.website.whatsapp.capture"]._snapshot(
-            self.action, self.origin, self.origin + self.page_path, visitor=visitor,
-            now=now, cookies={"odoo_utm_campaign": "old-cookie"},
+            self.action,
+            self.origin,
+            self.origin + self.page_path,
+            visitor=visitor,
+            now=now,
+            cookies={"odoo_utm_campaign": "old-cookie"},
         )
         self.assertEqual(snapshot["acquisition"]["gclid"], "first")
         self.assertNotIn("utm_campaign", snapshot["acquisition"])

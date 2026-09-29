@@ -106,6 +106,9 @@ class TestMarketingCenterAccount(SavepointCase):
                         "account_id": self.income.id,
                         "quantity": 1,
                         "price_unit": amount,
+                        # These fixtures exercise exact allocations, independent
+                        # of the chart's default sales tax in a fresh CI database.
+                        "tax_ids": [Command.clear()],
                     }
                 )
             ],

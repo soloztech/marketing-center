@@ -24,7 +24,9 @@ class ResCompany(models.Model):
             )
             or tuple(route_ids) != tuple(sorted(set(route_ids)))
         ):
-            raise ValidationError(_("The Meta CRM route scope must contain sorted IDs."))
+            raise ValidationError(
+                _("The Meta CRM route scope must contain sorted IDs.")
+            )
         # OCA persists kwargs as JSON, which reloads tuples as lists.
         route_ids = tuple(route_ids)
         routes = (
@@ -37,7 +39,9 @@ class ResCompany(models.Model):
         if len(routes) != len(route_ids) or any(
             route.company_id != self for route in routes
         ):
-            raise AccessError(_("The Meta CRM routes must belong to the backfill company."))
+            raise AccessError(
+                _("The Meta CRM routes must belong to the backfill company.")
+            )
         return route_ids
 
     def _enqueue_marketing_meta_crm_backfill(
@@ -53,7 +57,8 @@ class ResCompany(models.Model):
         limit = min(max(int(limit or _BACKFILL_PAGE_SIZE), 1), 1000)
         route_ids = self._crm_backfill_route_ids(route_ids)
         identity_key = "marketing_meta_crm:bootstrap:company:%s:after:%s" % (
-            self.id, after_submission_id
+            self.id,
+            after_submission_id,
         )
         job_kwargs = {}
         if route_ids is not None:

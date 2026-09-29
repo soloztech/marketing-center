@@ -1,18 +1,18 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8" ?>
 <odoo>
     <record id="view_google_click_lookup_tree" model="ir.ui.view">
         <field name="name">marketing.center.google.click.lookup.tree</field>
         <field name="model">marketing.center.google.click.lookup</field>
         <field name="arch" type="xml">
             <tree create="false" edit="false" delete="false">
-                <field name="public_ref"/>
-                <field name="touchpoint_id"/>
-                <field name="source_id"/>
-                <field name="state"/>
-                <field name="run_state"/>
-                <field name="attempt_count"/>
-                <field name="last_attempted_at"/>
-                <field name="next_attempt_at"/>
+                <field name="public_ref" />
+                <field name="touchpoint_id" />
+                <field name="source_id" />
+                <field name="state" />
+                <field name="run_state" />
+                <field name="attempt_count" />
+                <field name="last_attempted_at" />
+                <field name="next_attempt_at" />
             </tree>
         </field>
     </record>
@@ -22,48 +22,64 @@
         <field name="arch" type="xml">
             <form create="false" edit="false" delete="false">
                 <header>
-                    <button name="action_retry" type="object" string="Retry this occurrence" attrs="{'invisible': [('state', 'in', ['found', 'pending', 'waiting'])]}"/>
-                    <field name="state" widget="statusbar"/>
+                    <button
+                        name="action_retry"
+                        type="object"
+                        string="Retry this occurrence"
+                        attrs="{'invisible': [('state', 'in', ['found', 'pending', 'waiting'])]}"
+                    />
+                    <field name="state" widget="statusbar" />
                 </header>
                 <sheet>
                     <group>
                         <group>
-                            <field name="public_ref"/>
-                            <field name="company_id" groups="base.group_multi_company"/>
-                            <field name="touchpoint_id"/>
-                            <field name="enriched_touchpoint_id"/>
-                            <field name="source_id"/>
-                            <field name="source_candidate_count"/>
+                            <field name="public_ref" />
+                            <field
+                                name="company_id"
+                                groups="base.group_multi_company"
+                            />
+                            <field name="touchpoint_id" />
+                            <field name="enriched_touchpoint_id" />
+                            <field name="source_id" />
+                            <field name="source_candidate_count" />
                         </group>
                         <group>
-                            <field name="reason"/>
-                            <field name="sync_run_id"/>
-                            <field name="run_state"/>
-                            <field name="local_date"/>
-                            <field name="report_timezone"/>
-                            <field name="attempt_count"/>
-                            <field name="last_attempted_at"/>
-                            <field name="next_attempt_at"/>
+                            <field name="reason" />
+                            <field name="sync_run_id" />
+                            <field name="run_state" />
+                            <field name="local_date" />
+                            <field name="report_timezone" />
+                            <field name="attempt_count" />
+                            <field name="last_attempted_at" />
+                            <field name="next_attempt_at" />
                         </group>
                     </group>
-                    <group string="Informações do clique confirmado" groups="marketing_center_base.group_marketing_center_admin">
+                    <group
+                        string="Informações do clique confirmado"
+                        groups="marketing_center_base.group_marketing_center_admin"
+                    >
                         <group>
-                            <field name="confirmed_campaign"/>
-                            <field name="confirmed_ad_group"/>
-                            <field name="confirmed_network"/>
+                            <field name="confirmed_campaign" />
+                            <field name="confirmed_ad_group" />
+                            <field name="confirmed_network" />
                         </group>
                         <group>
-                            <field name="confirmed_device"/>
-                            <field name="confirmed_keyword"/>
-                            <field name="confirmed_match_type"/>
+                            <field name="confirmed_device" />
+                            <field name="confirmed_keyword" />
+                            <field name="confirmed_match_type" />
                         </group>
                     </group>
-                    <div class="text-muted" groups="marketing_center_base.group_marketing_center_admin">
+                    <div
+                        class="text-muted"
+                        groups="marketing_center_base.group_marketing_center_admin"
+                    >
                         A palavra-chave do anúncio não é necessariamente o termo exato pesquisado pela pessoa.
                     </div>
-                    <notebook groups="marketing_center_base.group_marketing_center_admin">
+                    <notebook
+                        groups="marketing_center_base.group_marketing_center_admin"
+                    >
                         <page string="Resposta técnica">
-                            <field name="confirmed_response_text" nolabel="1"/>
+                            <field name="confirmed_response_text" nolabel="1" />
                         </page>
                     </notebook>
                 </sheet>
@@ -75,5 +91,12 @@
         <field name="res_model">marketing.center.google.click.lookup</field>
         <field name="view_mode">tree,form</field>
     </record>
-    <menuitem id="menu_google_click_lookup" name="Google Click Lookups" parent="marketing_center_base.menu_marketing_center_attribution" action="action_google_click_lookup" groups="marketing_center_base.group_marketing_center_admin" sequence="80"/>
+    <menuitem
+        id="menu_google_click_lookup"
+        name="Google Click Lookups"
+        parent="marketing_center_base.menu_marketing_center_attribution"
+        action="action_google_click_lookup"
+        groups="marketing_center_base.group_marketing_center_admin"
+        sequence="80"
+    />
 </odoo>

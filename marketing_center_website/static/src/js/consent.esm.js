@@ -19,28 +19,6 @@ const channel =
         ? new window.BroadcastChannel(WITHDRAWAL_SIGNAL)
         : null;
 
-function receiveWithdrawal() {
-    ++serial;
-    withdrawalPending = true;
-    pending = null;
-    choice = {...(choice || {}), granted: false};
-    clearOptionalSession();
-    notify("consent-changed", {...choice, granted: false, confirmed: false});
-    loadConsent(true);
-}
-if (channel) {
-    channel.addEventListener("message", (event) => {
-        if (event.data === "withdrawn") {
-            receiveWithdrawal();
-        }
-    });
-} else {
-    window.addEventListener("storage", (event) => {
-        if (event.key === WITHDRAWAL_SIGNAL && event.newValue) {
-            receiveWithdrawal();
-        }
-    });
-}
 function broadcastWithdrawal() {
     if (channel) {
         channel.postMessage("withdrawn");
@@ -65,9 +43,7 @@ function clearOptionalSession() {
         return;
     }
     const hostname = window.location.hostname || "";
-    const domains = /^[a-z0-9.-]+$/i.test(hostname)
-        ? [hostname, `.${hostname}`]
-        : [];
+    const domains = /^[a-z0-9.-]+$/i.test(hostname) ? [hostname, `.${hostname}`] : [];
     for (const name of ["odoo_utm_campaign", "odoo_utm_source", "odoo_utm_medium"]) {
         deleteCookie(name);
         // Odoo's native server UTM cookie can have an explicit Domain. Its
@@ -102,14 +78,15 @@ export function loadConsent(refresh = false) {
                     return choice || {available: false, granted: false};
                 }
                 choice =
-                    value && (value.available === true || value.informational_notice === true)
+                    value &&
+                    (value.available === true || value.informational_notice === true)
                         ? {...value}
                         : {
-                            available: false,
-                            granted: false,
-                            informational_notice: false,
-                            capture_allowed: false,
-                        };
+                              available: false,
+                              granted: false,
+                              informational_notice: false,
+                              capture_allowed: false,
+                          };
                 if (withdrawalPending) {
                     // A cross-tab revocation cannot grant consent through GET.
                     // The independent operator mode still comes from the server.
@@ -127,6 +104,29 @@ export function loadConsent(refresh = false) {
             .catch(() => ({available: false, granted: false}));
     }
     return pending;
+}
+
+function receiveWithdrawal() {
+    ++serial;
+    withdrawalPending = true;
+    pending = null;
+    choice = {...(choice || {}), granted: false};
+    clearOptionalSession();
+    notify("consent-changed", {...choice, granted: false, confirmed: false});
+    loadConsent(true);
+}
+if (channel) {
+    channel.addEventListener("message", (event) => {
+        if (event.data === "withdrawn") {
+            receiveWithdrawal();
+        }
+    });
+} else {
+    window.addEventListener("storage", (event) => {
+        if (event.key === WITHDRAWAL_SIGNAL && event.newValue) {
+            receiveWithdrawal();
+        }
+    });
 }
 
 export async function submitConsent(granted) {
@@ -186,9 +186,14 @@ export async function submitConsent(granted) {
             ...config,
             granted: actualGrant,
             informational_notice: accepted && result.informational_notice === true,
-            capture_allowed: accepted && (result.capture_allowed === true || actualGrant),
+            capture_allowed:
+                accepted && (result.capture_allowed === true || actualGrant),
         };
-        if (!actualGrant && config.informational_notice === true && !choice.informational_notice) {
+        if (
+            !actualGrant &&
+            config.informational_notice === true &&
+            !choice.informational_notice
+        ) {
             clearOptionalSession();
         }
         pending = Promise.resolve(choice);
@@ -228,7 +233,10 @@ document.addEventListener("click", (event) => {
         return;
     }
     event.preventDefault();
-    if (document.getElementById("website_cookies_bar")?.dataset.marketingTrackingNotice === "1") {
+    if (
+        document.getElementById("website_cookies_bar")?.dataset
+            .marketingTrackingNotice === "1"
+    ) {
         // A stale CMS shortcut cannot change cookies or reload a native choice
         // on a site whose server-rendered notice is informational.
         return;

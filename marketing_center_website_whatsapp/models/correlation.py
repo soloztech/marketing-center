@@ -16,10 +16,10 @@ from odoo.addons.marketing_center_base.services.serialization import (
 
 MATCH_TOKEN = object()
 CLAIMED_STATES = ("reference", "confirmed")
-REFERENCE_RE = re.compile(r"(?<![A-Za-z0-9-])([A-Z0-9]{2,8}-[A-Z0-9]{12})(?![A-Za-z0-9-])")
-REFERENCE_TOKEN_HINT_RE = re.compile(
-    r"\b[A-Za-z0-9]{2,8}[-‐‑‒–—][A-Za-z0-9]{6,32}\b"
+REFERENCE_RE = re.compile(
+    r"(?<![A-Za-z0-9-])([A-Z0-9]{2,8}-[A-Z0-9]{12})(?![A-Za-z0-9-])"
 )
+REFERENCE_TOKEN_HINT_RE = re.compile(r"\b[A-Za-z0-9]{2,8}[-‐‑‒–—][A-Za-z0-9]{6,32}\b")
 REFERENCE_HINT_RE = re.compile(
     r"refer[eê]ncia\s*:|\b[A-Za-z0-9]{2,8}[-‐‑‒–—][A-Za-z0-9]{6,32}\b",
     re.IGNORECASE,
@@ -39,34 +39,55 @@ class WebsiteWhatsappMatch(models.Model):
     _check_company_auto = True
 
     handoff_id = fields.Many2one(
-        "marketing.website.whatsapp.handoff", required=True, readonly=True,
-        ondelete="cascade", index=True, check_company=True,
+        "marketing.website.whatsapp.handoff",
+        required=True,
+        readonly=True,
+        ondelete="cascade",
+        index=True,
+        check_company=True,
     )
     message_binding_id = fields.Many2one(
-        "contact.center.message.binding", required=True, readonly=True,
-        ondelete="cascade", index=True, check_company=True,
+        "contact.center.message.binding",
+        required=True,
+        readonly=True,
+        ondelete="cascade",
+        index=True,
+        check_company=True,
     )
     channel_id = fields.Many2one(
         related="message_binding_id.channel_binding_id.channel_id",
-        store=True, readonly=True, index=True,
+        store=True,
+        readonly=True,
+        index=True,
     )
     account_id = fields.Many2one(
-        related="handoff_id.account_id", store=True, readonly=True, index=True,
+        related="handoff_id.account_id",
+        store=True,
+        readonly=True,
+        index=True,
     )
     company_id = fields.Many2one(
-        related="handoff_id.company_id", store=True, readonly=True, index=True,
+        related="handoff_id.company_id",
+        store=True,
+        readonly=True,
+        index=True,
     )
     state = fields.Selection(
-        [("reference", "Vinculado pela referência"),
-         ("suggested", "Associação sugerida"),
-         ("confirmed", "Confirmado pela equipe"),
-         ("rejected", "Descartado / desfeito"),
-         ("superseded", "Superada por outro vínculo")],
-        required=True, readonly=True, index=True,
+        [
+            ("reference", "Vinculado pela referência"),
+            ("suggested", "Associação sugerida"),
+            ("confirmed", "Confirmado pela equipe"),
+            ("rejected", "Descartado / desfeito"),
+            ("superseded", "Superada por outro vínculo"),
+        ],
+        required=True,
+        readonly=True,
+        index=True,
     )
     delta_seconds = fields.Integer(string="Intervalo (segundos)", readonly=True)
     score = fields.Integer(
-        string="Pontuação de ordenação", readonly=True,
+        string="Pontuação de ordenação",
+        readonly=True,
         help="Ordena sugestões pela proximidade temporal; não é uma probabilidade.",
     )
     candidate_count = fields.Integer(string="Candidatos no intervalo", readonly=True)
@@ -77,23 +98,36 @@ class WebsiteWhatsappMatch(models.Model):
     reference = fields.Char(related="handoff_id.reference", readonly=True)
     page_url = fields.Char(related="handoff_id.page_url", readonly=True)
     landing_url = fields.Char(related="handoff_id.landing_url", readonly=True)
-    message_at = fields.Datetime(related="message_binding_id.message_id.date", readonly=True)
+    message_at = fields.Datetime(
+        related="message_binding_id.message_id.date", readonly=True
+    )
 
     _sql_constraints = [
-        ("handoff_message_unique", "unique(handoff_id, message_binding_id)",
-         "Esta associação já foi analisada."),
-        ("score_bounds", "check(score >= 0 and score <= 100)",
-         "A pontuação deve estar entre 0 e 100."),
+        (
+            "handoff_message_unique",
+            "unique(handoff_id, message_binding_id)",
+            "Esta associação já foi analisada.",
+        ),
+        (
+            "score_bounds",
+            "check(score >= 0 and score <= 100)",
+            "A pontuação deve estar entre 0 e 100.",
+        ),
     ]
 
     def init(self):
         # One click cannot identify two chats; one message cannot claim two clicks.
-        for field in ("handoff_id", "message_binding_id"):
-            self.env.cr.execute(
-                "CREATE UNIQUE INDEX IF NOT EXISTS marketing_whatsapp_claim_%s "
-                "ON marketing_website_whatsapp_match (%s) "
-                "WHERE state IN ('reference', 'confirmed')" % (field, field)
-            )
+        self.env.cr.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS marketing_whatsapp_claim_handoff_id "
+            "ON marketing_website_whatsapp_match (handoff_id) "
+            "WHERE state IN ('reference', 'confirmed')"
+        )
+        self.env.cr.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS "
+            "marketing_whatsapp_claim_message_binding_id "
+            "ON marketing_website_whatsapp_match (message_binding_id) "
+            "WHERE state IN ('reference', 'confirmed')"
+        )
 
     def _service(self):
         return self.sudo().with_context(marketing_whatsapp_match_service=MATCH_TOKEN)
@@ -129,7 +163,9 @@ class WebsiteWhatsappMatch(models.Model):
                 or message.channel_binding_id.conversation_type != "direct"
                 or message.account_id.platform != "whatsapp"
             ):
-                raise ValidationError(_("A mensagem e o clique devem ter a mesma caixa e empresa."))
+                raise ValidationError(
+                    _("A mensagem e o clique devem ter a mesma caixa e empresa.")
+                )
 
     def _authorized_review(self):
         self.ensure_one()
@@ -139,7 +175,9 @@ class WebsiteWhatsappMatch(models.Model):
         self.check_access_rule("write")
         if self.company_id not in self.env.companies:
             raise AccessError(_("A empresa da associação não está ativa."))
-        channel, _member = self.env["contact.center.ui.api"]._authorized_channel(self.channel_id.id)
+        channel, _member = self.env["contact.center.ui.api"]._authorized_channel(
+            self.channel_id.id
+        )
         channel.check_access_rights("write")
         channel.check_access_rule("write")
         self.account_id._contact_center_check_user_scope()
@@ -156,20 +194,31 @@ class WebsiteWhatsappMatch(models.Model):
         # Version the click before reading competitors (stale-snapshot fence).
         service._fence_handoffs(self.handoff_id)
         if self.state != "suggested":
-            raise ValidationError(_("Apenas sugestões pendentes podem ser confirmadas."))
-        competitors = self._service().search([
-            ("state", "in", CLAIMED_STATES),
-            "|", ("handoff_id", "=", self.handoff_id.id),
-            ("message_binding_id", "=", self.message_binding_id.id),
-        ], limit=1)
+            raise ValidationError(
+                _("Apenas sugestões pendentes podem ser confirmadas.")
+            )
+        competitors = self._service().search(
+            [
+                ("state", "in", CLAIMED_STATES),
+                "|",
+                ("handoff_id", "=", self.handoff_id.id),
+                ("message_binding_id", "=", self.message_binding_id.id),
+            ],
+            limit=1,
+        )
         if competitors:
-            raise ValidationError(_("Este clique ou mensagem já tem outro vínculo confirmado."))
+            raise ValidationError(
+                _("Este clique ou mensagem já tem outro vínculo confirmado.")
+            )
         try:
             with self.env.cr.savepoint():
-                self._service().write({
-                    "state": "confirmed", "reviewer_id": self.env.uid,
-                    "reviewed_at": fields.Datetime.now(),
-                })
+                self._service().write(
+                    {
+                        "state": "confirmed",
+                        "reviewer_id": self.env.uid,
+                        "reviewed_at": fields.Datetime.now(),
+                    }
+                )
         except IntegrityError as error:
             if error.pgcode == "23505":
                 raise MarketingSerializationFailure(
@@ -184,36 +233,50 @@ class WebsiteWhatsappMatch(models.Model):
         self.ensure_one()
         if self.state not in CLAIMED_STATES:
             return self.browse()
-        competitors = self._service().search([
-            ("id", "!=", self.id), ("state", "=", "suggested"),
-            "|", ("handoff_id", "=", self.handoff_id.id),
-            ("message_binding_id", "=", self.message_binding_id.id),
-        ])
+        competitors = self._service().search(
+            [
+                ("id", "!=", self.id),
+                ("state", "=", "suggested"),
+                "|",
+                ("handoff_id", "=", self.handoff_id.id),
+                ("message_binding_id", "=", self.message_binding_id.id),
+            ]
+        )
         if competitors:
-            competitors._service().write({
-                "state": "superseded", "reviewer_id": False,
-                "reviewed_at": fields.Datetime.now(),
-            })
+            competitors._service().write(
+                {
+                    "state": "superseded",
+                    "reviewer_id": False,
+                    "reviewed_at": fields.Datetime.now(),
+                }
+            )
         return competitors
 
     def action_reject(self):
         self._authorized_review()
-        self.env["marketing.website.whatsapp.correlation"]._lock_account(self.account_id)
+        self.env["marketing.website.whatsapp.correlation"]._lock_account(
+            self.account_id
+        )
         self.invalidate_recordset()
         self._authorized_review()
         if self.state == "rejected":
             return True
-        self._service().write({
-            "state": "rejected", "reviewer_id": self.env.uid,
-            "reviewed_at": fields.Datetime.now(),
-        })
+        self._service().write(
+            {
+                "state": "rejected",
+                "reviewer_id": self.env.uid,
+                "reviewed_at": fields.Datetime.now(),
+            }
+        )
         return True
 
 
 class WebsiteWhatsappHandoff(models.Model):
     _inherit = "marketing.website.whatsapp.handoff"
 
-    match_ids = fields.One2many("marketing.website.whatsapp.match", "handoff_id", readonly=True)
+    match_ids = fields.One2many(
+        "marketing.website.whatsapp.match", "handoff_id", readonly=True
+    )
 
 
 class WebsiteWhatsappCorrelation(models.AbstractModel):
@@ -223,7 +286,8 @@ class WebsiteWhatsappCorrelation(models.AbstractModel):
     @api.model
     def _lock_account(self, account):
         acquire_advisory_xact_lock(
-            self.env.cr, "marketing_website_whatsapp:account:%s" % account.id,
+            self.env.cr,
+            "marketing_website_whatsapp:account:%s" % account.id,
         )
 
     @api.model
@@ -263,43 +327,72 @@ class WebsiteWhatsappCorrelation(models.AbstractModel):
     @api.model
     def _is_entry_message(self, message):
         when = message.message_id.date
-        previous = self.env["contact.center.message.binding"].sudo().search([
-            ("channel_binding_id", "=", message.channel_binding_id.id),
-            ("id", "!=", message.id),
-            "|", ("message_id.date", "<", when),
-            "&", ("message_id.date", "=", when), ("id", "<", message.id),
-            ("message_id.date", ">", when - RETURN_GAP),
-        ], limit=1)
+        previous = (
+            self.env["contact.center.message.binding"]
+            .sudo()
+            .search(
+                [
+                    ("channel_binding_id", "=", message.channel_binding_id.id),
+                    ("id", "!=", message.id),
+                    "|",
+                    ("message_id.date", "<", when),
+                    "&",
+                    ("message_id.date", "=", when),
+                    ("id", "<", message.id),
+                    ("message_id.date", ">", when - RETURN_GAP),
+                ],
+                limit=1,
+            )
+        )
         return not previous
 
     @api.model
-    def _create_association(self, handoff, message, state, count=1, score=0, truncated=False):
+    def _create_association(
+        self, handoff, message, state, count=1, score=0, truncated=False
+    ):
         matches = self.env["marketing.website.whatsapp.match"]._service()
-        existing = matches.search([
-            ("handoff_id", "=", handoff.id),
-            ("message_binding_id", "=", message.id),
-        ], limit=1)
+        existing = matches.search(
+            [
+                ("handoff_id", "=", handoff.id),
+                ("message_binding_id", "=", message.id),
+            ],
+            limit=1,
+        )
         if existing:
             if state == "reference":
                 existing._supersede_competitors()
             return existing
         delta = int((message.message_id.date - handoff.clicked_at).total_seconds())
         reason = (
-            _("Referência exata recebida nesta caixa; intervalo de %s segundos.") % delta
-            if state == "reference" else
-            _("Proximidade temporal: %s segundos; %s candidato(s) na mesma caixa. "
-              "Sugestão sem confirmação de identidade.") % (delta, count)
+            _("Referência exata recebida nesta caixa; intervalo de %s segundos.")
+            % delta
+            if state == "reference"
+            else _(
+                "Proximidade temporal: %(seconds)s segundos; "
+                "%(candidates)s candidato(s) na mesma caixa. "
+                "Sugestão sem confirmação de identidade."
+            )
+            % {"seconds": delta, "candidates": count}
         )
         if truncated:
-            reason += _(" Há pelo menos %s candidatos; exibindo somente os %s mais próximos.") % (count, CANDIDATE_LIMIT)
+            reason += _(
+                " Há pelo menos %(candidates)s candidatos; "
+                "exibindo somente os %(limit)s mais próximos."
+            ) % {"candidates": count, "limit": CANDIDATE_LIMIT}
         try:
             with self.env.cr.savepoint():
-                association = matches.create({
-                    "handoff_id": handoff.id, "message_binding_id": message.id,
-                    "state": state, "delta_seconds": delta, "score": score,
-                    "candidate_count": count, "reason": reason,
-                    "candidates_truncated": truncated,
-                })
+                association = matches.create(
+                    {
+                        "handoff_id": handoff.id,
+                        "message_binding_id": message.id,
+                        "state": state,
+                        "delta_seconds": delta,
+                        "score": score,
+                        "candidate_count": count,
+                        "reason": reason,
+                        "candidates_truncated": truncated,
+                    }
+                )
         except IntegrityError as error:
             if error.pgcode == "23505":
                 raise MarketingSerializationFailure(
@@ -338,20 +431,35 @@ class WebsiteWhatsappCorrelation(models.AbstractModel):
         ]
         handoffs = self.env["marketing.website.whatsapp.handoff"].sudo()
         if references:
-            if len(references) != 1 or REFERENCE_TOKEN_HINT_RE.findall(text) != references:
+            if (
+                len(references) != 1
+                or REFERENCE_TOKEN_HINT_RE.findall(text) != references
+            ):
                 return empty
-            handoff = handoffs.search(base_domain + [
-                ("reference", "=", references[0]),
-                ("clicked_at", ">=", when - REFERENCE_TTL),
-            ], limit=1)
+            handoff = handoffs.search(
+                base_domain
+                + [
+                    ("reference", "=", references[0]),
+                    ("clicked_at", ">=", when - REFERENCE_TTL),
+                ],
+                limit=1,
+            )
             if not handoff:
                 return empty
             self._fence_handoffs(handoff)
-            claimed = matches.search([
-                ("handoff_id", "=", handoff.id), ("state", "in", CLAIMED_STATES),
-            ], limit=1)
+            claimed = matches.search(
+                [
+                    ("handoff_id", "=", handoff.id),
+                    ("state", "in", CLAIMED_STATES),
+                ],
+                limit=1,
+            )
             if claimed:
-                return claimed if claimed.channel_id == message.channel_binding_id.channel_id else empty
+                return (
+                    claimed
+                    if claimed.channel_id == message.channel_binding_id.channel_id
+                    else empty
+                )
             return self._create_association(handoff, message, "reference")
         if REFERENCE_HINT_RE.search(text) or not self._is_entry_message(message):
             return empty
@@ -360,15 +468,22 @@ class WebsiteWhatsappCorrelation(models.AbstractModel):
         # all. Negate the direct relation against the claimed-record subquery.
         # _search returns a Query, so the account's historical IDs are never
         # materialized into an unbounded Python list.
-        claimed_query = matches._search([
-            ("account_id", "=", message.account_id.id),
-            ("company_id", "=", message.company_id.id),
-            ("state", "in", CLAIMED_STATES),
-        ])
-        candidates = handoffs.search(base_domain + [
-            ("clicked_at", ">=", when - TEMPORAL_WINDOW),
-            ("match_ids", "not in", claimed_query),
-        ], order="clicked_at desc, id desc", limit=CANDIDATE_LIMIT + 1)
+        claimed_query = matches._search(
+            [
+                ("account_id", "=", message.account_id.id),
+                ("company_id", "=", message.company_id.id),
+                ("state", "in", CLAIMED_STATES),
+            ]
+        )
+        candidates = handoffs.search(
+            base_domain
+            + [
+                ("clicked_at", ">=", when - TEMPORAL_WINDOW),
+                ("match_ids", "not in", claimed_query),
+            ],
+            order="clicked_at desc, id desc",
+            limit=CANDIDATE_LIMIT + 1,
+        )
         truncated = len(candidates) > CANDIDATE_LIMIT
         # A candidate claimed by a transaction committed after this snapshot
         # makes the fence fail, so no suggestion is based on a stale claim view.
@@ -378,7 +493,12 @@ class WebsiteWhatsappCorrelation(models.AbstractModel):
             delta = max(0, (when - handoff.clicked_at).total_seconds())
             score = max(0, 100 - int(delta / TEMPORAL_WINDOW.total_seconds() * 100))
             result |= self._create_association(
-                handoff, message, "suggested", len(candidates), score, truncated,
+                handoff,
+                message,
+                "suggested",
+                len(candidates),
+                score,
+                truncated,
             )
         return result
 
@@ -387,7 +507,9 @@ class MailChannel(models.Model):
     _inherit = "mail.channel"
 
     marketing_whatsapp_match_ids = fields.One2many(
-        "marketing.website.whatsapp.match", "channel_id", readonly=True,
+        "marketing.website.whatsapp.match",
+        "channel_id",
+        readonly=True,
     )
 
 
@@ -395,8 +517,10 @@ class CrmLead(models.Model):
     _inherit = "crm.lead"
 
     marketing_whatsapp_match_ids = fields.Many2many(
-        "marketing.website.whatsapp.match", compute="_compute_marketing_whatsapp_matches",
-        compute_sudo=False, string="Origens do site por WhatsApp",
+        "marketing.website.whatsapp.match",
+        compute="_compute_marketing_whatsapp_matches",
+        compute_sudo=False,
+        string="Origens do site por WhatsApp",
     )
 
     @api.depends_context("uid", "allowed_company_ids")
@@ -407,7 +531,13 @@ class CrmLead(models.Model):
                 lead.marketing_whatsapp_match_ids = matches
                 continue
             channels = lead._visible_contact_center_channels()
-            lead.marketing_whatsapp_match_ids = matches.search([
-                ("channel_id", "in", channels.ids),
-                ("state", "in", CLAIMED_STATES),
-            ]) if channels else matches
+            lead.marketing_whatsapp_match_ids = (
+                matches.search(
+                    [
+                        ("channel_id", "in", channels.ids),
+                        ("state", "in", CLAIMED_STATES),
+                    ]
+                )
+                if channels
+                else matches
+            )

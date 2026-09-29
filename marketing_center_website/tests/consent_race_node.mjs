@@ -3,173 +3,376 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
 
-const source = fs.readFileSync(new URL("../static/src/js/consent.esm.js", import.meta.url), "utf8")
+const source =
+  fs
+    .readFileSync(new URL("../static/src/js/consent.esm.js", import.meta.url), "utf8")
     .replace(/^import[\s\S]*?;\s*$/gm, "")
     .replace(/^export /gm, "") + "\nglobalThis.api = {loadConsent, submitConsent};";
-const ready = {available: true, granted: true, config_revision: 1, policy_version: "test", notice_version: "test"};
+const ready = {
+  available: true,
+  granted: true,
+  config_revision: 1,
+  policy_version: "test",
+  notice_version: "test",
+};
 const answer = (value) => ({ok: true, json: async () => value});
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 function tab(fetch, bus = [], cookies = {optional: true}, noticeBar = null) {
-    const events = [];
-    const deleted = [];
-    const handlers = new Map();
-    const cookieWrites = [];
-    let widget;
-    class Channel {
-        constructor() { this.listeners = []; bus.push(this); }
-        addEventListener(_name, callback) { this.listeners.push(callback); }
-        postMessage(data) { for (const other of bus) { if (other !== this) { for (const cb of other.listeners) { cb({data}); } } } }
+  const events = [];
+  const deleted = [];
+  const handlers = new Map();
+  const cookieWrites = [];
+  let widget;
+  class Channel {
+    constructor() {
+      this.listeners = [];
+      bus.push(this);
     }
-    const context = vm.createContext({
-        console, URL, Promise,
-        CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } },
-        publicWidget: {registry: {cookies_bar: {include(value) { widget = value; }}}},
-        eligibleLandingPath: () => false,
-        deleteCookie: (name) => deleted.push(name),
-        setCookie(name, value) { cookieWrites.push(name); cookies.optional = JSON.parse(value).optional; },
-        document: {body: {classList: {contains: () => false}},
-            getElementById: id => id === "website_cookies_bar" ? noticeBar : null,
-            addEventListener(name, fn) { handlers.set(name, fn); }, dispatchEvent(event) { events.push(event); }},
-        window: {fetch, BroadcastChannel: Channel, sessionStorage: {removeItem() {}}, location: {pathname: "/", reload() {}}, addEventListener() {}},
-    });
-    vm.runInContext(source, context);
-    return {api: context.api, events, widget, cookies, deleted, cookieWrites,
-        clickRevoke() { handlers.get("click")({isTrusted: true, preventDefault() {}, target: {closest: () => ({})}}); }};
+    addEventListener(_name, callback) {
+      this.listeners.push(callback);
+    }
+    postMessage(data) {
+      for (const other of bus) {
+        if (other !== this) {
+          for (const cb of other.listeners) {
+            cb({data});
+          }
+        }
+      }
+    }
+  }
+  const context = vm.createContext({
+    console,
+    URL,
+    Promise,
+    CustomEvent: class {
+      constructor(type, options) {
+        this.type = type;
+        this.detail = options.detail;
+      }
+    },
+    publicWidget: {
+      registry: {
+        cookies_bar: {
+          include(value) {
+            widget = value;
+          },
+        },
+      },
+    },
+    eligibleLandingPath: () => false,
+    deleteCookie: (name) => deleted.push(name),
+    setCookie(name, value) {
+      cookieWrites.push(name);
+      cookies.optional = JSON.parse(value).optional;
+    },
+    document: {
+      body: {classList: {contains: () => false}},
+      getElementById: (id) => (id === "website_cookies_bar" ? noticeBar : null),
+      addEventListener(name, fn) {
+        handlers.set(name, fn);
+      },
+      dispatchEvent(event) {
+        events.push(event);
+      },
+    },
+    window: {
+      fetch,
+      BroadcastChannel: Channel,
+      sessionStorage: {
+        removeItem() {
+          /* Browser API stub; no side effect needed in this fixture. */
+        },
+      },
+      location: {
+        pathname: "/",
+        reload() {
+          /* Browser API stub; no side effect needed in this fixture. */
+        },
+      },
+      addEventListener() {
+        /* Browser API stub; no side effect needed in this fixture. */
+      },
+    },
+  });
+  vm.runInContext(source, context);
+  return {
+    api: context.api,
+    events,
+    widget,
+    cookies,
+    deleted,
+    cookieWrites,
+    clickRevoke() {
+      handlers.get("click")({
+        isTrusted: true,
+        preventDefault() {
+          /* Browser API stub; no side effect needed in this fixture. */
+        },
+        target: {closest: () => ({})},
+      });
+    },
+  };
 }
 
 // A config response captured before withdrawal must not reactivate consumers.
 {
-    let resolveGet;
-    const page = tab((path) => path.endsWith("/config") ? new Promise((resolve) => { resolveGet = resolve; }) : Promise.resolve(answer({accepted: true, granted: false})));
-    const old = page.api.loadConsent();
-    await page.api.submitConsent(false);
-    assert.ok(["odoo_utm_campaign", "odoo_utm_source", "odoo_utm_medium"].every((name) => page.deleted.includes(name)));
-    resolveGet(answer(ready));
-    await old;
-    assert.equal(page.events.some((event) => event.detail.granted === true), false);
+  let resolveGet;
+  const page = tab((path) =>
+    path.endsWith("/config")
+      ? new Promise((resolve) => {
+          resolveGet = resolve;
+        })
+      : Promise.resolve(answer({accepted: true, granted: false}))
+  );
+  const old = page.api.loadConsent();
+  await page.api.submitConsent(false);
+  assert.ok(
+    ["odoo_utm_campaign", "odoo_utm_source", "odoo_utm_medium"].every((name) =>
+      page.deleted.includes(name)
+    )
+  );
+  resolveGet(answer(ready));
+  await old;
+  assert.equal(
+    page.events.some((event) => event.detail.granted === true),
+    false
+  );
 }
 
 // The withdrawal POST waits for an already-sent grant, then revokes its cookie.
 {
-    let resolveGrant;
-    let calls = [];
-    let serverGranted = false;
-    const page = tab((path, options) => {
-        if (path.endsWith("/config")) return Promise.resolve(answer({...ready, granted: false}));
-        const choice = JSON.parse(options.body).granted;
-        calls.push(choice);
-        if (choice) return new Promise((resolve) => { resolveGrant = () => { serverGranted = true; resolve(answer({accepted: true, granted: true})); }; });
-        serverGranted = false;
-        return Promise.resolve(answer({accepted: true, granted: false}));
-    });
-    await page.api.loadConsent();
-    const grant = page.api.submitConsent(true);
-    await tick();
-    const withdrawal = page.api.submitConsent(false);
-    await tick();
-    assert.deepEqual(calls, [true]);
-    assert.equal(page.cookies.optional, false);
-    resolveGrant();
-    await Promise.all([grant, withdrawal]);
-    assert.deepEqual(calls, [true, false]);
-    assert.equal(serverGranted, false);
-    assert.equal(page.events.some((event) => event.detail.granted === true), false);
+  let resolveGrant;
+  const calls = [];
+  let serverGranted = false;
+  const page = tab((path, options) => {
+    if (path.endsWith("/config"))
+      return Promise.resolve(answer({...ready, granted: false}));
+    const choice = JSON.parse(options.body).granted;
+    calls.push(choice);
+    if (choice)
+      return new Promise((resolve) => {
+        resolveGrant = () => {
+          serverGranted = true;
+          resolve(answer({accepted: true, granted: true}));
+        };
+      });
+    serverGranted = false;
+    return Promise.resolve(answer({accepted: true, granted: false}));
+  });
+  await page.api.loadConsent();
+  const grant = page.api.submitConsent(true);
+  await tick();
+  const withdrawal = page.api.submitConsent(false);
+  await tick();
+  assert.deepEqual(calls, [true]);
+  assert.equal(page.cookies.optional, false);
+  resolveGrant();
+  await Promise.all([grant, withdrawal]);
+  assert.deepEqual(calls, [true, false]);
+  assert.equal(serverGranted, false);
+  assert.equal(
+    page.events.some((event) => event.detail.granted === true),
+    false
+  );
 }
 
 // A signal across tabs can only disable; authoritative GET cannot race it on.
 {
-    const bus = [], cookies = {optional: true};
-    const fetch = (path) => Promise.resolve(answer(path.endsWith("/config") ? {...ready, granted: cookies.optional} : {accepted: true, granted: false}));
-    const first = tab(fetch, bus, cookies), second = tab(fetch, bus, cookies);
-    await Promise.all([first.api.loadConsent(), second.api.loadConsent()]);
-    second.events.length = 0;
-    await first.api.submitConsent(false);
-    await tick();
-    assert.ok(second.events.length > 0);
-    assert.equal(second.events.some((event) => event.detail.granted === true), false);
-    assert.equal(cookies.optional, false);
+  const bus = [],
+    cookies = {optional: true};
+  const fetch = (path) =>
+    Promise.resolve(
+      answer(
+        path.endsWith("/config")
+          ? {...ready, granted: cookies.optional}
+          : {accepted: true, granted: false}
+      )
+    );
+  const first = tab(fetch, bus, cookies),
+    second = tab(fetch, bus, cookies);
+  await Promise.all([first.api.loadConsent(), second.api.loadConsent()]);
+  second.events.length = 0;
+  await first.api.submitConsent(false);
+  await tick();
+  assert.ok(second.events.length > 0);
+  assert.equal(
+    second.events.some((event) => event.detail.granted === true),
+    false
+  );
+  assert.equal(cookies.optional, false);
 }
 
 // A nested icon has the same native meaning as its containing accept button.
 {
-    const page = tab((path) => Promise.resolve(answer(path.endsWith("/config") ? {...ready, granted: false} : {accepted: true, granted: true})));
-    await page.api.loadConsent();
-    let nativeTarget;
-    page.widget._onAcceptClick.call({el: {dataset: {}}, _super(event) { nativeTarget = event.target.id; }}, {target: {id: "icon"}, currentTarget: {id: "cookies-consent-all"}});
-    assert.equal(nativeTarget, "cookies-consent-all");
-    await tick();
+  const page = tab((path) =>
+    Promise.resolve(
+      answer(
+        path.endsWith("/config")
+          ? {...ready, granted: false}
+          : {accepted: true, granted: true}
+      )
+    )
+  );
+  await page.api.loadConsent();
+  let nativeTarget;
+  page.widget._onAcceptClick.call(
+    {
+      el: {dataset: {}},
+      _super(event) {
+        nativeTarget = event.target.id;
+      },
+    },
+    {target: {id: "icon"}, currentTarget: {id: "cookies-consent-all"}}
+  );
+  assert.equal(nativeTarget, "cookies-consent-all");
+  await tick();
 }
 // Stale native buttons cannot manufacture a decision on a server-rendered notice.
 {
-    let writes = 0, posts = 0;
-    const page = tab((path) => {
-        if (path.endsWith("/decision")) posts++;
-        return Promise.resolve(answer({...ready, available: false, granted: false,
-            informational_notice: true, capture_allowed: true}));
-    });
-    await page.api.loadConsent();
-    page.widget._onAcceptClick.call({el: {dataset: {marketingTrackingNotice: "1"}},
-        _super() { writes++; }}, {target: {id: "cookies-consent-all"}, preventDefault() {}});
-    await tick();
-    assert.equal(writes, 0);
-    assert.equal(posts, 0);
-    assert.equal(page.events.some(event => event.detail.granted === true), false);
+  let writes = 0,
+    posts = 0;
+  const page = tab((path) => {
+    if (path.endsWith("/decision")) posts++;
+    return Promise.resolve(
+      answer({
+        ...ready,
+        available: false,
+        granted: false,
+        informational_notice: true,
+        capture_allowed: true,
+      })
+    );
+  });
+  await page.api.loadConsent();
+  page.widget._onAcceptClick.call(
+    {
+      el: {dataset: {marketingTrackingNotice: "1"}},
+      _super() {
+        writes++;
+      },
+    },
+    {
+      target: {id: "cookies-consent-all"},
+      preventDefault() {
+        /* Browser API stub; no side effect needed in this fixture. */
+      },
+    }
+  );
+  await tick();
+  assert.equal(writes, 0);
+  assert.equal(posts, 0);
+  assert.equal(
+    page.events.some((event) => event.detail.granted === true),
+    false
+  );
 }
 // A stale CMS footer shortcut must not write native cookies or submit a decision.
 {
-    let requests = 0;
-    const page = tab(() => { requests++; return Promise.resolve(answer(ready)); }, [],
-        {optional: true}, {dataset: {marketingTrackingNotice: "1"}});
-    page.clickRevoke();
-    await tick();
-    assert.equal(requests, 0);
-    assert.equal(page.cookieWrites.length, 0);
-    assert.equal(page.deleted.length, 0);
-    assert.equal(page.cookies.optional, true);
-    const native = tab((path) => Promise.resolve(answer(path.endsWith("/config") ? ready :
-        {accepted: true, granted: false})), [], {optional: true}, {dataset: {}});
-    native.clickRevoke();
-    await tick();
-    assert.ok(native.cookieWrites.includes("website_cookies_bar"), "individual mode still supports withdrawal");
-    assert.equal(native.cookies.optional, false);
+  let requests = 0;
+  const page = tab(
+    () => {
+      requests++;
+      return Promise.resolve(answer(ready));
+    },
+    [],
+    {optional: true},
+    {dataset: {marketingTrackingNotice: "1"}}
+  );
+  page.clickRevoke();
+  await tick();
+  assert.equal(requests, 0);
+  assert.equal(page.cookieWrites.length, 0);
+  assert.equal(page.deleted.length, 0);
+  assert.equal(page.cookies.optional, true);
+  const native = tab(
+    (path) =>
+      Promise.resolve(
+        answer(path.endsWith("/config") ? ready : {accepted: true, granted: false})
+      ),
+    [],
+    {optional: true},
+    {dataset: {}}
+  );
+  native.clickRevoke();
+  await tick();
+  assert.ok(
+    native.cookieWrites.includes("website_cookies_bar"),
+    "individual mode still supports withdrawal"
+  );
+  assert.equal(native.cookies.optional, false);
 }
 // The server's informational mode is independent of an absent or refused choice.
 {
-    let informational = true;
-    const mode = () => ({...ready, granted: false, informational_notice: informational, capture_allowed: informational});
-    const page = tab((path) => Promise.resolve(answer(path.endsWith("/config")
-        ? mode() : {...mode(), accepted: true})), [], {optional: false});
-    const initial = await page.api.loadConsent();
-    assert.equal(initial.granted, false);
-    assert.equal(initial.informational_notice, true);
-    assert.equal(page.deleted.length, 0);
-    await page.api.submitConsent(false);
-    assert.equal(page.cookies.optional, false);
-    assert.equal(page.deleted.length, 0);
-    assert.equal(page.events.some((event) => event.detail.granted === true), false);
-    assert.equal(page.events.filter((event) => event.type.endsWith("consent-changed"))
-        .every((event) => event.detail.informational_notice === true), true);
-    informational = false;
-    const restored = await page.api.loadConsent(true);
-    assert.equal(restored.informational_notice, false);
-    assert.equal(restored.capture_allowed, false);
-    assert.ok(page.deleted.includes("odoo_utm_source"));
+  let informational = true;
+  const mode = () => ({
+    ...ready,
+    granted: false,
+    informational_notice: informational,
+    capture_allowed: informational,
+  });
+  const page = tab(
+    (path) =>
+      Promise.resolve(
+        answer(path.endsWith("/config") ? mode() : {...mode(), accepted: true})
+      ),
+    [],
+    {optional: false}
+  );
+  const initial = await page.api.loadConsent();
+  assert.equal(initial.granted, false);
+  assert.equal(initial.informational_notice, true);
+  assert.equal(page.deleted.length, 0);
+  await page.api.submitConsent(false);
+  assert.equal(page.cookies.optional, false);
+  assert.equal(page.deleted.length, 0);
+  assert.equal(
+    page.events.some((event) => event.detail.granted === true),
+    false
+  );
+  assert.equal(
+    page.events
+      .filter((event) => event.type.endsWith("consent-changed"))
+      .every((event) => event.detail.informational_notice === true),
+    true
+  );
+  informational = false;
+  const restored = await page.api.loadConsent(true);
+  assert.equal(restored.informational_notice, false);
+  assert.equal(restored.capture_allowed, false);
+  assert.ok(page.deleted.includes("odoo_utm_source"));
 }
 
 // Cross-tab refusal preserves informational attribution but cannot grant real consent.
 {
-    const bus = [], cookies = {optional: false};
-    const fetch = (path) => Promise.resolve(answer({
-        ...ready, granted: false, informational_notice: true, capture_allowed: true,
+  const bus = [],
+    cookies = {optional: false};
+  const fetch = (path) =>
+    Promise.resolve(
+      answer({
+        ...ready,
+        granted: false,
+        informational_notice: true,
+        capture_allowed: true,
         ...(!path.endsWith("/config") ? {accepted: true} : {}),
-    }));
-    const first = tab(fetch, bus, cookies), second = tab(fetch, bus, cookies);
-    await Promise.all([first.api.loadConsent(), second.api.loadConsent()]);
-    second.events.length = 0;
-    await first.api.submitConsent(false);
-    await tick();
-    assert.equal(second.deleted.length, 0);
-    assert.equal(second.events.some((event) => event.detail.granted === true), false);
-    assert.equal(second.events.every((event) => event.detail.informational_notice === true), true);
+      })
+    );
+  const first = tab(fetch, bus, cookies),
+    second = tab(fetch, bus, cookies);
+  await Promise.all([first.api.loadConsent(), second.api.loadConsent()]);
+  second.events.length = 0;
+  await first.api.submitConsent(false);
+  await tick();
+  assert.equal(second.deleted.length, 0);
+  assert.equal(
+    second.events.some((event) => event.detail.granted === true),
+    false
+  );
+  assert.equal(
+    second.events.every((event) => event.detail.informational_notice === true),
+    true
+  );
 }
-console.log("Consent race tests passed, including informational mode, stale CMS shortcuts, refusal and restoration.");
+console.log(
+  "Consent race tests passed, including informational mode, stale CMS shortcuts, refusal and restoration."
+);

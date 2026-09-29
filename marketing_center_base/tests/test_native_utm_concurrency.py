@@ -389,11 +389,13 @@ class TestMarketingNativeUtmConcurrency(TransactionCase):
             if fixture:
                 with self.registry.cursor() as cr:
                     cr.execute(
-                        "UPDATE marketing_center_external_entity SET current_revision_id = NULL WHERE id = %s",
+                        "UPDATE marketing_center_external_entity "
+                        "SET current_revision_id = NULL WHERE id = %s",
                         [fixture["entity_id"]],
                     )
                     cr.execute(
-                        "DELETE FROM marketing_center_external_entity_revision WHERE entity_id = %s",
+                        "DELETE FROM marketing_center_external_entity_revision "
+                        "WHERE entity_id = %s",
                         [fixture["entity_id"]],
                     )
                     cr.execute(

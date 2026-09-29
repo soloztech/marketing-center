@@ -90,7 +90,7 @@ repos:
           - --list-different
           - --ignore-unknown
         types: [text]
-        files: \.(css|htm|html|js|json|jsx|less|md|scss|toml|ts|xml|yaml|yml)$
+        files: \.(cjs|css|htm|html|js|json|jsx|less|md|mjs|scss|toml|ts|xml|yaml|yml)$
         language: node
         additional_dependencies:
           - "prettier@2.7.1"

@@ -72,6 +72,8 @@ class MarketingWebsiteConsent(models.Model):
         return super().write(values)
 
     def unlink(self):
+        # Keep consent audit rows; autovacuum erases only expired identifiers.
+        # pylint: disable=method-required-super
         raise AccessError(_("Individual decision evidence cannot be deleted manually."))
 
     def _cookie(self):
@@ -263,6 +265,6 @@ class MarketingWebsiteConsent(models.Model):
         if expired:
             # Retain only a minimal policy audit and any historical intent FK;
             # erase the cookie's external identifier at its explicit deadline.
-            super(MarketingWebsiteConsent, expired).write(
+            return super(MarketingWebsiteConsent, expired).write(
                 {"public_ref": False, "identifier_erased_at": fields.Datetime.now()}
             )

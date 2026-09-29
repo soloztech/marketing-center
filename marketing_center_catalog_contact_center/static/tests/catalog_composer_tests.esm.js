@@ -352,12 +352,16 @@ QUnit.test(
 QUnit.test(
     "catalog switches exclusively with other panels and respects access",
     (assert) => {
+        const layouts = [];
         const app = Object.create(ContactCenterApp.prototype);
         app.ui = {sidePanel: "contact"};
         app.store = {
             capabilities: {content_catalog: true},
             state: {detailsOpen: true},
             selectedConversation: {channel_id: 17},
+            rememberInboxLayout(layout) {
+                layouts.push(layout);
+            },
             toggleDetails() {
                 this.state.detailsOpen = !this.state.detailsOpen;
             },
@@ -366,6 +370,10 @@ QUnit.test(
         assert.ok(app.catalogPanelSelected);
         assert.notOk(app.contactPanelSelected);
         assert.ok(app.store.state.detailsOpen);
+        assert.deepEqual(layouts[layouts.length - 1], {
+            sidePanel: "catalog",
+            detailsOpen: true,
+        });
         app.toggleSidePanel("crm");
         assert.notOk(app.catalogPanelSelected);
         app.toggleCatalogPanel();
@@ -377,6 +385,10 @@ QUnit.test(
         app.toggleCatalogPanel();
         app.toggleCatalogPanel();
         assert.notOk(app.store.state.detailsOpen, "second click closes the catalog");
+        assert.deepEqual(layouts[layouts.length - 1], {
+            sidePanel: "catalog",
+            detailsOpen: false,
+        });
         app.toggleCatalogPanel();
         assert.ok(app.store.state.detailsOpen, "reopening selects the same panel");
         app.store.capabilities.content_catalog = false;

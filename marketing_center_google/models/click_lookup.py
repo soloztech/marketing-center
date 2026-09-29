@@ -302,6 +302,8 @@ class MarketingSourceGoogleClick(models.Model):
 
 
 class MarketingSyncRunGoogleClick(models.Model):
+    # Keep this feature in its own cooperative ORM extension.
+    # pylint: disable=consider-merging-classes-inherited
     _inherit = "marketing.center.sync.run"
 
     def _job_lookup_google_click(self, expected_attempt, quota_attempt=0):

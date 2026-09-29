@@ -1,11 +1,11 @@
 import json
 from urllib.parse import unquote
 
-from odoo import http
+from odoo import _, http
 from odoo.exceptions import AccessError, ValidationError
 from odoo.http import request
 
-from ..models.consent import CONSENT_COOKIE, CONSENT_CONTEXT_TOKEN
+from ..models.consent import CONSENT_CONTEXT_TOKEN, CONSENT_COOKIE
 from .website_action import _bounded_strict_json, _human_post_headers, _same_origin
 from .website_ingress import _config_response, _endpoint_origin_allowed
 
@@ -26,7 +26,9 @@ def _binding():
             limit=1,
         )
     )
-    if binding and _endpoint_origin_allowed(binding.endpoint_id, request.httprequest.host_url):
+    if binding and _endpoint_origin_allowed(
+        binding.endpoint_id, request.httprequest.host_url
+    ):
         return binding
     return request.env["marketing.website.ingress.binding"]
 
@@ -46,12 +48,14 @@ def _configuration(binding):
             "informational_notice": False,
             "capture_allowed": False,
         }
-    decision = (request.env["marketing.website.consent"] if endpoint._informational_notice()
-                else request.env["marketing.website.consent"]._current(endpoint))
+    decision = (
+        request.env["marketing.website.consent"]
+        if endpoint._informational_notice()
+        else request.env["marketing.website.consent"]._current(endpoint)
+    )
     return {
         "available": bool(
-            binding.website_id.cookies_bar
-            and endpoint._requires_individual_consent()
+            binding.website_id.cookies_bar and endpoint._requires_individual_consent()
         ),
         "granted": bool(decision),
         "informational_notice": endpoint._informational_notice(),
@@ -111,7 +115,7 @@ class MarketingWebsiteConsentController(http.Controller):
                 or len(payload["policy_version"]) > 128
                 or len(payload["notice_version"]) > 128
             ):
-                raise ValidationError("Invalid decision envelope")
+                raise ValidationError(_("Invalid decision envelope"))
             endpoint = binding.endpoint_id
             model = request.env["marketing.website.consent"].sudo()
             previous_cookie = request.httprequest.cookies.get(CONSENT_COOKIE, "")
@@ -167,7 +171,7 @@ class MarketingWebsiteConsentController(http.Controller):
                 not isinstance(native_cookie, dict)
                 or native_cookie.get("optional") is not True
             ):
-                raise AccessError("Native optional preference is absent")
+                raise AccessError(_("Native optional preference is absent"))
             for key in ("config_revision", "policy_version", "notice_version"):
                 expected = (
                     endpoint[key]
@@ -175,7 +179,7 @@ class MarketingWebsiteConsentController(http.Controller):
                     else endpoint["privacy_" + key]
                 )
                 if payload[key] != expected:
-                    raise AccessError("The displayed privacy notice has changed")
+                    raise AccessError(_("The displayed privacy notice has changed"))
             if (
                 not request.env["marketing.web.ingress.admission"]
                 .sudo()

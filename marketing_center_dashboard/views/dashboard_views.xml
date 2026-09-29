@@ -134,10 +134,19 @@
                                     t-if="record.has_contact_center.raw_value and record.general_capture_state.raw_value === 'disabled'"
                                 >
                                     <div class="text-muted small">
-                                        <strong>Conversations:</strong> not measured, capture is disabled
-                                        <t t-if="record.general_capture_changed_at.raw_value">since <field name="general_capture_changed_at" /></t>
+                                        <strong
+                                        >Conversations:</strong> not measured, capture is disabled
+                                        <t
+                                            t-if="record.general_capture_changed_at.raw_value"
+                                        >since <field
+                                                name="general_capture_changed_at"
+                                            /></t>
                                         <t t-else="">since an unknown date</t>.
-                                        <t t-if="record.cc_last_event_at.raw_value">Last recorded fact: <field name="cc_last_event_at" />.</t>
+                                        <t
+                                            t-if="record.cc_last_event_at.raw_value"
+                                        >Last recorded fact: <field
+                                                name="cc_last_event_at"
+                                            />.</t>
                                     </div>
                                 </div>
                                 <div
@@ -177,10 +186,19 @@
                                     t-if="record.has_crm.raw_value and record.crm_capture_state.raw_value === 'disabled'"
                                 >
                                     <div class="text-muted small">
-                                        <strong>CRM:</strong> not measured, capture is disabled
-                                        <t t-if="record.crm_capture_changed_at.raw_value">since <field name="crm_capture_changed_at" /></t>
+                                        <strong
+                                        >CRM:</strong> not measured, capture is disabled
+                                        <t
+                                            t-if="record.crm_capture_changed_at.raw_value"
+                                        >since <field
+                                                name="crm_capture_changed_at"
+                                            /></t>
                                         <t t-else="">since an unknown date</t>.
-                                        <t t-if="record.crm_last_event_at.raw_value">Last recorded fact: <field name="crm_last_event_at" />.</t>
+                                        <t
+                                            t-if="record.crm_last_event_at.raw_value"
+                                        >Last recorded fact: <field
+                                                name="crm_last_event_at"
+                                            />.</t>
                                     </div>
                                 </div>
                                 <div
@@ -200,7 +218,9 @@
                                     <div
                                         class="text-muted small"
                                         t-if="record.crm_capture_state.raw_value === 'enabled_in_window'"
-                                    >CRM: capture enabled, verified since <field name="crm_capture_changed_at" />; earlier days in this window may be unmeasured.</div>
+                                    >CRM: capture enabled, verified since <field
+                                            name="crm_capture_changed_at"
+                                        />; earlier days in this window may be unmeasured.</div>
                                     <div
                                         class="text-muted small"
                                         t-if="record.crm_capture_state.raw_value === 'enabled_unknown_start'"
@@ -211,10 +231,19 @@
                                     t-if="record.has_sale.raw_value and record.general_capture_state.raw_value === 'disabled'"
                                 >
                                     <div class="text-muted small">
-                                        <strong>Sales:</strong> not measured, capture is disabled
-                                        <t t-if="record.general_capture_changed_at.raw_value">since <field name="general_capture_changed_at" /></t>
+                                        <strong
+                                        >Sales:</strong> not measured, capture is disabled
+                                        <t
+                                            t-if="record.general_capture_changed_at.raw_value"
+                                        >since <field
+                                                name="general_capture_changed_at"
+                                            /></t>
                                         <t t-else="">since an unknown date</t>.
-                                        <t t-if="record.sale_last_event_at.raw_value">Last recorded fact: <field name="sale_last_event_at" />.</t>
+                                        <t
+                                            t-if="record.sale_last_event_at.raw_value"
+                                        >Last recorded fact: <field
+                                                name="sale_last_event_at"
+                                            />.</t>
                                     </div>
                                 </div>
                                 <div
@@ -241,10 +270,19 @@
                                     t-if="record.has_account.raw_value and record.general_capture_state.raw_value === 'disabled'"
                                 >
                                     <div class="text-muted small">
-                                        <strong>Financial facts:</strong> not measured, capture is disabled
-                                        <t t-if="record.general_capture_changed_at.raw_value">since <field name="general_capture_changed_at" /></t>
+                                        <strong
+                                        >Financial facts:</strong> not measured, capture is disabled
+                                        <t
+                                            t-if="record.general_capture_changed_at.raw_value"
+                                        >since <field
+                                                name="general_capture_changed_at"
+                                            /></t>
                                         <t t-else="">since an unknown date</t>.
-                                        <t t-if="record.account_last_event_at.raw_value">Last recorded fact: <field name="account_last_event_at" />.</t>
+                                        <t
+                                            t-if="record.account_last_event_at.raw_value"
+                                        >Last recorded fact: <field
+                                                name="account_last_event_at"
+                                            />.</t>
                                     </div>
                                 </div>
                                 <div
@@ -273,7 +311,9 @@
                                 <div
                                     class="mt-1 text-muted small"
                                     t-if="(record.has_contact_center.raw_value or record.has_sale.raw_value or record.has_account.raw_value) and record.general_capture_state.raw_value === 'enabled_in_window'"
-                                >Conversations, sales and financial facts: capture enabled, verified since <field name="general_capture_changed_at" />; earlier days in this window may be unmeasured.</div>
+                                >Conversations, sales and financial facts: capture enabled, verified since <field
+                                        name="general_capture_changed_at"
+                                    />; earlier days in this window may be unmeasured.</div>
                                 <div
                                     class="mt-1 text-muted small"
                                     t-if="(record.has_contact_center.raw_value or record.has_sale.raw_value or record.has_account.raw_value) and record.general_capture_state.raw_value === 'enabled_unknown_start'"

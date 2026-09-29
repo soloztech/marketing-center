@@ -142,11 +142,7 @@ class MarketingCenterMetaLeadRoute(models.Model):
             switching_to_since = (
                 enabled and policy == "since" and route.crm_history_policy != "since"
             )
-            if (
-                policy == "since"
-                and not cutoff
-                and (activating or switching_to_since)
-            ):
+            if policy == "since" and not cutoff and (activating or switching_to_since):
                 route_values["crm_create_from"] = fields.Datetime.now()
             super(MarketingCenterMetaLeadRoute, route).write(route_values)
         self.flush_recordset(list(self._crm_configuration_fields()))
@@ -239,11 +235,9 @@ class MarketingCenterMetaLeadRoute(models.Model):
             route_ids = tuple(
                 sorted(enabled.filtered(lambda route: route.company_id == company).ids)
             )
-            company.sudo().with_context(
-                allowed_company_ids=[company.id]
-            ).with_company(company)._enqueue_marketing_meta_crm_backfill(
-                route_ids=route_ids
-            )
+            company.sudo().with_context(allowed_company_ids=[company.id]).with_company(
+                company
+            )._enqueue_marketing_meta_crm_backfill(route_ids=route_ids)
 
     @api.constrains(
         "company_id",

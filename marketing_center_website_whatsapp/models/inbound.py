@@ -23,15 +23,22 @@ class ContactCenterMessageBinding(models.Model):
         ):
             try:
                 with self.env.cr.savepoint():
-                    self.env["marketing.website.whatsapp.correlation"].sudo().with_context(
+                    self.env[
+                        "marketing.website.whatsapp.correlation"
+                    ].sudo().with_context(
                         allowed_company_ids=[binding.company_id.id],
-                    ).with_company(binding.company_id)._analyze_inbound(binding)
+                    ).with_company(
+                        binding.company_id
+                    )._analyze_inbound(
+                        binding
+                    )
             except OperationalError:
                 # Odoo must retry a fresh transaction after deadlock/serialization.
                 raise
             except Exception as error:  # Attribution must not discard a customer message.
                 _logger.warning(
                     "Website WhatsApp association failed for binding %s (%s)",
-                    binding.id, type(error).__name__,
+                    binding.id,
+                    type(error).__name__,
                 )
         return bindings

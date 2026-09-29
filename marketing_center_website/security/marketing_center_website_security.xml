@@ -33,6 +33,9 @@
     <field name="name">Website decisions by administrator company</field>
     <field name="model_id" ref="model_marketing_website_consent" />
     <field name="domain_force">[('company_id', 'in', company_ids)]</field>
-    <field name="groups" eval="[(4, ref('marketing_center_base.group_marketing_center_admin'))]" />
+    <field
+            name="groups"
+            eval="[(4, ref('marketing_center_base.group_marketing_center_admin'))]"
+        />
   </record>
 </odoo>

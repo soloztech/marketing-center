@@ -3,9 +3,20 @@ env:
   es6: true
 
 parserOptions:
-  ecmaVersion: 2019
+  ecmaVersion: 2020
 
 overrides:
+  - files:
+      - "**/tests/*_node.cjs"
+    env:
+      node: true
+      browser: false
+    parserOptions:
+      ecmaVersion: 2022
+      sourceType: script
+    rules:
+      # CommonJS files already have a module wrapper.
+      strict: [error, global]
   - files:
       - "**/tests/*_node.mjs"
     env:

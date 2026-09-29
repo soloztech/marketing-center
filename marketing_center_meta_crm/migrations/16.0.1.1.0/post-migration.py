@@ -1,5 +1,8 @@
 from odoo import SUPERUSER_ID, api
 
+# Odoo loads migration scripts outside the addon package; relative imports fail.
+# Import the original token object rather than creating another identity.
+# pylint: disable=odoo-addons-relative-import
 from odoo.addons.marketing_center_meta_crm.models.tokens import (
     MARKETING_META_CRM_MIGRATION_TOKEN,
 )

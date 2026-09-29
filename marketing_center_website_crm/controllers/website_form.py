@@ -36,7 +36,8 @@ def _submission_hash():
     pairs = sorted(
         (key, values)
         for key, values in request.httprequest.form.lists()
-        if key not in {
+        if key
+        not in {
             "csrf_token",
             "recaptcha_token_response",
             "mc_event",

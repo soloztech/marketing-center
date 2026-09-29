@@ -9,7 +9,11 @@
         />
         <field name="arch" type="xml">
             <xpath expr="//field[@name='read_enabled']" position="after">
-                <field name="google_click_lookup_enabled" groups="marketing_center_base.group_marketing_center_admin" attrs="{'invisible': [('service', '!=', 'google.ads')]}"/>
+                <field
+                    name="google_click_lookup_enabled"
+                    groups="marketing_center_base.group_marketing_center_admin"
+                    attrs="{'invisible': [('service', '!=', 'google.ads')]}"
+                />
             </xpath>
             <xpath expr="//form/header" position="inside">
                 <button

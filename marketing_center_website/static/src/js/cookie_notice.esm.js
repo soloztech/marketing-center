@@ -9,17 +9,23 @@ let refreshPending = null;
 
 export function refreshMeasurementConsent() {
     if (!refreshPending) {
-        refreshPending = loadConsent(true).finally(() => { refreshPending = null; });
+        refreshPending = loadConsent(true).finally(() => {
+            refreshPending = null;
+        });
     }
     return refreshPending;
 }
 
 export function eligibleMeasurementConfig(config) {
-    return Boolean(config && /^[1-9][0-9]*$/.test(config.dataset.websiteId || "") &&
-        window.location.protocol === "https:" &&
-        config.dataset.path === window.location.pathname &&
-        eligibleLandingPath(config.dataset.path) &&
-        document.body && !document.body.classList.contains("editor_enable"));
+    return Boolean(
+        config &&
+            /^[1-9][0-9]*$/.test(config.dataset.websiteId || "") &&
+            window.location.protocol === "https:" &&
+            config.dataset.path === window.location.pathname &&
+            eligibleLandingPath(config.dataset.path) &&
+            document.body &&
+            !document.body.classList.contains("editor_enable")
+    );
 }
 
 function informational(bar) {
@@ -33,10 +39,48 @@ function dismissed(bar) {
         return true;
     }
     try {
-        return window.localStorage.getItem(bar.dataset.marketingNoticeStorageKey) === "1";
+        return (
+            window.localStorage.getItem(bar.dataset.marketingNoticeStorageKey) === "1"
+        );
     } catch (_error) {
         return false;
     }
+}
+
+export function startCookieNotice(bar) {
+    if (!informational(bar) || document.body?.classList.contains("editor_enable")) {
+        return;
+    }
+    // Previously edited pages may still contain the old preferences shortcut.
+    // Keep their CMS content intact while matching this site's current policy.
+    for (const control of document.querySelectorAll(
+        "[data-marketing-consent-revoke]"
+    )) {
+        control.hidden = true;
+        control.classList.add("d-none");
+    }
+    if (started.has(bar)) {
+        return;
+    }
+    started.add(bar);
+    // Delegation survives native widget recreation and edited inner markup.
+    bar.addEventListener("click", (event) => {
+        const button = event.target.closest?.(".marketing-cookie-notice-proceed");
+        if (!button || !bar.contains(button)) {
+            return;
+        }
+        event.preventDefault();
+        bar.dataset.marketingNoticeDismissed = "1";
+        try {
+            window.localStorage.setItem(bar.dataset.marketingNoticeStorageKey, "1");
+        } catch (_error) {
+            /* The in-memory dismissal still works. */
+        }
+        const modal = bar.querySelector(".modal");
+        if (modal) {
+            window.Modal.getOrCreateInstance(modal).hide();
+        }
+    });
 }
 
 publicWidget.registry.cookies_bar.include({
@@ -57,7 +101,11 @@ publicWidget.registry.cookies_bar.include({
     },
     _showPopup() {
         if (informational(this.el)) {
-            if (!dismissed(this.el) && !this._popupAlreadyShown && this._canShowPopup()) {
+            if (
+                !dismissed(this.el) &&
+                !this._popupAlreadyShown &&
+                this._canShowPopup()
+            ) {
                 this.$target.find(".modal").modal("show");
                 this.releaseFocus = this._trapFocus();
             }
@@ -68,45 +116,15 @@ publicWidget.registry.cookies_bar.include({
     _onHideModal() {
         if (informational(this.el)) {
             this._popupAlreadyShown = true;
-            this.releaseFocus && this.releaseFocus();
+            if (this.releaseFocus) {
+                this.releaseFocus();
+            }
             this.releaseFocus = null;
             return;
         }
         return this._super(...arguments);
     },
 });
-
-export function startCookieNotice(bar) {
-    if (!informational(bar) || document.body?.classList.contains("editor_enable")) {
-        return;
-    }
-    // Previously edited pages may still contain the old preferences shortcut.
-    // Keep their CMS content intact while matching this site's current policy.
-    for (const control of document.querySelectorAll("[data-marketing-consent-revoke]")) {
-        control.hidden = true;
-        control.classList.add("d-none");
-    }
-    if (started.has(bar)) {
-        return;
-    }
-    started.add(bar);
-    // Delegation survives native widget recreation and edited inner markup.
-    bar.addEventListener("click", (event) => {
-        const button = event.target.closest?.(".marketing-cookie-notice-proceed");
-        if (!button || !bar.contains(button)) {
-            return;
-        }
-        event.preventDefault();
-        bar.dataset.marketingNoticeDismissed = "1";
-        try {
-            window.localStorage.setItem(bar.dataset.marketingNoticeStorageKey, "1");
-        } catch (_error) { /* The in-memory dismissal still works. */ }
-        const modal = bar.querySelector(".modal");
-        if (modal) {
-            window.Modal.getOrCreateInstance(modal).hide();
-        }
-    });
-}
 
 function boot() {
     startCookieNotice(document.getElementById("website_cookies_bar"));

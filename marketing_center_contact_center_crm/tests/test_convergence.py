@@ -251,8 +251,14 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
         self.assertEqual(len(links), 1)
         self.assertIn("contact_center:conversation:", links.source_ref)
 
-    def test_business_events_disabled_keeps_conversation_acquisition_in_crm(self):
-        self.env.company.marketing_business_events_enabled = False
+    def test_lifecycle_capture_disabled_keeps_conversation_acquisition_in_crm(self):
+        # CRM lifecycle capture has its own switch, independent of the ledger.
+        self.env.company.write(
+            {
+                "marketing_business_events_enabled": False,
+                "marketing_crm_events_enabled": False,
+            }
+        )
         before = self.env["marketing.business.event"].search_count([])
         channel, binding = self._channel("acquisition-without-lifecycle")
         lead = self._lead("Acquisition without business events")

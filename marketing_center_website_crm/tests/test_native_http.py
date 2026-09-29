@@ -141,7 +141,9 @@ class TestNativeWebsiteSubmissionHttp(HttpCase):
             return_value=google_result,
         ) as verify:
             first, lead = self._post_form(
-                values=dict(self.form_values, recaptcha_token_response="synthetic-first")
+                values=dict(
+                    self.form_values, recaptcha_token_response="synthetic-first"
+                )
             )
             self.assertEqual(verify.call_count, 1)
             events = self._assert_one_capture(lead, initial_intents)
@@ -178,14 +180,21 @@ class TestNativeWebsiteSubmissionHttp(HttpCase):
         params.set_param("recaptcha_private_key", "synthetic-native-test-secret")
         params.set_param("recaptcha_min_score", "0.7")
         google_result = Mock(
-            json=Mock(return_value={"success": False, "error-codes": ["invalid-input-response"]})
+            json=Mock(
+                return_value={
+                    "success": False,
+                    "error-codes": ["invalid-input-response"],
+                }
+            )
         )
         with patch(
             "odoo.addons.google_recaptcha.models.ir_http.requests.post",
             return_value=google_result,
         ) as verify:
             response = self._post_response(
-                values=dict(self.form_values, recaptcha_token_response="synthetic-invalid")
+                values=dict(
+                    self.form_values, recaptcha_token_response="synthetic-invalid"
+                )
             )
         self.assertEqual(response.status_code, 200, response.text)
         self.assertTrue(response.json().get("error"))

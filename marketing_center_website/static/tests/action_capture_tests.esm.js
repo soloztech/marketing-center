@@ -141,36 +141,43 @@ QUnit.test("adds only opaque references to the exact native form route", (assert
     );
 });
 
-QUnit.test("preserves the native body and result while awaiting exchange", async (assert) => {
-    assert.expect(5);
-    const opaqueBody = {deliberately: "not inspected"};
-    let receivedBody = null;
-    let receivedUrl = null;
-    const nativePromise = Promise.resolve(
-        JSON.stringify({id: 9, marketing_center_receipt: RECEIPT})
-    );
-    const nativePost = (url, body) => {
-        receivedUrl = url;
-        receivedBody = body;
-        return nativePromise;
-    };
-    let exchanged = null;
-    const bridge = createFormPostBridge(
-        nativePost,
-        "https://www.example.test",
-        claim,
-        (payload) => {
-            exchanged = payload;
-        }
-    );
-    const returned = bridge("/website/form/crm.lead", opaqueBody);
-    assert.strictEqual(await returned, await nativePromise, "the native result is unchanged");
-    assert.strictEqual(receivedBody, opaqueBody, "the native body is unchanged");
-    assert.ok(receivedUrl.startsWith("/website/form/crm.lead?"));
-    await returned;
-    assert.deepEqual(exchanged, formExchangePayload(claim(), RECEIPT));
-    assert.notOk(JSON.stringify(exchanged).includes("deliberately"));
-});
+QUnit.test(
+    "preserves the native body and result while awaiting exchange",
+    async (assert) => {
+        assert.expect(5);
+        const opaqueBody = {deliberately: "not inspected"};
+        let receivedBody = null;
+        let receivedUrl = null;
+        const nativePromise = Promise.resolve(
+            JSON.stringify({id: 9, marketing_center_receipt: RECEIPT})
+        );
+        const nativePost = (url, body) => {
+            receivedUrl = url;
+            receivedBody = body;
+            return nativePromise;
+        };
+        let exchanged = null;
+        const bridge = createFormPostBridge(
+            nativePost,
+            "https://www.example.test",
+            claim,
+            (payload) => {
+                exchanged = payload;
+            }
+        );
+        const returned = bridge("/website/form/crm.lead", opaqueBody);
+        assert.strictEqual(
+            await returned,
+            await nativePromise,
+            "the native result is unchanged"
+        );
+        assert.strictEqual(receivedBody, opaqueBody, "the native body is unchanged");
+        assert.ok(receivedUrl.startsWith("/website/form/crm.lead?"));
+        await returned;
+        assert.deepEqual(exchanged, formExchangePayload(claim(), RECEIPT));
+        assert.notOk(JSON.stringify(exchanged).includes("deliberately"));
+    }
+);
 
 QUnit.test("does not consume a claim for unrelated legacy AJAX", (assert) => {
     let takeCount = 0;

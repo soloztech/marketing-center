@@ -226,6 +226,8 @@ class MarketingCenterConnection(models.Model):
 
 
 class MarketingCenterSource(models.Model):
+    # Keep this feature in its own cooperative ORM extension.
+    # pylint: disable=consider-merging-classes-inherited
     _inherit = "marketing.center.source"
 
     @api.model
