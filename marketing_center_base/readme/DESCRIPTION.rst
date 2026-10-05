@@ -1,12 +1,12 @@
-Provider-neutral marketing core for Odoo 16. It contains the canonical immutable
-marketing touchpoint ledger, a revisioned external catalog, fenced synchronization
-runs and cursors, and daily account/campaign performance facts. Performance keeps
-exact BIGINT counters, cost in micros, explicit missing-versus-zero semantics and
-immutable A-B-A revision history. Read access is restricted by active company and,
-for operational catalog and performance records, by the source roster.
+Marketing Center combines acquisition evidence, CRM integration and the management
+overview in one Odoo 16 application. It owns the immutable touchpoint ledger,
+revisioned advertising catalog, synchronization runs, performance facts, auditable
+evidence-to-CRM links, native UTM processing and lifecycle events. Native CRM
+continues to own leads and opportunities. Conversations belong to Contact Center.
 
-It deliberately has no dependency on Contact Center, CRM, Website, Meta or Google
-addons. Provider and bridge addons normalize their responses into the local DTOs and
-internal ingestion services exposed by this core. Contact Center keeps its own
-operational attribution evidence and connects to this canonical marketing ledger
-only through the optional bridge addon.
+The core requires native ``crm`` and ``queue_job``. Google, Meta, Website,
+Contact Center and commercial bridges remain optional. The independent content
+library is different from the advertising catalog.
+
+``marketing_center_crm`` and ``marketing_center_dashboard`` are temporary
+compatibility packages. Their implementation is now part of this application.

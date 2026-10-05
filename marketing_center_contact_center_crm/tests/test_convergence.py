@@ -17,13 +17,13 @@ from odoo.addons.contact_center_base.services.tokens import (
 from odoo.addons.contact_center_crm.models.conversation_link import (
     conversation_graph_is_locked,
 )
+from odoo.addons.marketing_center_base.models.crm import (
+    crm_lead as marketing_crm_lead,
+    service as marketing_crm_service,
+)
 from odoo.addons.marketing_center_contact_center_crm.models import (
     crm_lead as bridge_crm_lead,
     service as bridge_service,
-)
-from odoo.addons.marketing_center_crm.models import (
-    crm_lead as marketing_crm_lead,
-    service as marketing_crm_service,
 )
 from odoo.addons.queue_job.tests.common import trap_jobs
 

@@ -1,7 +1,7 @@
 {
     "name": "Marketing Center - Sales",
     "summary": "Optional sales event history, disabled by default",
-    "version": "16.0.1.1.0",
+    "version": "16.0.1.1.1",
     "category": "Marketing",
     "author": "Soloz Technologies",
     "website": "https://github.com/soloztech/marketing-center",
@@ -10,7 +10,6 @@
         "sale_management",
         "sale_crm",
         "marketing_center_base",
-        "marketing_center_crm",
     ],
     "data": [
         "security/marketing_center_sale_security.xml",

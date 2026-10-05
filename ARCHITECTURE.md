@@ -1,11 +1,25 @@
 # Arquitetura do Marketing Center
 
+## Unified core since 16.0.2.0.0
+
+`marketing_center_base` owns acquisition evidence, native CRM integration, UTM
+processing and the read-only management overview. Native `crm` and `queue_job` are
+required. `marketing_center_crm` and `marketing_center_dashboard` retain compatibility
+namespaces for existing installations; their implementation and records belong to base.
+They are unnecessary for a fresh functional installation. The former suite installation
+profile is removed. Optional provider, Website, Contact Center and commercial bridges
+remain separate.
+
+The [fusion guide](docs/core-fusion.md) defines installation, upgrade and recovery
+behavior. Content catalog remains independent.
+
 ## Um produto, não vários sistemas
 
 O Marketing Center é um único produto executado no mesmo Odoo, no mesmo banco PostgreSQL
 e no mesmo `queue_job`. Seus addons são limites internos de dependência: eles permitem
 instalar apenas os provedores e os aplicativos Odoo necessários sem acoplar Google,
-Meta, Website, CRM, Vendas, Contabilidade e Contact Center ao núcleo.
+Meta, Website, Vendas, Contabilidade e Contact Center ao núcleo. O CRM nativo é
+pré-requisito do aplicativo integrado.
 
 Um addon não representa um microserviço, uma base separada ou outra interface para o
 usuário. Os registros se relacionam no mesmo ORM e os trabalhos assíncronos usam o mesmo
@@ -14,25 +28,23 @@ integração seja portada ou substituída sem reescrever o domínio central.
 
 ## Componentes funcionais
 
-Existem 14 componentes funcionais. O `marketing_center_suite` descrito adiante é apenas
-um perfil de instalação; ele não acrescenta um 15º domínio.
+O núcleo reúne aquisição, integração CRM e leitura gerencial. As integrações opcionais
+preservam seus próprios limites de dependência.
 
-| Camada       | Addon                                 | Responsabilidade e motivo da separação                                                                                                                                                                              |
-| ------------ | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Núcleo       | `marketing_center_base`               | Define contratos neutros, DTOs, fontes, conexões, catálogo externo, métricas, touchpoints, atribuição e eventos de negócio. Não depende de provedores nem de CRM, Website, Vendas, Contabilidade ou Contact Center. |
-| Interface    | `marketing_center_dashboard`          | Projeta os ledgers em uma visão gerencial somente leitura. Fica separado para que o núcleo possa operar sem uma interface analítica específica.                                                                     |
-| Provedor     | `marketing_center_google`             | Lê catálogo, desempenho, histórico de alterações e diagnósticos do Google Ads e os traduz para os contratos do núcleo. Credenciais e transporte pertencem ao `google_api_base`.                                     |
-| Provedor     | `marketing_center_meta`               | Lê catálogo/desempenho da Meta e trata Lead Ads sobre o webhook compartilhado. Traduz objetos Meta para DTOs canônicos; transporte e recepção técnica ficam em `meta_api_base` e `meta_webhook_base`.               |
-| Ingresso     | `marketing_center_web_ingress`        | Recebe evidência first-party de qualquer site por um contrato neutro. Não conhece Odoo Website nem CRM, podendo atender futuramente site externo ou aplicação headless.                                             |
-| Adapter      | `marketing_center_website`            | Captura sessões e ações no Website nativo do Odoo e usa o Web Ingress. Mantém a extensão de `website` fora do núcleo.                                                                                               |
-| Domínio Odoo | `marketing_center_crm`                | Liga evidência de marketing a `crm.lead` e registra o ciclo comercial sem substituir o CRM como fonte canônica do lead.                                                                                             |
-| Domínio Odoo | `marketing_center_sale`               | Projeta estados e valores de `sale.order` no ledger de eventos. Só é instalado quando Vendas participa da jornada.                                                                                                  |
-| Domínio Odoo | `marketing_center_account`            | Projeta faturamento e recebimentos realizados no ledger, mantendo `account.move` e pagamentos como fontes canônicas.                                                                                                |
-| Domínio Odoo | `marketing_center_contact_center`     | Converte aquisição e episódios de atendimento do Contact Center em evidência/eventos de marketing, sem mover a mensageria para este projeto.                                                                        |
-| Cola         | `marketing_center_website_crm`        | Correlaciona, de forma idempotente, o sucesso de um formulário nativo com o lead criado. Existe porque Website e CRM continuam opcionais e nenhum deve depender do outro.                                           |
-| Cola         | `marketing_center_meta_crm`           | Projeta uma submissão autenticada de Meta Lead Ads no CRM quando essa política estiver habilitada.                                                                                                                  |
-| Cola         | `marketing_center_contact_center_crm` | Converge conversas/leads do Contact Center, sem exigir Kanban com a atribuição de marketing quando os dois domínios estão instalados.                                                                               |
-| Cola         | `marketing_center_sale_account`       | Preserva a ligação causal tipada entre pedido e fatura/recebimento sem fazer Vendas depender da Contabilidade, ou o inverso.                                                                                        |
+| Camada       | Addon                                 | Responsabilidade e motivo da separação                                                                                                                                                                                             |
+| ------------ | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Núcleo       | `marketing_center_base`               | Reúne fontes, conexões, catálogo externo, métricas, touchpoints, atribuição, eventos, integração CRM e visão gerencial. Requer CRM nativo e queue_job; não depende de providers, Website, Vendas, Contabilidade ou Contact Center. |
+| Provedor     | `marketing_center_google`             | Lê catálogo, desempenho, histórico de alterações e diagnósticos do Google Ads e os traduz para os contratos do núcleo. Credenciais e transporte pertencem ao `google_api_base`.                                                    |
+| Provedor     | `marketing_center_meta`               | Lê catálogo/desempenho da Meta e trata Lead Ads sobre o webhook compartilhado. Traduz objetos Meta para DTOs canônicos; transporte e recepção técnica ficam em `meta_api_base` e `meta_webhook_base`.                              |
+| Ingresso     | `marketing_center_web_ingress`        | Recebe evidência first-party de qualquer site por um contrato neutro. Não conhece Odoo Website nem CRM, podendo atender futuramente site externo ou aplicação headless.                                                            |
+| Adapter      | `marketing_center_website`            | Captura sessões e ações no Website nativo do Odoo e usa o Web Ingress. Mantém a extensão de `website` fora do núcleo.                                                                                                              |
+| Domínio Odoo | `marketing_center_sale`               | Projeta estados e valores de `sale.order` no ledger de eventos. Só é instalado quando Vendas participa da jornada.                                                                                                                 |
+| Domínio Odoo | `marketing_center_account`            | Projeta faturamento e recebimentos realizados no ledger, mantendo `account.move` e pagamentos como fontes canônicas.                                                                                                               |
+| Domínio Odoo | `marketing_center_contact_center`     | Converte aquisição e episódios de atendimento do Contact Center em evidência/eventos de marketing, sem mover a mensageria para este projeto.                                                                                       |
+| Cola         | `marketing_center_website_crm`        | Correlaciona, de forma idempotente, o sucesso de um formulário nativo com o lead criado. Mantém o Website opcional, sem acoplar sua implementação ao núcleo com CRM.                                                               |
+| Cola         | `marketing_center_meta_crm`           | Projeta uma submissão autenticada de Meta Lead Ads no CRM quando essa política estiver habilitada.                                                                                                                                 |
+| Cola         | `marketing_center_contact_center_crm` | Converge conversas/leads do Contact Center, sem exigir Kanban com a atribuição de marketing quando os dois domínios estão instalados.                                                                                              |
+| Cola         | `marketing_center_sale_account`       | Preserva a ligação causal tipada entre pedido e fatura/recebimento sem fazer Vendas depender da Contabilidade, ou o inverso.                                                                                                       |
 
 Os addons compartilhados `google_api_base`, `meta_api_base` e `meta_webhook_base` são
 fundações técnicas, não componentes funcionais do Marketing Center. Eles ficam
@@ -45,7 +57,7 @@ produtos, inclusive o Contact Center. Nenhum deles depende de `marketing_center_
 O [plano do Marketing Center Catalog](catalog-plan.md) acrescenta uma aplicação
 comunitária de conteúdo, com instalação independente da suíte analítica descrita acima.
 Os três addons abaixo têm instalação independente e não integram a contagem dos
-componentes analíticos nem o perfil `marketing_center_suite`.
+componentes analíticos. A instalação desses addons é explícita.
 
 | Addon                                     | Responsabilidade                                                                  | Dependências diretas                            |
 | ----------------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------- |
@@ -107,24 +119,18 @@ paralelos para cada plataforma.
 
 Os perfis abaixo expressam capacidades, não bancos ou serviços diferentes.
 
-| Perfil           | Componentes principais                                                                                                      | Uso                                                                                                         |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Núcleo analítico | `marketing_center_base`, `marketing_center_dashboard`                                                                       | Modelo canônico e leitura gerencial, sem integrações externas.                                              |
-| Mídia paga       | Núcleo + `marketing_center_google` e/ou `marketing_center_meta`                                                             | Catálogo, métricas e observabilidade das plataformas escolhidas.                                            |
-| Website e CRM    | Núcleo + `marketing_center_web_ingress`, `marketing_center_website`, `marketing_center_crm`, `marketing_center_website_crm` | Jornada first-party do acesso ao lead nativo.                                                               |
-| Receita          | Perfil com CRM + `marketing_center_sale`, `marketing_center_account`, `marketing_center_sale_account`                       | Acompanha lead, venda, faturamento e recebimento.                                                           |
-| Atendimento      | Núcleo + `marketing_center_contact_center` e, com CRM, `marketing_center_contact_center_crm`                                | Conecta aquisição e atendimento à jornada comercial.                                                        |
-| Completo Soloz   | `marketing_center_suite`                                                                                                    | Instala e atualiza, por uma única seleção, todos os 14 componentes adotados pela Soloz e suas dependências. |
+| Perfil           | Componentes principais                                                                                | Uso                                                              |
+| ---------------- | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Núcleo analítico | `marketing_center_base`                                                                               | Modelo canônico e leitura gerencial, sem integrações externas.   |
+| Mídia paga       | Núcleo + `marketing_center_google` e/ou `marketing_center_meta`                                       | Catálogo, métricas e observabilidade das plataformas escolhidas. |
+| Website e CRM    | Núcleo + `marketing_center_web_ingress`, `marketing_center_website`, `marketing_center_website_crm`   | Jornada first-party do acesso ao lead nativo.                    |
+| Receita          | Perfil com CRM + `marketing_center_sale`, `marketing_center_account`, `marketing_center_sale_account` | Acompanha lead, venda, faturamento e recebimento.                |
+| Atendimento      | Núcleo + `marketing_center_contact_center` e `marketing_center_contact_center_crm`                    | Conecta aquisição e atendimento à jornada comercial.             |
 
-O `marketing_center_suite` deve ser um metapacote: sem modelos, tabelas, regras de
-negócio ou menus próprios. Seu manifest apenas declara o conjunto completo. Assim, a
-experiência é “instalar Marketing Center”, enquanto os limites técnicos continuam
-preservados. Perfis menores permanecem disponíveis para implantação, testes e futura
-portabilidade.
-
-Não se deve usar `auto_install` em integrações que criem projeções ou efeitos de
-negócio. A instalação explícita ou pelo `suite` evita ativar comportamento apenas porque
-dois aplicativos passaram a coexistir no banco.
+Instale `marketing_center_base` e selecione explicitamente as integrações necessárias.
+`marketing_center_suite` foi removido. CRM e Dashboard antigos são apenas pacotes de
+compatibilidade para upgrades; uma instalação nova usa somente o núcleo integrado. Não
+usar `auto_install` em integrações que criem projeções ou efeitos de negócio.
 
 ## Contrato de acesso por fonte
 
@@ -171,7 +177,7 @@ Convenções:
 - integração com aplicativo Odoo: `marketing_center_<aplicativo>`;
 - cola entre capacidades opcionais: `marketing_center_<a>_<b>`;
 - transporte compartilhado: `<provider>_api_base` na camada de fundações técnicas;
-- UI gerencial comum: evoluir `marketing_center_dashboard` antes de criar outra UI.
+- UI gerencial comum: evoluir a visão integrada no `marketing_center_base`.
 
 ## O que manter e o que consolidar
 
@@ -180,18 +186,16 @@ Convenções:
 | Manter separado | `marketing_center_base` dos providers                    | O núcleo não deve conhecer APIs externas.                                            |
 | Manter separado | Google e Meta                                            | Credenciais, limites, objetos e ritmos de evolução são diferentes.                   |
 | Manter separado | `web_ingress` e `website`                                | O ingresso neutro poderá servir sites que não usam Odoo.                             |
-| Manter separado | CRM, Vendas e Contabilidade                              | São aplicativos opcionais e fontes canônicas distintas.                              |
+| Manter separado | Vendas e Contabilidade                                   | São aplicativos opcionais e fontes canônicas distintas.                              |
 | Manter separado | addons de cola                                           | Evitam dependências reversas e ciclos entre domínios opcionais.                      |
 | Manter separado | API/webhook base como addons técnicos independentes      | Meta webhook também atende o Contact Center; co-localização não transfere o domínio. |
-| Consolidar      | Instalação no `marketing_center_suite`                   | Um ponto de instalação sem perder modularidade interna.                              |
+| Consolidar      | CRM e visão gerencial no `marketing_center_base`         | Um ponto de instalação sem perder modularidade interna.                              |
 | Consolidar      | Navegação sob o menu Marketing Center                    | O usuário não deve precisar conhecer a divisão em addons.                            |
 | Consolidar      | Padrões de DTO, ledger, fila e observabilidade no núcleo | Providers devem compartilhar contratos, não copiar implementações.                   |
 
-Não há benefício atual em fundir os addons entre si. A consolidação é apenas do
-repositório físico: os 14 componentes funcionais e as três fundações técnicas mantêm
-manifests e ciclos de instalação próprios. Se o Dashboard se tornar obrigatório em todas
-as instalações, `base` e `dashboard` poderão ser reavaliados; até lá, mantê-los
-separados permite uso headless e testes do domínio sem carregar a UI.
+Base, CRM e Dashboard foram fundidos no núcleo funcional. Os nomes antigos de CRM e
+Dashboard permanecem temporariamente para compatibilidade; não têm implementação
+própria. Providers, integrações opcionais e fundações técnicas conservam seus manifests.
 
 ## Menus funcionais e técnicos
 

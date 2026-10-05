@@ -1,3 +1,5 @@
+# Keep component override order and super() behavior during the fusion.
+# pylint: disable=consider-merging-classes-inherited
 from odoo import _, api, fields, models
 
 from ..services import capture_policy

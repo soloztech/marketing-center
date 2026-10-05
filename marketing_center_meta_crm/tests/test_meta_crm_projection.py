@@ -430,7 +430,7 @@ class TestMarketingCenterMetaCrmProjection(SavepointCase):
         lead_count = self.env["crm.lead"].search_count([])
         partner_count = self.env["res.partner"].search_count([])
         target = (
-            "odoo.addons.marketing_center_crm.models.service."
+            "odoo.addons.marketing_center_base.models.crm.service."
             "MarketingCrmService._link_touchpoint_lead"
         )
         with patch(target, side_effect=ValidationError("assertion rejected")):

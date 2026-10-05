@@ -23,3 +23,7 @@ from . import attribution_resolution_service  # isort: skip  # noqa: E402
 
 from . import native_utm  # isort: skip  # noqa: E402
 from . import campaign_board  # isort: skip  # noqa: E402
+
+# CRM is part of core; these extend the neutral models and services above.
+from . import crm  # isort: skip  # noqa: E402
+from . import dashboard  # isort: skip  # noqa: E402

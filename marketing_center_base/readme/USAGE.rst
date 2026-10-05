@@ -46,3 +46,16 @@ hook ``_after_native_utm_change(source_ids=None, entity_ids=None,
 touchpoint_ids=None)``. Downstream modules should schedule work rather than write
 business records inside this callback. The complete architecture is documented in
 `CRM intake and attribution <../docs/crm-intake-and-attribution.md>`_.
+
+CRM and overview
+~~~~~~~~~~~~~~~~
+
+Use ``Marketing Center / Overview``, ``Leads`` and ``Opportunities`` from the same
+application. Sales access is still required for commercial records. The overview
+is read-only and follows company and source access rules. Conversation acquisition
+evidence reaches CRM only through installed bridges and explicit business links.
+
+CRM lifecycle capture has its own company policy, independent of general business
+event capture. Its default remains enabled as in the former CRM addon. Review
+both policies before enabling acquisition connectors. A preserved empty capture
+timestamp means the historical start is unknown.

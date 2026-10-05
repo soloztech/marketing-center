@@ -30,15 +30,18 @@ Accounting business rules.
 ## Marketing Center addons
 
 - `marketing_center_base` — canonical sources, catalog, metrics, touchpoints,
-  attribution and business events;
+  attribution, business events, CRM integration and management overview;
 - `marketing_center_google` and `marketing_center_meta` — provider adapters;
 - `marketing_center_web_ingress` and `marketing_center_website` — first-party web
   evidence and Odoo Website adapter;
-- `marketing_center_crm`, `marketing_center_sale` and `marketing_center_account` —
+- `marketing_center_sale` and `marketing_center_account` —
   projections over native Odoo domains;
-- `marketing_center_dashboard` — management read model;
+- `marketing_center_crm` and `marketing_center_dashboard` — temporary compatibility packages;
 - bridge addons keep optional domains decoupled;
-- `marketing_center_suite` is the complete Soloz installation profile.
+
+Install `marketing_center_base` for the unified application. It requires native
+`crm` and OCA `queue_job`. Select only the optional integrations you need. The
+obsolete suite package has been removed. See [upgrade guide](docs/core-fusion.md).
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for boundaries and installation profiles and
 [plan.md](plan.md) for the delivery record and remaining production gates.
@@ -54,7 +57,7 @@ media and FAQs. It uses direct editing without an editorial approval workflow.
 - `marketing_center_catalog_sale` — optional access from quotations and sales orders.
 
 These addons do not require `marketing_center_base` or the attribution bridges and
-are not included in `marketing_center_suite`. The catalog has its own menu and
+remain independent of the analytics core. The catalog has its own menu and
 Reader/Editor groups. Grant access through the user settings after installation.
 
 Install `marketing_center_catalog` for the library alone, add

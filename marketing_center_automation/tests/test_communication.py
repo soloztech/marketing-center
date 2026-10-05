@@ -105,7 +105,7 @@ class TestCommunicationAutomation(SavepointCase):
         )
 
     def test_leads_menu_opens_native_lead_list_with_form_fallback(self):
-        action = self.env.ref("marketing_center_crm.action_marketing_leads")
+        action = self.env.ref("marketing_center_base.action_marketing_leads")
         native_tree = self.env.ref("crm.crm_case_tree_view_leads")
         self.assertEqual(action.views[0], (native_tree.id, "tree"))
         self.assertIn((False, "form"), action.views)

@@ -22,3 +22,16 @@ from . import (  # noqa: F401
     test_sync_concurrency,
     test_sync_service,
 )
+
+from . import test_menu_contract  # noqa: F401
+
+from . import (  # noqa: F401
+    test_crm_lifecycle,
+    test_crm_native_utm,
+    test_crm_security_contract,
+    test_crm_campaign_board,
+    test_crm_capture_policy,
+    test_crm_native_utm_wakeup,
+    test_dashboard,
+    test_core_fusion,
+)

@@ -29,7 +29,7 @@
         <field name="model">marketing.business.event</field>
         <field
             name="inherit_id"
-            ref="marketing_center_crm.view_marketing_business_event_form_crm"
+            ref="marketing_center_base.view_marketing_business_event_form_crm"
         />
         <field name="arch" type="xml">
             <xpath expr="//div[@name='button_box']" position="inside">

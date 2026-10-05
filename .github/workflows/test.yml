@@ -141,7 +141,7 @@ jobs:
           name: Test log - ${{ matrix.name }}
           path: ${{ runner.temp }}/marketing-center-tests.log
           if-no-files-found: ignore
-      - name: Verify Marketing suite does not install Kanban
+      - name: Verify Marketing modules do not install Kanban
         run: |
           python - <<'PYTHON'
           import os
