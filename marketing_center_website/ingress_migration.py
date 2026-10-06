@@ -1,4 +1,4 @@
-"""Reversible metadata preparation for the verified CRM integration lineage.
+"""Reversible metadata preparation for the verified Website ingress lineage.
 
 Call with the predecessor registry, while services are stopped. The caller owns
 the durable receipt, acknowledgement, commit and source promotion. No business
@@ -13,77 +13,35 @@ from pathlib import Path
 from odoo import _
 from odoo.exceptions import ValidationError
 
-OWNERS = {
-    "marketing_center_crm": "marketing_center_base",
-    "marketing_center_dashboard": "marketing_center_base",
-    "marketing_center_meta_crm": "marketing_center_meta",
-    "marketing_center_contact_center_crm": "marketing_center_contact_center",
-    "marketing_center_website_crm": "marketing_center_website",
-}
-LEGACY_VERSIONS = {
-    "marketing_center_crm": "16.0.2.0.0",
-    "marketing_center_dashboard": "16.0.2.0.0",
-    "marketing_center_meta_crm": "16.0.1.1.1",
-    "marketing_center_contact_center_crm": "16.0.1.0.2",
-    "marketing_center_website_crm": "16.0.1.6.2",
-}
-PREDECESSOR_VERSIONS = {
-    "marketing_center_base": "16.0.2.0.0",
-    "marketing_center_meta": "16.0.1.1.5",
-    "marketing_center_contact_center": "16.0.1.3.0",
-    "marketing_center_website": "16.0.1.6.0",
-    "marketing_center_website_whatsapp": "16.0.1.2.0",
-}
-VERSIONS = {
-    "marketing_center_base": "16.0.2.1.0",
-    "marketing_center_meta": "16.0.2.0.0",
-    "marketing_center_contact_center": "16.0.2.0.0",
-    "marketing_center_website": "16.0.2.0.0",
-    "marketing_center_website_whatsapp": "16.0.1.3.0",
-}
+OWNERS = {"marketing_center_web_ingress": "marketing_center_website"}
+LEGACY_VERSIONS = {"marketing_center_web_ingress": "16.0.1.5.0"}
+PREDECESSOR_VERSIONS = {"marketing_center_website": "16.0.2.0.0"}
+VERSIONS = {"marketing_center_website": "16.0.2.1.0"}
 DEPENDENCIES = {
-    "marketing_center_base": ("base", "crm", "queue_job", "utm"),
-    "marketing_center_meta": (
-        "marketing_center_base",
-        "meta_api_base",
-        "meta_webhook_base",
-        "queue_job",
-    ),
-    "marketing_center_contact_center": (
-        "contact_center_base",
-        "contact_center_crm",
-        "marketing_center_base",
-        "queue_job",
-    ),
     "marketing_center_website": (
-        "marketing_center_base",
-        "marketing_center_web_ingress",
-        "queue_job",
+        "web",
         "website",
+        "marketing_center_base",
         "website_crm",
-    ),
-    "marketing_center_website_whatsapp": (
-        "contact_center_crm",
-        "marketing_center_website",
-    ),
+        "queue_job",
+    )
 }
-SUITE = "marketing_center_suite"
 TRANSIENT = ("to install", "to upgrade", "to remove")
 SCHEMA_MODELS = ("ir.model.constraint", "ir.model.relation")
-MARKER_PREFIX = "marketing_center.integration_fusion."
+MARKER_PREFIX = "marketing_center.ingress_fusion."
 
 
 def _require(condition, message):
     if not condition:
         raise ValidationError(
-            _("Marketing CRM integration fusion: %(detail)s") % {"detail": message}
+            _("Marketing Website ingress fusion: %(detail)s") % {"detail": message}
         )
 
 
 @lru_cache(maxsize=1)
 def catalog():
     return json.loads(
-        (Path(__file__).parent / "data/integration_legacy_catalog.json").read_text()
+        (Path(__file__).parent / "data/ingress_legacy_catalog.json").read_text()
     )
 
 
@@ -115,7 +73,7 @@ def _modules(env):
         row.name: row
         for row in env["ir.module.module"]
         .sudo()
-        .search([("name", "in", list(OWNERS) + list(VERSIONS) + [SUITE])])
+        .search([("name", "in", list(OWNERS) + list(VERSIONS))])
     }
 
 
@@ -265,13 +223,9 @@ def _validate_original(env):
             row and row.state == "installed" and row.latest_version == version,
             "unsupported predecessor: " + name + "; use the documented prior release",
         )
-    suite = modules.get(SUITE)
-    _require(not suite or suite.state == "uninstalled", "unexpected Suite state")
     rows = _rows(env)
     for row in rows:
-        canonical = _canonical(env, row)
-        if row.module in ("marketing_center_crm", "marketing_center_dashboard"):
-            _require(bool(canonical), "previous Base adoption is incomplete")
+        _canonical(env, row)  # Refuse collisions before any mutation.
     old_ids = [modules[name].id for name in OWNERS]
     for model, records in _schema(env, old_ids).items():
         actual = {name: [] for name in OWNERS}
@@ -299,8 +253,8 @@ def _validate_original(env):
         [("name", "in", list(OWNERS)), ("module_id.state", "=", "installed")]
     )
     expected_consumer = (
-        "marketing_center_website_whatsapp",
-        "marketing_center_website_crm",
+        "marketing_center_website",
+        "marketing_center_web_ingress",
     )
     # Legacy packages themselves cease to be runtime consumers after retirement.
     consumers = consumers.filtered(lambda row: row.module_id.name not in OWNERS)
@@ -318,10 +272,15 @@ def _validate_original(env):
     for name, needed in DEPENDENCIES.items():
         current = modules[name].dependencies_id
         _require(
+            set(current.mapped("name"))
+            == {"marketing_center_web_ingress" if d == "web" else d for d in needed},
+            "unsupported predecessor dependency set",
+        )
+        _require(
             len(current.mapped("name")) == len(set(current.mapped("name"))),
             "duplicate dependency",
         )
-        translated = {OWNERS.get(dep.name, dep.name) for dep in current}
+        translated = {"web" if dep.name in OWNERS else dep.name for dep in current}
         _require(
             translated <= set(needed), "preparation would delete an original dependency"
         )
@@ -358,7 +317,7 @@ def prepare(env):
             env[model].sudo().search([("module", "=", modules[legacy].id)]).write(
                 {"module": modules[owner].id}
             )
-    consumer.write({"name": "marketing_center_website"})
+    consumer.write({"name": "web"})
     for name, needed in DEPENDENCIES.items():
         existing = set(modules[name].dependencies_id.mapped("name"))
         for dependency in sorted(set(needed) - existing):
@@ -375,8 +334,6 @@ def prepare(env):
                 .id
             )
     retired = [modules[name].id for name in OWNERS]
-    if modules.get(SUITE):
-        retired.append(modules[SUITE].id)
     env["ir.module.module"].sudo().browse(retired).write({"state": "uninstallable"})
     env.flush_all()
     assert_prepared(env)
@@ -397,13 +354,7 @@ def assert_prepared(env):
         for name, version in VERSIONS.items():
             row = modules.get(name)
             _require(
-                not row
-                or not row.latest_version
-                or row.latest_version == version
-                or (
-                    name == "marketing_center_website"
-                    and row.latest_version == "16.0.2.1.0"
-                ),
+                not row or not row.latest_version or row.latest_version == version,
                 "existing owner without bridges is unsupported: " + name,
             )
         _require(
@@ -420,18 +371,10 @@ def assert_prepared(env):
             row.state == "uninstallable" and row.latest_version == version,
             "prepare legacy ownership before upgrading: " + name,
         )
-    suite = modules.get(SUITE)
-    _require(not suite or suite.state == "uninstallable", "retire obsolete Suite first")
     for name, version in PREDECESSOR_VERSIONS.items():
         row = modules.get(name)
         _require(
-            row
-            and row.latest_version
-            in (
-                (version, VERSIONS[name], "16.0.2.1.0")
-                if name == "marketing_center_website"
-                else (version, VERSIONS[name])
-            ),
+            row and row.latest_version in (version, VERSIONS[name]),
             "unsupported retained owner lineage: " + name,
         )
     rows = _rows(env)
@@ -459,38 +402,6 @@ def assert_prepared(env):
     )
     for name, needed in DEPENDENCIES.items():
         dependencies = modules[name].dependencies_id
-        if name == "marketing_center_website" and "web" in dependencies.mapped("name"):
-            ingress = (
-                env["ir.module.module"]
-                .sudo()
-                .search([("name", "=", "marketing_center_web_ingress")])
-            )
-            _require(
-                ingress and ingress.state == "uninstallable",
-                "ingress adoption is incomplete",
-            )
-            aliases = (
-                env["ir.model.data"]
-                .sudo()
-                .search([("module", "=", "marketing_center_web_ingress")])
-            )
-            for alias in aliases:
-                canonical = (
-                    env["ir.model.data"]
-                    .sudo()
-                    .search([("module", "=", name), ("name", "=", alias.name)])
-                )
-                _require(
-                    alias.noupdate
-                    and len(canonical) == 1
-                    and (canonical.model, canonical.res_id)
-                    == (alias.model, alias.res_id),
-                    "ingress adoption is incomplete",
-                )
-            needed = tuple(
-                "web" if dep == "marketing_center_web_ingress" else dep
-                for dep in needed
-            )
         _require(
             set(dependencies.mapped("name")) == set(needed)
             and len(dependencies) == len(needed)
@@ -528,7 +439,7 @@ def inverse(env, receipt):
             {key: value for key, value in row.items() if key != "id"}
         )
     for row in original["modules"]:
-        if row["name"] in OWNERS or row["name"] == SUITE:
+        if row["name"] in OWNERS:
             env["ir.module.module"].sudo().browse(row["id"]).write(
                 {"state": row["state"]}
             )

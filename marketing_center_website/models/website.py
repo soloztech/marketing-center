@@ -6,7 +6,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.http import request
 
-from odoo.addons.marketing_center_web_ingress.services.contracts import (
+from ..services.ingress.contracts import (
     WebIngressContractError,
     normalize_allowed_hosts,
     normalize_allowed_origins,

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from odoo.modules.module import get_manifest, get_resource_path
+from odoo.modules.module import get_manifest, get_module_path, get_resource_path
 from odoo.tests.common import SavepointCase
 
 
@@ -15,12 +15,16 @@ class TestMarketingWebsiteContract(SavepointCase):
         self.assertEqual(
             set(manifest["depends"]),
             {
-                "marketing_center_web_ingress",
+                "web",
                 "website",
                 "marketing_center_base",
                 "website_crm",
                 "queue_job",
             },
+        )
+        self.assertNotIn("marketing_center_web_ingress", manifest["depends"])
+        self.assertFalse(
+            get_module_path("marketing_center_web_ingress", display_warning=False)
         )
         self.assertNotIn("crm", manifest["depends"])
         self.assertNotIn("link_tracker", manifest["depends"])

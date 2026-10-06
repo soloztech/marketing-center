@@ -9,10 +9,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 from odoo.service.model import PG_CONCURRENCY_ERRORS_TO_RETRY
 
-from odoo.addons.marketing_center_web_ingress.services.errors import (
-    WebIngressSerializationFailure,
-)
-
+from ...services.ingress.errors import WebIngressSerializationFailure
 from ..consent import CONSENT_CONTEXT_TOKEN
 from .tokens import WEBSITE_CRM_WRITE_TOKEN
 

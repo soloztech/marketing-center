@@ -7,7 +7,7 @@ from odoo import fields
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tests.common import SavepointCase
 
-from ..services.tokens import WEB_INGRESS_INTERNAL_TOKEN
+from ..services.ingress.tokens import WEB_INGRESS_INTERNAL_TOKEN
 
 
 class TestMarketingWebIngress(SavepointCase):

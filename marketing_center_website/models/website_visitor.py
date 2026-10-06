@@ -6,13 +6,12 @@ from psycopg2.errors import DeadlockDetected, SerializationFailure
 from odoo import fields, http, models
 from odoo.http import request
 
-from odoo.addons.marketing_center_web_ingress.services.contracts import (
+from ..services.geolocation import request_observation
+from ..services.ingress.contracts import (
     normalize_allowed_hosts,
     normalize_allowed_origins,
     normalize_origin,
 )
-
-from ..services.geolocation import request_observation
 
 _logger = logging.getLogger(__name__)
 GEO_FIELDS = (

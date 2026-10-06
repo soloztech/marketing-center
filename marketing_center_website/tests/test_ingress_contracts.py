@@ -10,7 +10,7 @@ except ImportError:  # Keep this contract suite executable without Odoo.
     ContractTestCase = unittest.TestCase
 
 try:
-    from ..services.contracts import (
+    from ..services.ingress.contracts import (
         MAX_PAYLOAD_FIELDS,
         WebIngressContractError,
         canonical_request_digest,
@@ -20,7 +20,7 @@ try:
         parse_web_ingress_payload,
     )
 except ImportError:  # Allow the stdlib-only contract gate without an Odoo runtime.
-    _CONTRACT_PATH = Path(__file__).parents[1] / "services" / "contracts.py"
+    _CONTRACT_PATH = Path(__file__).parents[1] / "services" / "ingress" / "contracts.py"
     _SPEC = importlib.util.spec_from_file_location(
         "marketing_web_ingress_contracts", _CONTRACT_PATH
     )

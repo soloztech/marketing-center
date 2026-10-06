@@ -6,7 +6,7 @@
 `queue_job` são pré-requisitos. Meta, Contact Center e Website incluem suas próprias
 integrações de CRM; os cinco addons antigos e o Suite foram retirados. Os namespaces
 históricos permanecem como aliases de metadados e Python, sem manifests nem pacotes
-instalados. O repositório contém 14 addons.
+instalados. O repositório contém 13 addons.
 
 O [guia de fusão](docs/crm-integration-fusion.md) define responsabilidades, instalação,
 atualização e recuperação. O Content Center permanece independente.
@@ -34,8 +34,7 @@ preservam seus próprios limites de dependência.
 | Núcleo       | `marketing_center_base`           | Reúne fontes, conexões, catálogo externo, métricas, touchpoints, atribuição, eventos, integração CRM e visão gerencial. Requer CRM nativo e queue_job; não depende de providers, Website, Vendas, Contabilidade ou Contact Center.                                            |
 | Provedor     | `marketing_center_google`         | Lê catálogo, desempenho, histórico de alterações e diagnósticos do Google Ads e os traduz para os contratos do núcleo. Credenciais e transporte pertencem ao `google_api_base`.                                                                                               |
 | Provedor     | `marketing_center_meta`           | Lê catálogo/desempenho da Meta e trata Lead Ads sobre o webhook compartilhado e projeta submissões autenticadas no CRM conforme a política habilitada. Traduz objetos Meta para DTOs canônicos; transporte e recepção técnica ficam em `meta_api_base` e `meta_webhook_base`. |
-| Ingresso     | `marketing_center_web_ingress`    | Recebe evidência first-party de qualquer site por um contrato neutro. Não conhece Odoo Website nem CRM, podendo atender futuramente site externo ou aplicação headless.                                                                                                       |
-| Adapter      | `marketing_center_website`        | Captura sessões e ações no Website nativo do Odoo e usa o Web Ingress. Correlaciona o sucesso de formulários nativos com leads, de forma idempotente. Requer `website_crm` e mantém o Website fora do núcleo.                                                                 |
+| Adapter      | `marketing_center_website`        | Reúne o contrato neutro de entrada web e a captura de sessões/ações do Website nativo; usa pacotes internos separados. Correlaciona o sucesso de formulários nativos com leads, de forma idempotente. Requer `website_crm` e mantém o Website fora do núcleo.                 |
 | Domínio Odoo | `marketing_center_sale`           | Projeta estados e valores de `sale.order` no ledger de eventos. Só é instalado quando Vendas participa da jornada.                                                                                                                                                            |
 | Domínio Odoo | `marketing_center_account`        | Projeta faturamento e recebimentos realizados no ledger, mantendo `account.move` e pagamentos como fontes canônicas.                                                                                                                                                          |
 | Domínio Odoo | `marketing_center_contact_center` | Converte aquisição e episódios de atendimento do Contact Center em evidência/eventos de marketing, sem mover a mensageria para este projeto. Converge vínculos entre conversas e leads e requer `contact_center_crm`, sem Kanban.                                             |
@@ -108,7 +107,7 @@ Os perfis abaixo expressam capacidades, não bancos ou serviços diferentes.
 | ---------------- | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | Núcleo analítico | `marketing_center_base`                                                                               | Modelo canônico e leitura gerencial, sem integrações externas.   |
 | Mídia paga       | Núcleo + `marketing_center_google` e/ou `marketing_center_meta`                                       | Catálogo, métricas e observabilidade das plataformas escolhidas. |
-| Website e CRM    | Núcleo + `marketing_center_web_ingress`, `marketing_center_website`                                   | Jornada first-party do acesso ao lead nativo.                    |
+| Website e CRM    | Núcleo + `marketing_center_website`                                                                   | Jornada first-party do acesso ao lead nativo.                    |
 | Receita          | Perfil com CRM + `marketing_center_sale`, `marketing_center_account`, `marketing_center_sale_account` | Acompanha lead, venda, faturamento e recebimento.                |
 | Atendimento      | Núcleo + `marketing_center_contact_center`                                                            | Conecta aquisição e atendimento à jornada comercial.             |
 
@@ -169,7 +168,7 @@ Convenções:
 | --------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------ |
 | Manter separado | `marketing_center_base` dos providers                    | O núcleo não deve conhecer APIs externas.                                            |
 | Manter separado | Google e Meta                                            | Credenciais, limites, objetos e ritmos de evolução são diferentes.                   |
-| Manter separado | `web_ingress` e `website`                                | O ingresso neutro poderá servir sites que não usam Odoo.                             |
+| Consolidado     | `web_ingress` no `website`                               | Um único addon instalado; contrato neutro preservado em pacotes internos.            |
 | Manter separado | Vendas e Contabilidade                                   | São aplicativos opcionais e fontes canônicas distintas.                              |
 | Manter separado | addons de cola                                           | Evitam dependências reversas e ciclos entre domínios opcionais.                      |
 | Manter separado | API/webhook base como addons técnicos independentes      | Meta webhook também atende o Contact Center; co-localização não transfere o domínio. |

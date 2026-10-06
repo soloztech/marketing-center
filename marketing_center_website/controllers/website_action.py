@@ -11,13 +11,10 @@ from odoo import _, http
 from odoo.exceptions import AccessError, ValidationError
 from odoo.http import request
 
-from odoo.addons.marketing_center_web_ingress.services.contracts import (
-    WebIngressContractError,
-    normalize_origin,
-)
 from odoo.addons.website.controllers.form import WebsiteForm
 
 from ..services.contracts import FORM_QUERY_FIELDS, MAX_ACTION_BODY_BYTES
+from ..services.ingress.contracts import WebIngressContractError, normalize_origin
 
 _logger = logging.getLogger(__name__)
 

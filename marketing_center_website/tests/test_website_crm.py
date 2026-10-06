@@ -10,9 +10,6 @@ from odoo.modules.module import get_manifest
 from odoo.tests import tagged
 from odoo.tests.common import HttpCase, SavepointCase
 
-from odoo.addons.marketing_center_web_ingress.services.errors import (
-    WebIngressSerializationFailure,
-)
 from odoo.addons.marketing_center_website.controllers.website_action import (
     MarketingWebsiteFormController,
 )
@@ -23,6 +20,7 @@ from odoo.addons.website_crm.controllers.website_form import (
 )
 
 from ..controllers.website_form import MarketingWebsiteCrmFormController
+from ..services.ingress.errors import WebIngressSerializationFailure
 
 
 class TestMarketingWebsiteCrm(SavepointCase):

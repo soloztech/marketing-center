@@ -1,8 +1,8 @@
 Marketing Center - Website
 ==========================
 
-This addon is a first-party Odoo Website adapter for
-``marketing_center_web_ingress``. It does not create another attribution
+This addon owns both the provider-neutral Web Ingress contract and its
+first-party Odoo Website adapter. It does not create another attribution
 ledger and does not submit website form values to Marketing Center.
 
 Architecture
@@ -289,3 +289,7 @@ WhatsApp annotation requires a SHA-256 match of the existing public link's
 destination and message against the configured action; special document-request
 messages continue normally instead of being replaced by a generic handoff.
 Administrative destinations/messages are not advertised in configuration.
+
+The ingress implementation lives in dedicated internal packages. Its public
+routes, models and historical Python imports remain compatible. See
+``docs/web-ingress.rst`` and the repository ``docs/web-ingress-fusion.md``.

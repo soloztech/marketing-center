@@ -1,19 +1,22 @@
 {
     "name": "Marketing Center - Website",
     "summary": "First-party Odoo Website adapter for the marketing ingress",
-    "version": "16.0.2.0.0",
+    "version": "16.0.2.1.0",
     "category": "Marketing",
     "author": "Soloz Technologies",
     "website": "https://github.com/soloztech/marketing-center",
     "license": "AGPL-3",
     "depends": [
-        "marketing_center_web_ingress",
+        "web",
         "website",
         "marketing_center_base",
         "website_crm",
         "queue_job",
     ],
     "data": [
+        "security/marketing_center_web_ingress_security.xml",
+        "data/web_ingress_cron.xml",
+        "views/web_ingress_views.xml",
         "security/marketing_center_website_security.xml",
         "security/ir.model.access.csv",
         "data/website_action_cron.xml",
@@ -48,5 +51,6 @@
     },
     "installable": True,
     "application": False,
+    "pre_init_hook": "pre_init_hook",
     "uninstall_hook": "uninstall_hook",
 }

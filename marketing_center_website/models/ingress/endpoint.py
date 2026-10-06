@@ -6,12 +6,12 @@ import uuid
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 
-from ..services.contracts import (
+from ...services.ingress.contracts import (
     WebIngressContractError,
     normalize_allowed_hosts,
     normalize_allowed_origins,
 )
-from ..services.tokens import WEB_INGRESS_INTERNAL_TOKEN
+from ...services.ingress.tokens import WEB_INGRESS_INTERNAL_TOKEN
 
 
 def _uuid(_recordset):

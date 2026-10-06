@@ -16,3 +16,8 @@ from . import test_geolocation
 from . import test_native_http, test_native_submission, test_website_crm
 
 from . import test_legacy_imports
+
+from . import test_ingress_core, test_ingress_controller
+from . import test_ingress_concurrency, test_ingress_contracts
+
+from . import test_ingress_fusion

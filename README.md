@@ -32,8 +32,8 @@ Accounting business rules.
 - `marketing_center_base` — canonical sources, catalog, metrics, touchpoints,
   attribution, business events, CRM integration and management overview;
 - `marketing_center_google` and `marketing_center_meta` — provider adapters;
-- `marketing_center_web_ingress` and `marketing_center_website` — first-party web
-  evidence and Odoo Website adapter;
+- `marketing_center_website` — provider-neutral first-party web ingress,
+  Odoo Website adapter and native CRM forms;
 - `marketing_center_sale` and `marketing_center_account` —
   projections over native Odoo domains;
 - `marketing_center_contact_center` — conversation and attribution integration;
@@ -109,3 +109,6 @@ The historical validation above does not establish the current production state.
 This review-fix candidate is local code and requires its own release evidence.
 
 CRM integrations are included in Base, Meta, Contact Center and Website. See [the integration ownership and migration guide](docs/crm-integration-fusion.md).
+
+The web ingress addon was folded into Website; see
+[the ownership migration](docs/web-ingress-fusion.md).

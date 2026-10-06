@@ -8,7 +8,7 @@ from odoo.addons.marketing_center_base.models.attribution import (
     ATTRIBUTION_ERASURE_TOKEN,
 )
 
-from ..services.tokens import WEB_INGRESS_INTERNAL_TOKEN
+from ...services.ingress.tokens import WEB_INGRESS_INTERNAL_TOKEN
 
 _WEB_RETENTION_TOKEN = object()
 

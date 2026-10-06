@@ -5,9 +5,7 @@ from urllib.parse import urlencode, urlsplit
 from odoo.tests import tagged
 from odoo.tests.common import HttpCase
 
-from odoo.addons.marketing_center_web_ingress.services.errors import (
-    WebIngressSerializationFailure,
-)
+from ..services.ingress.errors import WebIngressSerializationFailure
 
 
 @tagged("-at_install", "post_install")

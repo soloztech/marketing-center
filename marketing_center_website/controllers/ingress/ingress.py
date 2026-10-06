@@ -8,7 +8,7 @@ from odoo import http
 from odoo.exceptions import AccessError, ValidationError
 from odoo.http import request
 
-from ..services.contracts import (
+from ...services.ingress.contracts import (
     PUBLIC_INGRESS_EVENT_TYPES,
     WebIngressContractError,
     normalize_allowed_origins,

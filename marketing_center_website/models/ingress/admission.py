@@ -3,7 +3,7 @@ import datetime
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 
-from ..services.tokens import WEB_INGRESS_INTERNAL_TOKEN
+from ...services.ingress.tokens import WEB_INGRESS_INTERNAL_TOKEN
 
 REQUEST_KIND_SELECTION = [
     ("public_ingress", "Public web ingress"),

@@ -4,18 +4,17 @@ from odoo import _, api, models
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tools.misc import consteq, hmac
 
-from odoo.addons.marketing_center_web_ingress.services.contracts import (
-    WebIngressContractError,
-    normalize_allowed_origins,
-    normalize_origin,
-)
-
 from ..services.contracts import (
     WebsiteActionContractError,
     canonical_body_size,
     opaque_uuid,
     parse_form_exchange,
     parse_whatsapp_claim,
+)
+from ..services.ingress.contracts import (
+    WebIngressContractError,
+    normalize_allowed_origins,
+    normalize_origin,
 )
 
 _FORM_RECEIPT_SCOPE = "marketing_center_website.form_receipt.v1"

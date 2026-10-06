@@ -11,7 +11,7 @@ from odoo.addons.marketing_center_base.services.dto import (
     PrivacySnapshotDTO,
 )
 
-from ..services.contracts import (
+from ...services.ingress.contracts import (
     ACTION_EVENT_TYPES,
     CLICK_ID_FIELDS,
     INGRESS_PROVENANCE,
@@ -23,8 +23,8 @@ from ..services.contracts import (
     normalize_origin,
     parse_web_ingress_payload,
 )
-from ..services.errors import WebIngressSerializationFailure
-from ..services.tokens import WEB_INGRESS_INTERNAL_TOKEN
+from ...services.ingress.errors import WebIngressSerializationFailure
+from ...services.ingress.tokens import WEB_INGRESS_INTERNAL_TOKEN
 
 CLICK_NAMESPACES = {
     "gclid": "google.gclid",
