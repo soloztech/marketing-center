@@ -54,23 +54,13 @@ produtos, inclusive o Contact Center. Nenhum deles depende de `marketing_center_
 
 ## Catálogo de Conteúdo
 
-O [plano do Marketing Center Catalog](catalog-plan.md) acrescenta uma aplicação
-comunitária de conteúdo, com instalação independente da suíte analítica descrita acima.
-Os três addons abaixo têm instalação independente e não integram a contagem dos
-componentes analíticos. A instalação desses addons é explícita.
-
-| Addon                                     | Responsabilidade                                                                  | Dependências diretas                            |
-| ----------------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------- |
-| `marketing_center_catalog`                | Fichas de empresa/solução, produtos e variantes, textos, FAQ, documentos e mídias | `product`, `mail`, `web`, `web_editor`          |
-| `marketing_center_catalog_contact_center` | Popup e conteúdo no composer da conversa                                          | `marketing_center_catalog`, `contact_center_ui` |
-| `marketing_center_catalog_sale`           | Consulta de materiais na cotação/pedido                                           | `marketing_center_catalog`, `sale`              |
-
-O catálogo tem menu e grupos próprios, sem dependência de `marketing_center_base`. O
-catálogo externo de anúncios, o serviço `marketing.center.catalog.service` e as pontes
-de atribuição existentes mantêm suas responsabilidades. Os novos modelos editoriais são
-`marketing.center.catalog.subject` e `marketing.center.catalog.item`. Cadastro direto,
-sem aprovação editorial, permanece o escopo inicial. A distribuição pública do código
-não publica os dados cadastrados.
+A biblioteca de conteúdo foi transferida para
+[soloztech/content-center](https://github.com/soloztech/content-center/tree/16.0):
+`content_center_base`, `content_center_sale`, `content_center_contact_center`. A
+aplicação usa módulos nativos e não depende de Marketing/CRM. O Marketing mantém o
+catálogo externo de anúncios e `marketing.center.catalog.service`. Os modelos técnicos
+da biblioteca permanecem `marketing.center.catalog.subject` e
+`marketing.center.catalog.item`; ver [migração](catalog-plan.md).
 
 ## Fluxo ponta a ponta
 

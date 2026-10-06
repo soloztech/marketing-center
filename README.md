@@ -46,25 +46,14 @@ obsolete suite package has been removed. See [upgrade guide](docs/core-fusion.md
 See [ARCHITECTURE.md](ARCHITECTURE.md) for boundaries and installation profiles and
 [plan.md](plan.md) for the delivery record and remaining production gates.
 
-## Community content catalog
+## Content Center
 
-[Marketing Center Catalog](catalog-plan.md) is an independently installable
-content application for company information, product families and variants, documents,
-media and FAQs. It uses direct editing without an editorial approval workflow.
-
-- `marketing_center_catalog` — standalone content catalog using native Odoo modules;
-- `marketing_center_catalog_contact_center` — optional conversation popup and composer integration;
-- `marketing_center_catalog_sale` — optional access from quotations and sales orders.
-
-These addons do not require `marketing_center_base` or the attribution bridges and
-remain independent of the analytics core. The catalog has its own menu and
-Reader/Editor groups. Grant access through the user settings after installation.
-
-Install `marketing_center_catalog` for the library alone, add
-`marketing_center_catalog_sale` for quotations, or add
-`marketing_center_catalog_contact_center` for conversations. The latter needs the
-Contact Center repository on the addons path. Source distribution does not make
-catalog records or files public. See each addon README for configuration and usage.
+The independently installable content library lives in
+[soloztech/content-center](https://github.com/soloztech/content-center/tree/16.0).
+Install `content_center_base`, then optionally `content_center_sale` and
+`content_center_contact_center`. Marketing Center continues to own advertising
+catalog integration and attribution; the library owns product/company content,
+FAQ, files and conversation drafts. [Migration and provenance](catalog-plan.md).
 
 Install the repository Python dependencies with its versioned compatibility contract:
 
@@ -78,8 +67,8 @@ before initializing its database, so dependency drift fails before addon tests.
 
 ## Current greenfield baseline
 
-The eighteen analytics/provider addons and the three independent content catalog
-addons have separate versions in their manifests. The workflow pins the compatible
+The analytics/provider addons
+have separate versions in their manifests. The workflow pins the compatible
 Contact Center source SHA; `oca_dependencies.txt` is an alternative installation
 description, not the CI lock. Use the manifest and workflow from the same reviewed
 commit when assembling a release.

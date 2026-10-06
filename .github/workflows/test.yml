@@ -127,8 +127,6 @@ jobs:
           log = (Path(os.environ["RUNNER_TEMP"]) / "marketing-center-tests.log").read_text()
           for addon in (
               "marketing_center_website",
-              "marketing_center_catalog",
-              "marketing_center_catalog_contact_center",
           ):
               for mode in ("minified", "assets"):
                   marker = f"Marketing QUnit verified: {addon} {mode}"

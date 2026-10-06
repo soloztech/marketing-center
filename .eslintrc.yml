@@ -27,7 +27,6 @@ overrides:
       sourceType: module
   - files:
       - "**/*.esm.js"
-      - "marketing_center_catalog/static/**/*.js"
     parserOptions:
       sourceType: module
 

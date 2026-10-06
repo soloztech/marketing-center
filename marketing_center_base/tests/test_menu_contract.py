@@ -9,10 +9,7 @@ class TestMarketingCenterMenuContract(SavepointCase):
             self.env["ir.module.module"]
             .sudo()
             .search([("state", "=", "installed")])
-            .filtered(
-                lambda module: module.name.startswith("marketing_center_")
-                and not module.name.startswith("marketing_center_catalog")
-            )
+            .filtered(lambda module: module.name.startswith("marketing_center_"))
         )
         menu_data = (
             self.env["ir.model.data"]
