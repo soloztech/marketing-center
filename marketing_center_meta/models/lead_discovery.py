@@ -1,3 +1,5 @@
+# Preserve the established CRM class extension order.
+# pylint: disable=consider-merging-classes-inherited
 """Explicit discovery and selection of Meta forms using an existing webhook."""
 
 import datetime

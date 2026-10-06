@@ -2,13 +2,14 @@
 
 ## Escopo
 
-Extensão de `marketing_center_website` e `marketing_center_website_crm` para registrar
-uma observação de rede no visitante nativo e preservar o contexto do envio no lead
-nativo. Ambos passam à versão `16.0.1.6.0`.
+Extensão de `marketing_center_website`, que inclui a integração CRM desde 16.0.2.0.0,
+para registrar uma observação de rede no visitante nativo e preservar o contexto do
+envio no lead nativo. Na implementação histórica, Website e sua ponte CRM receberam a
+versão `16.0.1.6.0`; a fusão posterior incorporou a ponte ao Website.
 
 O Website nativo registra navegação e identidade de visitante, mas não mantém o IP bruto
-nem a localização detalhada do envio. Essa lacuna exige Python nos dois addons
-existentes, sem novo addon, ledger, JavaScript ou API externa.
+nem a localização detalhada do envio. A solução usa Python no adaptador Website, sem
+novo addon, ledger, JavaScript ou API externa.
 
 ## Ativação e confiança
 

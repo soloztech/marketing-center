@@ -32,8 +32,8 @@ The core requires native ``crm`` and ``queue_job``. Google, Meta, Website,
 Contact Center and commercial bridges remain optional. The independent content
 library is different from the advertising catalog.
 
-``marketing_center_crm`` and ``marketing_center_dashboard`` are temporary
-compatibility packages. Their implementation is now part of this application.
+The former CRM and dashboard addons have been retired. Their implementation
+is part of this application; do not install their old packages.
 
 **Table of contents**
 
@@ -104,8 +104,8 @@ The result contains ``state``, ``reason``, ``source_id`` (the Marketing Center
 source), ``entity_id``, ``campaign_id`` (native), ``utm_source_id``, ``medium_id``,
 ``source_mode`` and ``created``. States are ``ready``, ``would_create``, ``missing``,
 ``conflict`` or ``disabled``. Consumers must honor ``source_mode`` before writing.
-The optional CRM bridge owns CRM classification, writer provenance and preservation
-of manual CRM values. This base module does not write CRM fields.
+This application owns CRM classification, writer provenance and preservation
+of manual CRM values. Its CRM service is the single writer of native UTMs.
 
 Configuration, mapping and asset-resolution changes invoke the private extension
 hook ``_after_native_utm_change(source_ids=None, entity_ids=None,
@@ -119,7 +119,7 @@ CRM and overview
 Use ``Marketing Center / Overview``, ``Leads`` and ``Opportunities`` from the same
 application. Sales access is still required for commercial records. The overview
 is read-only and follows company and source access rules. Conversation acquisition
-evidence reaches CRM only through installed bridges and explicit business links.
+evidence reaches CRM through installed channel adapters and explicit business links.
 
 CRM lifecycle capture has its own company policy, independent of general business
 event capture. Its default remains enabled as in the former CRM addon. Review

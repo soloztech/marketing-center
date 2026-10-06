@@ -16,3 +16,7 @@ from . import (
     test_meta_service,
     test_webhook_access,
 )
+
+from . import test_bootstrap, test_meta_crm_projection
+
+from . import test_legacy_imports

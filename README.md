@@ -36,12 +36,13 @@ Accounting business rules.
   evidence and Odoo Website adapter;
 - `marketing_center_sale` and `marketing_center_account` —
   projections over native Odoo domains;
-- `marketing_center_crm` and `marketing_center_dashboard` — temporary compatibility packages;
-- bridge addons keep optional domains decoupled;
+- `marketing_center_contact_center` — conversation and attribution integration;
+- `marketing_center_website_whatsapp` — Website to WhatsApp correlation;
+- `marketing_center_automation` and `marketing_center_sale_account` — optional business integrations;
 
 Install `marketing_center_base` for the unified application. It requires native
 `crm` and OCA `queue_job`. Select only the optional integrations you need. The
-obsolete suite package has been removed. See [upgrade guide](docs/core-fusion.md).
+obsolete suite package has been removed. See [upgrade guide](docs/crm-integration-fusion.md).
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for boundaries and installation profiles and
 [plan.md](plan.md) for the delivery record and remaining production gates.
@@ -106,3 +107,5 @@ root was removed. See the
 
 The historical validation above does not establish the current production state.
 This review-fix candidate is local code and requires its own release evidence.
+
+CRM integrations are included in Base, Meta, Contact Center and Website. See [the integration ownership and migration guide](docs/crm-integration-fusion.md).

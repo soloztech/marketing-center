@@ -1,12 +1,12 @@
 {
     "name": "Marketing Center - Website WhatsApp",
     "summary": "Link native Website visits to WhatsApp conversations by reference",
-    "version": "16.0.1.2.0",
+    "version": "16.0.1.3.0",
     "category": "Marketing",
     "author": "Soloz Technologies",
     "website": "https://github.com/soloztech/marketing-center",
     "license": "AGPL-3",
-    "depends": ["marketing_center_website_crm", "contact_center_crm"],
+    "depends": ["marketing_center_website", "contact_center_crm"],
     "data": [
         "security/handoff_security.xml",
         "security/ir.model.access.csv",

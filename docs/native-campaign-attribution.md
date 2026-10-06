@@ -1,5 +1,10 @@
 # Campanhas externas e atribuição nativa no CRM
 
+As integrações CRM fazem parte dos módulos proprietários desde a fusão de 06/10/2026.
+Para atualizar uma base com os cinco módulos antigos instalados, aplicar primeiro a
+[migração de propriedade](crm-integration-fusion.md); não executar diretamente `-u`
+sobre o código novo antes dessa preparação.
+
 Este guia descreve a classificação de aquisição disponível no código. Instalar ou
 atualizar os módulos não ativa a classificação: cada fonte começa em **Disabled**. A
 configuração e a ativação de cada ambiente são decisões locais.
@@ -34,26 +39,23 @@ flowchart TD
     A --> H[Recibo auditável com antes, depois e evidências]
 ```
 
-O ingresso comercial continua independente: Website CRM e Meta CRM determinam se a
-entrada vira Lead ou Oportunidade, conforme sua configuração. A atribuição não muda
+O ingresso comercial continua independente: os adaptadores Website e Meta determinam se
+a entrada vira Lead ou Oportunidade, conforme sua configuração. A atribuição não muda
 tipo, vendedor, equipe, estágio ou probabilidade. Também não cria um lead para uma
 submissão histórica que não tenha sido projetada pelo ingresso.
 
 ## Responsabilidade dos módulos
 
-| Módulo                                | Responsabilidade nesta etapa                                                                                        |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `google_api_base`                     | Transporte Google, credenciais, limites e erros normalizados.                                                       |
-| `meta_api_base`, `meta_webhook_base`  | Transporte e recebimento Meta; não classificam CRM.                                                                 |
-| `marketing_center_web_ingress`        | Registrar a observação web e guardar o identificador de clique protegido, com retenção e política de captura.       |
-| `marketing_center_website`            | Captura no site, política de rastreamento, sessão e ações.                                                          |
-| `marketing_center_google`             | Consultar GCLID exato, enriquecer evidência e resolver referências Google no catálogo.                              |
-| `marketing_center_meta`               | Submissões e referências Meta, catálogo e resolução de suas identidades.                                            |
-| `marketing_center_base`               | Evidência canônica, catálogo, associação entre campanha externa e UTM nativa e política por fonte.                  |
-| `marketing_center_crm`                | Escritor único dos três campos nativos, fila de reconciliação, preservação manual e recibos.                        |
-| `marketing_center_website_crm`        | Vincular evidência ao lead nativo e comprovar, no momento da inserção, quando “Website” foi somente o valor padrão. |
-| `marketing_center_meta_crm`           | Criar/vincular o registro comercial conforme a rota; a classificação usa a mesma ponte CRM.                         |
-| `marketing_center_contact_center_crm` | Vincular a evidência da conversa ao CRM; sinais genéricos sem campanha identificada permanecem insuficientes.       |
+| Módulo                               | Responsabilidade nesta etapa                                                                                                                 |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `google_api_base`                    | Transporte Google, credenciais, limites e erros normalizados.                                                                                |
+| `meta_api_base`, `meta_webhook_base` | Transporte e recebimento Meta.                                                                                                               |
+| `marketing_center_web_ingress`       | Observação web, identificador de clique protegido e política de captura.                                                                     |
+| `marketing_center_website`           | Captura, sessão, ações e vínculo da submissão nativa ao lead, incluindo a identificação de UTMs padrão.                                      |
+| `marketing_center_google`            | Consulta GCLID exata, enriquecimento de evidência e resolução das referências Google.                                                        |
+| `marketing_center_meta`              | Submissões, referências e catálogo Meta; criação ou vínculo comercial conforme a rota.                                                       |
+| `marketing_center_base`              | Evidência canônica, catálogo externo, política por fonte e escritor único das UTMs nativas, com reconciliação, preservação manual e recibos. |
+| `marketing_center_contact_center`    | Vínculo entre evidência da conversa e CRM; sinais sem campanha identificada permanecem insuficientes.                                        |
 
 ## Configuração por fonte
 
@@ -182,10 +184,10 @@ enquanto ela ainda enxerga o snapshot antigo.
 
 ## Atualização e diagnóstico
 
-Atualize `marketing_center_base`, `marketing_center_crm`, `marketing_center_google`,
-`marketing_center_web_ingress` e `marketing_center_website_crm`, respeitando
-dependências instaladas. A ponte CRM passa a depender de `queue_job`. Configure o runner
-OCA conforme o ambiente; sem ele, reconciliações permanecem pendentes.
+Atualize `marketing_center_base`, `marketing_center_google`,
+`marketing_center_web_ingress` e `marketing_center_website`, respeitando dependências
+instaladas. O serviço CRM do Base usa `queue_job`. Configure o runner OCA conforme o
+ambiente; sem ele, reconciliações permanecem pendentes.
 
 Para um lead sem Campanha:
 

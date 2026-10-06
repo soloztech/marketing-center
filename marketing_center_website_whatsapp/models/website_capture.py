@@ -7,7 +7,7 @@ from urllib.parse import unquote, urlsplit
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError
 
-from odoo.addons.marketing_center_website_crm.models.native_submission import (
+from odoo.addons.marketing_center_website.models.crm.native_submission import (
     acquisition_values,
     safe_page,
     utc_iso,

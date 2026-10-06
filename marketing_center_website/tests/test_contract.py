@@ -13,7 +13,14 @@ class TestMarketingWebsiteContract(SavepointCase):
     def test_manifest_keeps_provider_neutral_boundary(self):
         manifest = get_manifest("marketing_center_website")
         self.assertEqual(
-            manifest["depends"], ["marketing_center_web_ingress", "website"]
+            set(manifest["depends"]),
+            {
+                "marketing_center_web_ingress",
+                "website",
+                "marketing_center_base",
+                "website_crm",
+                "queue_job",
+            },
         )
         self.assertNotIn("crm", manifest["depends"])
         self.assertNotIn("link_tracker", manifest["depends"])

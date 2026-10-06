@@ -35,3 +35,5 @@ from . import (  # noqa: F401
     test_dashboard,
     test_core_fusion,
 )
+
+from . import test_integration_fusion

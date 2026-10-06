@@ -378,8 +378,8 @@ continues to own leads and opportunities. Conversations belong to Contact Center
 <p>The core requires native <tt class="docutils literal">crm</tt> and <tt class="docutils literal">queue_job</tt>. Google, Meta, Website,
 Contact Center and commercial bridges remain optional. The independent content
 library is different from the advertising catalog.</p>
-<p><tt class="docutils literal">marketing_center_crm</tt> and <tt class="docutils literal">marketing_center_dashboard</tt> are temporary
-compatibility packages. Their implementation is now part of this application.</p>
+<p>The former CRM and dashboard addons have been retired. Their implementation
+is part of this application; do not install their old packages.</p>
 <p><strong>Table of contents</strong></p>
 <div class="contents local topic" id="contents">
 <ul class="simple">
@@ -453,8 +453,8 @@ requests to retry instead of creating duplicate campaigns.</p>
 source), <tt class="docutils literal">entity_id</tt>, <tt class="docutils literal">campaign_id</tt> (native), <tt class="docutils literal">utm_source_id</tt>, <tt class="docutils literal">medium_id</tt>,
 <tt class="docutils literal">source_mode</tt> and <tt class="docutils literal">created</tt>. States are <tt class="docutils literal">ready</tt>, <tt class="docutils literal">would_create</tt>, <tt class="docutils literal">missing</tt>,
 <tt class="docutils literal">conflict</tt> or <tt class="docutils literal">disabled</tt>. Consumers must honor <tt class="docutils literal">source_mode</tt> before writing.
-The optional CRM bridge owns CRM classification, writer provenance and preservation
-of manual CRM values. This base module does not write CRM fields.</p>
+This application owns CRM classification, writer provenance and preservation
+of manual CRM values. Its CRM service is the single writer of native UTMs.</p>
 <p>Configuration, mapping and asset-resolution changes invoke the private extension
 hook <tt class="docutils literal">_after_native_utm_change(source_ids=None, entity_ids=None,
 touchpoint_ids=None)</tt>. Downstream modules should schedule work rather than write
@@ -466,7 +466,7 @@ business records inside this callback. The complete architecture is documented i
 <p>Use <tt class="docutils literal">Marketing Center / Overview</tt>, <tt class="docutils literal">Leads</tt> and <tt class="docutils literal">Opportunities</tt> from the same
 application. Sales access is still required for commercial records. The overview
 is read-only and follows company and source access rules. Conversation acquisition
-evidence reaches CRM only through installed bridges and explicit business links.</p>
+evidence reaches CRM through installed channel adapters and explicit business links.</p>
 <p>CRM lifecycle capture has its own company policy, independent of general business
 event capture. Its default remains enabled as in the former CRM addon. Review
 both policies before enabling acquisition connectors. A preserved empty capture

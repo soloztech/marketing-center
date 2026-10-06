@@ -10,3 +10,5 @@ from . import consent, consent_service
 from . import res_config_settings
 from . import ir_http
 from . import website_visitor
+
+from . import crm

@@ -259,9 +259,9 @@ Website notice and optional Google measurement
 ---------------------------------------------
 
 Since 16.0.1.3.0 this adapter also owns the native cookie-bar integration and
-the optional GA4 consumer of confirmed Marketing events. It needs neither
-``marketing_center_website_crm`` nor any company-specific Website addon. The
-CRM bridge is still required when correlating actual native CRM submissions.
+the optional GA4 consumer of confirmed Marketing events. Native CRM submission
+correlation is included in this adapter since 16.0.2.0.0, using ``website_crm``.
+No company-specific Website addon or separate Marketing CRM bridge is required.
 
 Website → Configuration → Settings → Privacy exposes one notice text, the
 continue-button label and policy URL for the selected Website. Values are

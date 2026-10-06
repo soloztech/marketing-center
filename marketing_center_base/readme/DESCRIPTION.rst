@@ -8,5 +8,5 @@ The core requires native ``crm`` and ``queue_job``. Google, Meta, Website,
 Contact Center and commercial bridges remain optional. The independent content
 library is different from the advertising catalog.
 
-``marketing_center_crm`` and ``marketing_center_dashboard`` are temporary
-compatibility packages. Their implementation is now part of this application.
+The former CRM and dashboard addons have been retired. Their implementation
+is part of this application; do not install their old packages.

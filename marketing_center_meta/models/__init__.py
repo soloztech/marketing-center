@@ -15,3 +15,5 @@ from . import (
 # Register extensions after the profile model exists.
 from . import credential_health
 from . import ad_preview
+
+from . import crm

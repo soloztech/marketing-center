@@ -13,11 +13,11 @@ from odoo.addons.marketing_center_web_ingress.services.contracts import (
     normalize_allowed_origins,
     normalize_origin,
 )
+from odoo.addons.marketing_center_website.models.crm.native_submission import safe_page
 from odoo.addons.marketing_center_website.services.contracts import (
     WebsiteActionContractError,
     safe_relative_path,
 )
-from odoo.addons.marketing_center_website_crm.models.native_submission import safe_page
 
 
 def account_whatsapp_digits(account):

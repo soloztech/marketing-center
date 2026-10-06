@@ -1,3 +1,10 @@
+# Current integration release
+
+The compatibility addons described in this earlier core-fusion record have now been
+retired. Follow [CRM integration fusion](crm-integration-fusion.md) for the mandatory
+two-step migration, current ownership and supported lineage. Historical implementation
+details below describe the preceding release.
+
 # Núcleo unificado do Marketing Center
 
 A partir de 16.0.2.0.0, `marketing_center_base` reúne evidências de aquisição, vínculos

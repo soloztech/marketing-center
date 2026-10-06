@@ -3,7 +3,7 @@ Website to WhatsApp attribution
 
 This optional bridge adds a reference to configured WhatsApp links and relates
 incoming Contact Center messages to native Website visits. It depends only on
-``marketing_center_website_crm`` and ``contact_center_crm``. It does not replace
+``marketing_center_website`` and ``contact_center_crm``. It does not replace
 native tracking, create a parallel visitor session, send messages or merge leads.
 
 Configuration
