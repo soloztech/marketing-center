@@ -171,8 +171,21 @@ class AutomationRecordStep(models.Model):
     def _cc_receipt_write(self, values):
         return self.with_context(cc_receipt_service=CC_RECEIPT_TOKEN).write(values)
 
+    def _is_intake_lead(self):
+        resource = self.sudo().record_id.resource_ref
+        return bool(
+            resource
+            and resource._name == "crm.lead"
+            and resource.contact_center_intake_created
+        )
+
     def run(self, trigger_activity=True):
         self.ensure_one()
+        if self.state != "scheduled":
+            return self.browse()
+        if self._is_intake_lead():
+            self._reject()
+            return self.browse()
         if self.step_type != "contact_center" or self.is_test:
             return super().run(trigger_activity=trigger_activity)
         require_cc_administrator(self.env)
@@ -197,6 +210,9 @@ class AutomationRecordStep(models.Model):
         )
         self.invalidate_recordset()
         if self.state != "scheduled":
+            return
+        if self._is_intake_lead():
+            self._reject()
             return
         if (
             not self.configuration_id.active
@@ -243,6 +259,9 @@ class AutomationRecordStep(models.Model):
             self._cc_receipt_write({"cc_status": "simulated"})
             return True
         configuration = self.configuration_id
+        if self._is_intake_lead():
+            self._cc_receipt_write({"cc_status": "stopped"})
+            return False
         if not configuration.cc_send_enabled:
             self._cc_receipt_write({"cc_status": "disabled"})
             return False

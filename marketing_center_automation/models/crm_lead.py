@@ -11,7 +11,10 @@ class CrmLead(models.Model):
     def _cc_queue_automation_entry(self):
         # base_automation calls this inside lead creation. Only enqueue; queue_job
         # makes enrollment visible to workers after the business transaction commits.
-        for lead in self.filtered(lambda record: record.type == "lead"):
+        for lead in self.filtered(
+            lambda record: record.type == "lead"
+            and not record.sudo().contact_center_intake_created
+        ):
             configurations = (
                 self.env["automation.configuration"]
                 .sudo()

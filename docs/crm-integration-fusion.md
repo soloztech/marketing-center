@@ -33,6 +33,13 @@ release does not change capture settings, create a new WhatsApp lead policy, cop
 conversations into CRM chatter or re-enrol historical submissions. Existing Meta route
 opt-in and native Website form behavior remain in effect.
 
+The later P3 intake release adds an opt-in policy inside `contact_center_crm`; see
+[its operating guide](https://github.com/soloztech/contact-center/blob/16.0/docs/crm-intake.md).
+Marketing Automation guards permanently exclude intake-created leads from native
+automations, OCA enrollment and every step type, including direct queued execution. This
+exclusion survives human CRM edits and merges. Existing leads reused by intake retain
+their original automation policy; intake does not send a message to the customer.
+
 ```mermaid
 flowchart LR
     Meta[Meta Lead Ads] --> Submission[Authenticated submission]
@@ -117,3 +124,15 @@ validate this removal on a migrated clone.
 The actual-owner uninstall guard deliberately requires the canonical counterpart of
 every remaining legacy alias. Missing canonical rows need an explicit reviewed cleanup
 migration; do not bypass that guard or call native uninstall on old modules.
+
+### Compatibilidade e recuperação do P3
+
+Marketing Center Automation `16.0.1.0.3` exige Contact Center CRM `16.0.1.4.0` ou
+posterior (commit P3 de Contact publicado com esta entrega). A exclusão permanente usa o
+campo protegido definido pelo Contact. Não restaurar apenas o Contact para uma versão
+anterior ao P3 enquanto esse Marketing estiver ativo: ambos os repositórios formam um
+par compatível para recuperação. A pasta fixa e o commit de cada um são conferidos pelo
+aplicador; nenhuma recuperação de fonte após upgrade deve ser tentada sem conferir o par
+e o schema resultante. O piso de compatibilidade no CI é o commit P3 de Contact fixado
+no workflow. As regras nativas `on_change` também respeitam a exclusão; ações manuais
+normais sem o contexto de onchange mantêm o comportamento nativo.

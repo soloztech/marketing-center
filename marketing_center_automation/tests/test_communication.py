@@ -13,7 +13,7 @@ from odoo.addons.queue_job.tests.common import trap_jobs
 
 
 @tagged("post_install", "-at_install")
-class TestCommunicationAutomation(SavepointCase):
+class CommunicationAutomationCase(SavepointCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -92,6 +92,8 @@ class TestCommunicationAutomation(SavepointCase):
         record = self.configuration._create_record(lead)
         return lead, record.automation_step_ids
 
+
+class TestCommunicationAutomation(CommunicationAutomationCase):
     def test_disabled_has_no_enrollment_or_transport(self):
         self.assertFalse(self.configuration.cc_send_enabled)
         with trap_jobs() as trap:

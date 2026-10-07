@@ -14,6 +14,15 @@ def require_cc_administrator(env):
 class AutomationConfiguration(models.Model):
     _inherit = "automation.configuration"
 
+    _contact_center_intake_guard = 1
+
+    def _without_intake_leads(self, records):
+        if records._name == "crm.lead":
+            return records.filtered(
+                lambda lead: not lead.sudo().contact_center_intake_created
+            )
+        return records
+
     cc_lead_entry = fields.Boolean(string="Entrada automática de leads", copy=False)
     cc_send_enabled = fields.Boolean(
         string="Permitir mensagens automáticas", copy=False
@@ -106,10 +115,24 @@ class AutomationConfiguration(models.Model):
         "cc_lead_entry",
         "automation_step_ids.step_type",
         "cc_entry_lead_id",
+        "model_id",
     )
     def _compute_domain(self):
         result = super()._compute_domain()
         for configuration in self:
+            if configuration.model == "crm.lead":
+                # Filter before OCA's MIN(id)/GROUP BY deduplication. A skipped
+                # intake lead must not starve ordinary leads with the same key.
+                configuration.domain = repr(
+                    expression.AND(
+                        [
+                            safe_eval(
+                                configuration.domain, configuration._get_eval_context()
+                            ),
+                            [("contact_center_intake_created", "=", False)],
+                        ]
+                    )
+                )
             if configuration._cc_is_workflow() and configuration.cc_entry_after:
                 configuration.domain = repr(
                     expression.AND(
@@ -136,7 +159,9 @@ class AutomationConfiguration(models.Model):
     def _get_automation_records_to_create(self):
         self.ensure_one()
         if not self._cc_is_workflow():
-            return super()._get_automation_records_to_create()
+            return self._without_intake_leads(
+                super()._get_automation_records_to_create()
+            )
         # Both OCA's periodic cron and the prompt create trigger use this gate.
         if not self.cc_send_enabled or not self.cc_entry_after:
             return self.env[self.model]
@@ -151,7 +176,9 @@ class AutomationConfiguration(models.Model):
             "UPDATE automation_configuration SET write_date = write_date WHERE id = %s",
             [self.id],
         )
-        records = super()._get_automation_records_to_create()
+        records = self._without_intake_leads(
+            super()._get_automation_records_to_create()
+        )
         selected = self.env.context.get("cc_enrollment_lead_ids")
         if selected is not None:
             records = records.filtered(lambda lead: lead.id in selected)
@@ -161,6 +188,13 @@ class AutomationConfiguration(models.Model):
             .with_context(allowed_company_ids=self.company_id.ids)
             .search([("id", "in", records.ids)])
         )
+
+    def _export_configuration(self):
+        result = super()._export_configuration()
+        if self.model == "crm.lead":
+            # Export the authored expression, not the evaluated execution fence.
+            result["domain"] = self.filter_id.domain or self.editable_domain
+        return result
 
     def _job_cc_enroll_lead(self, lead_id):
         self.ensure_one()
@@ -174,6 +208,10 @@ class AutomationRecord(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        self.check_access_rights("create")
+        self._check_intake_targets(
+            [dict(self.default_get(["model", "res_id"]), **v) for v in vals_list]
+        )
         for values in vals_list:
             configuration = self.env["automation.configuration"].browse(
                 values.get("configuration_id")
@@ -185,7 +223,27 @@ class AutomationRecord(models.Model):
             require_cc_administrator(self.env)
         return result
 
+    def _check_intake_targets(self, vals_list):
+        for values in vals_list:
+            if values.get("model") == "crm.lead" and values.get("res_id"):
+                target_id = self._fields["res_id"].convert_to_cache(
+                    values["res_id"], self
+                )
+                lead = self.env["crm.lead"].browse(target_id).exists()
+                lead.check_access_rights("read")
+                lead.check_access_rule("read")
+                if lead.sudo().contact_center_intake_created:
+                    raise ValidationError(
+                        _("Intake-created leads are excluded from automation.")
+                    )
+
     def write(self, values):
+        self.check_access_rights("write")
+        self.check_access_rule("write")
+        if {"model", "res_id"}.intersection(values):
+            self._check_intake_targets(
+                [{"model": row.model, "res_id": row.res_id, **values} for row in self]
+            )
         configurations = self.mapped("configuration_id")
         if values.get("configuration_id"):
             configurations |= self.env["automation.configuration"].browse(
