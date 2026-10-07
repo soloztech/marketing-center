@@ -2,13 +2,15 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from odoo.exceptions import ValidationError
-from odoo.modules.module import get_module_path
+from odoo.modules.module import get_manifest, get_module_path
 from odoo.tests import tagged
 from odoo.tests.common import SavepointCase
 
 from .. import integration_migration as fusion
 from ..hooks import post_init_hook
 from ..integration_migration import (
+    DEPENDENCIES,
+    LEGACY_VERSIONS,
     MARKER_PREFIX,
     OWNERS,
     PREDECESSOR_VERSIONS,
@@ -21,6 +23,95 @@ from ..integration_migration import (
 
 @tagged("-at_install", "post_install")
 class TestMarketingIntegrationFusionGuards(SavepointCase):
+    def test_prepared_legacy_graph_accepts_each_current_owner_upgrade(self):
+        # Use a small, valid alias catalog to isolate the version transition.
+        # All source-guard checks still execute against real ORM metadata.
+        modules = self.env["ir.module.module"]
+        data = self.env["ir.model.data"]
+        data.search([("module", "in", list(OWNERS))]).unlink()
+        catalog = {"xmlids": {}}
+        for legacy, version in LEGACY_VERSIONS.items():
+            row = modules.search([("name", "=", legacy)])
+            values = {"state": "uninstallable", "latest_version": version}
+            if row:
+                row.write(values)
+            else:
+                modules.create(dict(values, name=legacy))
+            name = "test_prepared_" + legacy
+            target = self.env["res.partner"].create({"name": name})
+            catalog["xmlids"][legacy] = {name: "res.partner"}
+            for namespace in (legacy, OWNERS[legacy]):
+                data.create(
+                    {
+                        "module": namespace,
+                        "name": name,
+                        "model": "res.partner",
+                        "res_id": target.id,
+                        "noupdate": True,
+                    }
+                )
+        suite = modules.search([("name", "=", "marketing_center_suite")])
+        suite.write({"state": "uninstallable"})
+        owners = {}
+        for name, version in PREDECESSOR_VERSIONS.items():
+            row = modules.search([("name", "=", name)]).ensure_one()
+            row.write(
+                {
+                    "latest_version": version,
+                    "dependencies_id": [(5, 0, 0)]
+                    + [
+                        (0, 0, {"name": dependency, "auto_install_required": False})
+                        for dependency in DEPENDENCIES[name]
+                    ],
+                }
+            )
+            owners[name] = row
+        with patch.object(fusion, "catalog", return_value=catalog):
+            assert_prepared(self.env)
+            whatsapp = owners["marketing_center_website_whatsapp"]
+            added = self.env["ir.module.module.dependency"].create(
+                [
+                    {
+                        "module_id": whatsapp.id,
+                        "name": name,
+                        "auto_install_required": False,
+                    }
+                    for name in ("marketing_center_contact_center", "queue_job")
+                ]
+            )
+            # update_list refreshes the P2 graph before persisted versions.
+            assert_prepared(self.env)
+            added[0].auto_install_required = True
+            with self.assertRaisesRegex(
+                ValidationError, "manifest dependencies differ"
+            ):
+                assert_prepared(self.env)
+            added[0].auto_install_required = False
+            extra = self.env["ir.module.module.dependency"].create(
+                {
+                    "module_id": whatsapp.id,
+                    "name": "mail",
+                    "auto_install_required": False,
+                }
+            )
+            with self.assertRaisesRegex(
+                ValidationError, "manifest dependencies differ"
+            ):
+                assert_prepared(self.env)
+            extra.unlink()
+            added.unlink()
+            # Native Odoo commits each owner's new version before the next
+            # owner's pre-migration calls the guard. Base is upgraded first.
+            for name, row in owners.items():
+                with self.subTest(owner=name):
+                    row.latest_version = get_manifest(name)["version"]
+                    assert_prepared(self.env)
+            owners["marketing_center_base"].latest_version = "16.0.999.0.0"
+            with self.assertRaisesRegex(
+                ValidationError, "unsupported retained owner lineage"
+            ):
+                assert_prepared(self.env)
+
     def test_legacy_import_aliases_are_not_addon_providers(self):
         for name in OWNERS:
             self.assertFalse(get_module_path(name, display_warning=False))

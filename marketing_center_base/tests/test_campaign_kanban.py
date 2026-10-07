@@ -25,7 +25,7 @@ class TestMarketingCampaignBoard(SavepointCase):
         cls.currency = cls.company.currency_id
         cls.meta = cls._source("Board Meta", "meta.ads", "act_7001", "UTC")
         cls.google = cls._source(
-            "Board Google", "google.ads", "customers/7002", "America/Sao_Paulo"
+            "Board Google", "google.ads", "customers/7002000000", "America/Sao_Paulo"
         )
         cls.hidden = cls._source("Board hidden", "meta.ads", "act_7003", "UTC")
         # Real Meta accounts report in their own time zone; local days do not
@@ -74,6 +74,9 @@ class TestMarketingCampaignBoard(SavepointCase):
                 "company_id": cls.company.id,
                 "service": service,
                 "external_account_ref": account_ref,
+                "external_account_id": account_ref.removeprefix("customers/")
+                if service == "google.ads"
+                else False,
                 "currency_id": cls.currency.id,
                 "timezone": timezone,
                 "state": "active",

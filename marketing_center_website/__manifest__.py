@@ -1,7 +1,7 @@
 {
     "name": "Marketing Center - Website",
     "summary": "First-party Odoo Website adapter for the marketing ingress",
-    "version": "16.0.2.1.0",
+    "version": "16.0.2.1.1",
     "category": "Marketing",
     "author": "Soloz Technologies",
     "website": "https://github.com/soloztech/marketing-center",

@@ -651,6 +651,279 @@ class TestNativeWebsiteWhatsAppHttp(HttpCase):
         self.assertEqual(self._post().status_code, 400)
         self.assertEqual(len(self._clicks()), 1)
 
+    def _refuse_http(self):
+        return self.opener.post(
+            self.base_url() + "/marketing/website-consent/decision",
+            data=json.dumps(
+                {
+                    "granted": False,
+                    "config_revision": self.endpoint.config_revision,
+                    "policy_version": self.endpoint.privacy_policy_version,
+                    "notice_version": self.endpoint.privacy_notice_version,
+                }
+            ).encode(),
+            headers={
+                "Content-Type": "application/json",
+                "Origin": self.origin,
+                "Referer": self.origin + self.page_path,
+                "X-Forwarded-Host": self.proxy_host,
+                "X-Forwarded-Proto": "https",
+                "Sec-Fetch-Site": "same-origin",
+                "X-Marketing-Consent": "1",
+                **self._proxy_cookie_headers(),
+            },
+        )
+
+    def _consented_handoff(self):
+        self.website.cookies_bar = True
+        self.endpoint.write(
+            {
+                "website_tracking_policy": "individual_consent",
+                "privacy_legal_basis_code": "consent",
+            }
+        )
+        decision = self.env["marketing.website.consent"]._decide(self.binding, True)
+        self.opener.cookies.update(
+            {
+                "mc_website_consent": decision._cookie(),
+                "website_cookies_bar": '{"required":true,"optional":true}',
+            }
+        )
+        response = self._post()
+        self.assertEqual(response.status_code, 202, response.text)
+        return self._clicks(), decision
+
+    def _http_login_visitor_merge(
+        self, fail_merge=False, move_company=False, fail_detach=False
+    ):
+        # Establish the actual session before the claim route (save_session=False).
+        self.authenticate(None, None)
+        self.page.view_id.track = True
+        response = self.url_open(
+            self.page_path + "?gad_campaignid=23172115632&gclid=synthetic-click",
+            headers={
+                "X-Forwarded-Host": self.proxy_host,
+                "X-Forwarded-Proto": "https",
+                **self._proxy_cookie_headers(),
+            },
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        self.env.invalidate_all()
+        native_track = self.env["website.track"].search(
+            [("page_id", "=", self.page.id)], order="id desc", limit=1
+        )
+        self.assertTrue(native_track)
+        # Native visitor timestamps have microseconds; the capture clock has
+        # whole seconds. Make the preceding page view deterministic.
+        native_track.visit_datetime = fields.Datetime.now() - datetime.timedelta(
+            seconds=2
+        )
+        response = self._post()
+        self.assertEqual(response.status_code, 202, response.text)
+        handoff = self._clicks()
+        source = handoff.visitor_id
+        self.assertTrue(source)
+        self.assertTrue(handoff.track_id)
+        track = handoff.track_id
+        secret = uuid.uuid4().hex
+        user = (
+            self.env["res.users"]
+            .with_context(no_reset_password=True)
+            .create(
+                {
+                    "name": "Synthetic journey login",
+                    "login": "journey-login-" + uuid.uuid4().hex,
+                    "password": secret,
+                    "groups_id": [(6, 0, self.env.ref("base.group_portal").ids)],
+                }
+            )
+        )
+        target = self.env["website.visitor"].create(
+            {
+                "website_id": self.website.id,
+                "access_token": str(user.partner_id.id),
+            }
+        )
+        if move_company:
+            self.website.handoff_default_action_id = False
+            self.action.write({"handoff_enabled": False, "handoff_account_id": False})
+            self.binding.active = False
+            self.website.company_id = self.env["res.company"].create(
+                {"name": "Synthetic Website moved before login"}
+            )
+        model = type(handoff)
+        original = model.write
+
+        def guarded_write(records, values):
+            if fail_merge and values == {"visitor_id": target.id}:
+                raise RuntimeError("Synthetic optional merge failure")
+            if fail_detach and values == {"visitor_id": False, "track_id": False}:
+                raise RuntimeError("Synthetic optional detach failure")
+            return original(records, values)
+
+        with patch.object(model, "write", new=guarded_write):
+            headers = {
+                "X-Forwarded-Host": self.proxy_host,
+                "X-Forwarded-Proto": "https",
+                **self._proxy_cookie_headers(),
+            }
+            login_page = self.url_open("/web/login", headers=headers)
+            csrf = html.fromstring(login_page.content).xpath(
+                '//input[@name="csrf_token"]/@value'
+            )[0]
+            response = self.opener.post(
+                self.base_url() + "/web/login",
+                data={"login": user.login, "password": secret, "csrf_token": csrf},
+                headers=headers,
+                allow_redirects=False,
+            )
+        self.assertEqual(response.status_code, 303, response.text)
+        self.env.invalidate_all()
+        self.assertFalse(source.exists())
+        self.assertEqual(track.visitor_id, target)
+        detached = fail_merge or move_company
+        self.assertEqual(
+            handoff.visitor_id, self.env["website.visitor"] if detached else target
+        )
+        self.assertEqual(
+            handoff.track_id, self.env["website.track"] if detached else track
+        )
+        self.assertTrue(handoff.acquisition_json)
+
+    def test_http_login_merges_native_track_and_whatsapp_handoff(self):
+        self._http_login_visitor_merge()
+
+    def test_http_optional_handoff_merge_failure_does_not_abort_login(self):
+        self._http_login_visitor_merge(fail_merge=True)
+
+    def test_http_company_move_does_not_abort_login_merge(self):
+        self._http_login_visitor_merge(move_company=True)
+
+    def test_http_optional_cross_company_detach_failure_does_not_abort_login(self):
+        self._http_login_visitor_merge(move_company=True, fail_detach=True)
+
+    def test_http_optional_fallback_detach_failure_does_not_abort_login(self):
+        self._http_login_visitor_merge(fail_merge=True, fail_detach=True)
+
+    def test_http_explicit_refusal_before_projection_queues_erasure(self):
+        handoff, decision = self._consented_handoff()
+        self.assertEqual(handoff.capture_consent_id, decision)
+        response = self._refuse_http()
+        self.assertTrue(response.json()["accepted"], response.text)
+        decision.invalidate_recordset()
+        self.assertTrue(decision.whatsapp_erasure_queued)
+        self.assertFalse(handoff.erased_at)  # work is durable and asynchronous
+        self.env.company._job_whatsapp_withdrawal(decision.id)
+        self.assertTrue(handoff.erased_at)
+        self.assertFalse(handoff.acquisition_json)
+
+    def test_http_explicit_refusal_after_projection_erases_and_wakes_business(self):
+        handoff, decision = self._consented_handoff()
+        agent = (
+            self.env["res.users"]
+            .with_context(no_reset_password=True)
+            .create(
+                {
+                    "name": "Synthetic refusal agent",
+                    "login": "refusal-" + uuid.uuid4().hex,
+                    "company_id": self.env.company.id,
+                    "company_ids": [(6, 0, self.env.company.ids)],
+                    "groups_id": [
+                        (
+                            6,
+                            0,
+                            (
+                                self.env.ref(
+                                    "contact_center_base.group_contact_center_agent"
+                                )
+                                | self.env.ref("sales_team.group_sale_salesman")
+                            ).ids,
+                        )
+                    ],
+                }
+            )
+        )
+        self.account.access_user_ids = agent
+        # Build a synthetic provider message using the same native persistence
+        # path as inbound processing. No message is sent to a provider.
+        guest = self.env["mail.guest"].create({"name": "Synthetic refusal visitor"})
+        identity = self.env["contact.center.identity"].create(
+            {
+                "name": "Synthetic refusal",
+                "company_id": self.env.company.id,
+                "mail_guest_id": guest.id,
+            }
+        )
+        channel = self.env["mail.channel"]._contact_center_create_channel(
+            account=self.account,
+            identity=identity,
+            conversation_type="direct",
+            guest_ids=guest.ids,
+        )
+        binding = self.env["contact.center.channel.binding"].create(
+            {
+                "channel_id": channel.id,
+                "account_id": self.account.id,
+                "identity_id": identity.id,
+                "conversation_type": "direct",
+                "conversation_ref": str(uuid.uuid4()),
+            }
+        )
+        message = channel.with_context(guest=guest)._contact_center_post(
+            origin="inbound",
+            body="Meu código é " + handoff.reference,
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+            partner_ids=[],
+        )
+        provider = self.env["contact.center.message.binding"].create(
+            {
+                "message_id": message.id,
+                "channel_binding_id": binding.id,
+                "direction": "inbound",
+                "origin": "provider",
+                "content_type": "text",
+                "external_message_id": str(uuid.uuid4()),
+                "delivery_state": "delivered",
+            }
+        )
+        match = self.env["marketing.website.whatsapp.match"].search(
+            [("message_binding_id", "=", provider.id)]
+        )
+        self.assertEqual(match.state, "reference")
+        lead = self.env["crm.lead"].create(
+            {"name": "Synthetic refusal business", "company_id": self.env.company.id}
+        )
+        row = (
+            self.env["contact.center.crm.conversation.link"]
+            ._service()
+            .create(
+                {
+                    "channel_id": channel.id,
+                    "lead_id": lead.id,
+                    "lead_record_id_snapshot": lead.id,
+                    "scope_state": "confirmed",
+                    "writer": "manual",
+                    "scope_start": message.date,
+                }
+            )
+        )
+        self.env.company._job_whatsapp_match(match.id, match.journey_revision)
+        self.env.company._job_whatsapp_link(row.id, row.website_journey_revision)
+        point = handoff.journey_touchpoint_id
+        self.assertTrue(point)
+        self.assertTrue(self._refuse_http().json()["accepted"])
+        decision.invalidate_recordset()
+        self.env.company._job_whatsapp_withdrawal(decision.id)
+        self.assertTrue(point.privacy_erased_at)
+        self.env.company._job_whatsapp_erasure(handoff.id)
+        self.env.company._job_whatsapp_match(match.id, match.journey_revision)
+        self.assertFalse(
+            self.env["marketing.attribution.crm.effective.link"].search(
+                [("lead_id", "=", lead.id)]
+            )
+        )
+
     def test_application_failure_rolls_back_click_and_returns_fallback_signal(self):
         capture_type = type(self.env["marketing.website.whatsapp.handoff"])
         original = capture_type._record_click

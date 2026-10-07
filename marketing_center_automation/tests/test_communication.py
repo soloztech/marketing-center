@@ -120,6 +120,35 @@ class TestCommunicationAutomation(SavepointCase):
             send.assert_not_called()
         self.assertEqual(lead.type, "lead")
 
+    def test_empty_entry_cutoff_accepts_first_lead_and_keeps_existing_cutoff(self):
+        historical = self._lead()
+        self.configuration.cc_send_enabled = True
+        with trap_jobs() as trap:
+            historical._cc_queue_automation_entry()
+            trap.assert_jobs_count(0, only=self.configuration._job_cc_enroll_lead)
+        self.configuration.flush_recordset(["cc_entry_lead_id"])
+        for cutoff in (None, 0):
+            with self.subTest(cutoff=cutoff):
+                # Integer.write(False) stores zero, not the SQL NULL produced by
+                # enabling entry before any lead exists. Prove both real states.
+                self.env.cr.execute(
+                    "UPDATE automation_configuration SET cc_entry_lead_id = %s "
+                    "WHERE id = %s",
+                    [cutoff, self.configuration.id],
+                )
+                self.configuration.invalidate_recordset(["cc_entry_lead_id"])
+                self.env.cr.execute(
+                    "SELECT cc_entry_lead_id FROM automation_configuration "
+                    "WHERE id = %s",
+                    [self.configuration.id],
+                )
+                self.assertEqual(self.env.cr.fetchone()[0], cutoff)
+                with trap_jobs() as trap:
+                    self._lead()
+                    trap.assert_jobs_count(
+                        1, only=self.configuration._job_cc_enroll_lead
+                    )
+
     def test_periodic_enrollment_excludes_history_and_is_repeatable(self):
         historical = self._lead()
         self.configuration.cc_send_enabled = True
@@ -349,6 +378,8 @@ class TestCommunicationAutomation(SavepointCase):
         self.assertEqual(
             lead._conversation_links().channel_id.id, step.cc_channel_id.id
         )
+        link = lead._conversation_links()
+        self.assertEqual((link.writer, link.scope_state), ("automation", "context"))
         binding = self.env["contact.center.message.binding"].search(
             [("message_id", "=", step.cc_message_id.id)]
         )

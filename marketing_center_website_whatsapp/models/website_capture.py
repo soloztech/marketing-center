@@ -32,6 +32,7 @@ class MarketingWebsiteWhatsAppCapture(models.AbstractModel):
 
         landing_url = page_url
         acquisition = acquisition_values(referrer)
+        provenance = "referrer" if acquisition else "none"
         chosen_track = self.env["website.track"]
         acquired_at = None
         if visitor and visitor.exists():
@@ -84,8 +85,12 @@ class MarketingWebsiteWhatsAppCapture(models.AbstractModel):
                         landing_url = safe_page(chosen.url, origin)
                         acquired_at = chosen.visit_datetime
                         chosen_track = chosen
+                        provenance = "track"
         # A partial click tuple owns its origin; old UTM cookies never fill it.
         if not acquisition:
+            # A cookie says what, not when. The click-page track is not an
+            # acquisition timestamp for an older cookie campaign.
+            acquired_at = None
             for suffix in ("source", "medium", "campaign"):
                 value = unquote((cookies or {}).get("odoo_utm_" + suffix, ""))
                 if (
@@ -94,8 +99,11 @@ class MarketingWebsiteWhatsAppCapture(models.AbstractModel):
                     and not re.search(r"[\x00-\x1f\x7f]", value)
                 ):
                     acquisition["utm_" + suffix] = value
+            if acquisition:
+                provenance = "cookie"
         if acquired_at:
             acquisition["acquisition_at"] = utc_iso(acquired_at)
+        acquisition["acquisition_provenance"] = provenance
         return {
             "page_url": page_url,
             "landing_url": landing_url,

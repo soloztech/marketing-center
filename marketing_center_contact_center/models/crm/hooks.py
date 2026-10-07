@@ -1,13 +1,21 @@
 # Preserve the established CRM class extension order.
 # pylint: disable=consider-merging-classes-inherited
-from odoo import api, models
+from odoo import api, fields, models
 
 
 class ContactCenterCrmConversationLink(models.Model):
     _inherit = "contact.center.crm.conversation.link"
 
+    marketing_scope_pending = fields.Boolean(readonly=True, copy=False)
+
     @api.model_create_multi
     def create(self, vals_list):
+        vals_list = [
+            dict(
+                values, marketing_scope_pending=values.get("scope_state") == "confirmed"
+            )
+            for values in vals_list
+        ]
         links = super().create(vals_list)
         # Persist only bounded queue intents in the originating request.  The
         # potentially large conversation link x touchpoint projection runs after commit.
@@ -15,6 +23,14 @@ class ContactCenterCrmConversationLink(models.Model):
             "marketing.contact.center.crm.service"
         ].sudo()._enqueue_conversation_links(links)
         return links
+
+    def _finish_scope_convergence(self):
+        links = self._lock_crm_graph().filtered("marketing_scope_pending")
+        if not links:
+            return
+        leads = links.mapped("lead_id")
+        links._service().write({"marketing_scope_pending": False})
+        leads._enqueue_native_utm()
 
     def _transfer_to_lead(self, lead):
         result = super()._transfer_to_lead(lead)
@@ -32,6 +48,8 @@ class ContactCenterCrmConversationLink(models.Model):
         # The Contact Center core invokes this hook only after its graph lock and
         # repeated authorization check, while the live CRM identity is still
         # available. Revocation and tombstone therefore share one transaction.
+        self._service().write({"marketing_scope_pending": False})
+        self.mapped("lead_id")._enqueue_native_utm()
         result = super()._before_tombstone(reason)
         self.env[
             "marketing.contact.center.crm.service"

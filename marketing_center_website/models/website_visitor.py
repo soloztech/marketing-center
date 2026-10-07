@@ -41,7 +41,11 @@ class WebsiteVisitor(models.Model):
         groups="base.group_user",
     )
     marketing_ip_observed_at = fields.Datetime(
-        string="Data da observação", readonly=True, copy=False, groups="base.group_user"
+        string="Data da observação",
+        readonly=True,
+        copy=False,
+        index=True,
+        groups="base.group_user",
     )
     marketing_geo_country_id = fields.Many2one(
         "res.country",

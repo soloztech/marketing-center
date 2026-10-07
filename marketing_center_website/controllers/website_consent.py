@@ -141,6 +141,7 @@ class MarketingWebsiteConsentController(http.Controller):
                         previous.with_context(
                             website_consent_internal=CONSENT_CONTEXT_TOKEN
                         ).write({"revoked_at": fields.Datetime.now()})
+                    previous._explicit_refusal()
                 response = _config_response(
                     {
                         "accepted": True,

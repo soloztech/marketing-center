@@ -136,7 +136,13 @@ class WebsiteWhatsappMatch(models.Model):
 
     def write(self, values):
         self._check_service()
-        if set(values) - {"state", "reviewer_id", "reviewed_at"}:
+        if set(values) - {
+            "state",
+            "reviewer_id",
+            "reviewed_at",
+            "journey_revision",
+            "journey_pending",
+        }:
             raise AccessError(_("A evidência original da associação é imutável."))
         return super().write(values)
 
@@ -254,6 +260,9 @@ class WebsiteWhatsappMatch(models.Model):
         self._authorized_review()
         if self.state == "rejected":
             return True
+        self.env["marketing.website.whatsapp.correlation"]._fence_handoffs(
+            self.handoff_id
+        )
         self._service().write(
             {
                 "state": "rejected",
@@ -528,4 +537,10 @@ class CrmLead(models.Model):
                 )
                 if channels
                 else matches
+            ).filtered(
+                lambda match: any(
+                    row.channel_id == match.channel_id
+                    and row._scope_contains(match.message_at)
+                    for row in lead._conversation_links()
+                )
             )

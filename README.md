@@ -112,3 +112,10 @@ CRM integrations are included in Base, Meta, Contact Center and Website. See [th
 
 The web ingress addon was folded into Website; see
 [the ownership migration](docs/web-ingress-fusion.md).
+
+A elegibilidade comercial das origens Contact Center exige período confirmado no
+CRM. Vínculos antigos aguardam revisão, sem apagar UTM aplicado. As 13 unidades
+atuais são 10 addons Marketing e 3 fundações de transporte; a identidade e as
+mensagens continuam sob responsabilidade do Contact Center. As pontes financeiras
+opcionais ainda usam relações de documentos/eventos com CRM, sem gate de aquisição: atribuição de receita/ROAS não está
+habilitada por esta entrega.

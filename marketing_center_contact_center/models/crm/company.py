@@ -136,6 +136,14 @@ class ResCompany(models.Model):
             company, conversation_link_id
         )
         if not conversation_link:
+            stale = (
+                self.env["contact.center.crm.conversation.link"]
+                .sudo()
+                .browse(conversation_link_id)
+                .exists()
+            )
+            if stale and stale.company_id == company and stale.marketing_scope_pending:
+                stale._finish_scope_convergence()
             return {"done": True, "processed": 0}
         attribution_links = service._attribution_link_page(
             conversation_link.channel_id,
@@ -155,6 +163,8 @@ class ResCompany(models.Model):
                 after_attribution_link_id=last_id,
                 limit=limit,
             )
+        else:
+            conversation_link._finish_scope_convergence()
         return {
             "done": not has_more,
             "processed": len(attribution_links),

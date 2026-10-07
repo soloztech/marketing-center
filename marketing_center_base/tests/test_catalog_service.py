@@ -15,7 +15,7 @@ class TestMarketingCatalogService(SavepointCase):
             {
                 "name": "Catalog source",
                 "company_id": cls.env.company.id,
-                "service": "google.ads",
+                "service": "test.catalog",
                 "external_account_ref": "customers/Case-123",
                 "currency_id": cls.env.company.currency_id.id,
                 "timezone": "UTC",
@@ -92,7 +92,7 @@ class TestMarketingCatalogService(SavepointCase):
             {
                 "name": "Other catalog source",
                 "company_id": self.env.company.id,
-                "service": "google.ads",
+                "service": "test.catalog",
                 "external_account_ref": "customers/Other",
                 "currency_id": self.env.company.currency_id.id,
                 "timezone": "UTC",

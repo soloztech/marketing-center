@@ -364,14 +364,20 @@ class MarketingGoogleClickService(models.AbstractModel):
         ):
             return "acquisition_date_required"
         model = "marketing.attribution.crm.effective.link"
-        if model not in self.env.registry.models or not self.env[model].sudo().search(
-            [
-                ("company_id", "=", point.company_id.id),
-                ("canonical_key", "=", point.canonical_key),
-                ("lead_id", "!=", False),
-            ],
-            limit=1,
-        ):
+        if model not in self.env.registry.models:
+            return "crm_lead_required"
+        links = (
+            self.env[model]
+            .sudo()
+            .search(
+                [
+                    ("company_id", "=", point.company_id.id),
+                    ("canonical_key", "=", point.canonical_key),
+                    ("lead_id", "!=", False),
+                ]
+            )
+        )
+        if not links._scope_partition()["eligible"]:
             return "crm_lead_required"
         return ""
 
@@ -410,7 +416,7 @@ class MarketingGoogleClickService(models.AbstractModel):
             limit=limit,
         )
         seen = set()
-        for link in links:
+        for link in links._scope_partition()["eligible"]:
             key = (link.company_id.id, link.canonical_key)
             if key in seen:
                 continue

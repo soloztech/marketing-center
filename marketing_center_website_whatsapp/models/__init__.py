@@ -3,3 +3,8 @@ from . import website_action
 from . import website_capture
 from . import correlation
 from . import inbound
+from . import journey_capture
+from . import journey_service
+from . import journey_scope
+from . import journey_consent
+from . import journey_ui

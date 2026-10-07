@@ -33,7 +33,12 @@ class TestMarketingCenterDashboard(SavepointCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.company = cls.env.company
+        # Committed concurrency fixtures in other suites must not enter these
+        # company-wide counters. Give the dashboard its own company.
+        cls.company = cls.env["res.company"].create({"name": "Dashboard test company"})
+        cls.env = cls.env(
+            context=dict(cls.env.context, allowed_company_ids=cls.company.ids)
+        )
         cls.now = fields.Datetime.now()
         cls.today = cls.now.date()
         cls.source = cls._source("Visible Meta", "9001")

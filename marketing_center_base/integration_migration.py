@@ -41,6 +41,14 @@ VERSIONS = {
     "marketing_center_website": "16.0.2.0.0",
     "marketing_center_website_whatsapp": "16.0.1.3.0",
 }
+# Checkpoints above identify the original ownership migration. Supported later
+# releases must be accepted both during prepared upgrades and on fresh graphs.
+SUCCESSOR_VERSIONS = {
+    "marketing_center_base": ("16.0.2.1.1", "16.0.2.1.2"),
+    "marketing_center_contact_center": ("16.0.2.0.1",),
+    "marketing_center_website": ("16.0.2.1.0", "16.0.2.1.1"),
+    "marketing_center_website_whatsapp": ("16.0.1.3.1", "16.0.1.4.0", "16.0.1.5.0"),
+}
 DEPENDENCIES = {
     "marketing_center_base": ("base", "crm", "queue_job", "utm"),
     "marketing_center_meta": (
@@ -399,17 +407,7 @@ def assert_prepared(env):
             _require(
                 not row
                 or not row.latest_version
-                or row.latest_version == version
-                or (
-                    (
-                        name == "marketing_center_website"
-                        and row.latest_version == "16.0.2.1.0"
-                    )
-                    or (
-                        name == "marketing_center_website_whatsapp"
-                        and row.latest_version == "16.0.1.4.0"
-                    )
-                ),
+                or row.latest_version in (version,) + SUCCESSOR_VERSIONS.get(name, ()),
                 "existing owner without bridges is unsupported: " + name,
             )
         _require(
@@ -433,13 +431,7 @@ def assert_prepared(env):
         _require(
             row
             and row.latest_version
-            in (
-                (version, VERSIONS[name], "16.0.2.1.0")
-                if name == "marketing_center_website"
-                else (version, VERSIONS[name], "16.0.1.4.0")
-                if name == "marketing_center_website_whatsapp"
-                else (version, VERSIONS[name])
-            ),
+            in (version, VERSIONS[name]) + SUCCESSOR_VERSIONS.get(name, ()),
             "unsupported retained owner lineage: " + name,
         )
     rows = _rows(env)
@@ -499,9 +491,17 @@ def assert_prepared(env):
                 "web" if dep == "marketing_center_web_ingress" else dep
                 for dep in needed
             )
+        allowed = [set(needed)]
+        if name == "marketing_center_website_whatsapp":
+            # update_list may refresh dependencies before the upgrade migrates
+            # persisted versions. Accept only the exact historical or P2 graph.
+            allowed.append(
+                set(needed) | {"marketing_center_contact_center", "queue_job"}
+            )
+        current = dependencies.mapped("name")
         _require(
-            set(dependencies.mapped("name")) == set(needed)
-            and len(dependencies) == len(needed)
+            set(current) in allowed
+            and len(current) == len(set(current))
             and not any(dependencies.mapped("auto_install_required")),
             "prepared manifest dependencies differ: " + name,
         )

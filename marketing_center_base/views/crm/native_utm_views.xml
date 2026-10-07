@@ -9,9 +9,22 @@
                 <page name="native_marketing_classification" string="Acquisition">
                     <group>
                         <field name="marketing_utm_state" />
-                        <field name="marketing_utm_reason" />
+                        <field
+                            name="marketing_utm_reason"
+                            attrs="{'invisible': [('marketing_utm_state', '=', 'scope_review')]}"
+                        />
                         <field name="marketing_utm_manual" />
                     </group>
+                    <div
+                        class="alert alert-info"
+                        role="status"
+                        attrs="{'invisible': [('marketing_utm_state', '!=', 'scope_review')]}"
+                    >
+                        Confirm the business period in the Journey. If the conversation was deleted,
+                        ask a Marketing administrator to make an explicit decision in the standard
+                        Campaign, Source and Medium fields or use Undo automatic classification when available.
+                        Current values remain preserved while review is pending.
+                    </div>
                     <p
                     >Campaign, Source and Medium remain in the standard Marketing fields. This history explains how acquisition evidence classified them.</p>
                     <group groups="marketing_center_base.group_marketing_center_admin">

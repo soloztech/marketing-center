@@ -23,6 +23,10 @@ class CrmLead(models.Model):
                         ("cc_send_enabled", "=", True),
                         ("company_id", "=", lead.company_id.id),
                         ("cc_entry_after", "<=", lead.create_date),
+                        # An empty CRM at activation persists a NULL cutoff.
+                        # Its ORM value is 0, but SQL NULL < id is not true.
+                        "|",
+                        ("cc_entry_lead_id", "=", False),
                         ("cc_entry_lead_id", "<", lead.id),
                     ]
                 )

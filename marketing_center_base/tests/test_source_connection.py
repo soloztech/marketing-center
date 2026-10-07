@@ -198,7 +198,7 @@ class TestMarketingSourceConnection(SavepointCase):
         source.write(
             {
                 "service": "google.ads",
-                "external_account_ref": "customers/%s" % uuid.uuid4().int,
+                "external_account_ref": "customers/1234567890",
                 "external_account_id": "1234567890",
             }
         )

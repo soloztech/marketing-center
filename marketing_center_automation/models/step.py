@@ -282,7 +282,9 @@ class AutomationRecordStep(models.Model):
         # OCA catches errors. Savepoint keeps a failed admission from leaving a
         # half-created CRM link or receipt behind; the fixed UUID survives retries.
         with self.env.cr.savepoint():
-            channel = lead._contact_center_start_and_link(step.cc_account_id)
+            channel = lead._contact_center_start_and_link(
+                step.cc_account_id, writer="automation"
+            )
             lead._contact_center_lock_conversation_graph(channel_ids=channel.ids)
             if self._cc_has_human_contact(lead, channel):
                 self._cc_receipt_write(

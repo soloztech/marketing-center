@@ -1,9 +1,10 @@
 # CRM integrations inside their functional owners
 
-Marketing Center now contains fourteen addons. The CRM and dashboard code belongs to
-`marketing_center_base`; the Meta, Contact Center and Website CRM integrations belong to
-their respective owners. The five former addon directories and their packaging
-directories have been removed.
+Marketing Center now contains thirteen addons, after the subsequent
+[Web Ingress adoption by Website](web-ingress-fusion.md). The CRM and dashboard code
+belongs to `marketing_center_base`; the Meta, Contact Center and Website CRM
+integrations belong to their respective owners. The five former addon directories and
+their packaging directories have been removed.
 
 | Functional owner                    | Responsibility included in this release                                                                           |
 | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------- |

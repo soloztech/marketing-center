@@ -64,7 +64,7 @@ class CrmLead(models.Model):
         # effective touchpoint may advance to a newer canonical revision.  ORM
         # cache invalidation is therefore required before reading the projection.
         links.invalidate_recordset(["lead_id", "touchpoint_id"])
-        for link in links:
+        for link in links._scope_partition()["eligible"]:
             result[link.lead_id.id].add(link.touchpoint_id.id)
         return result
 

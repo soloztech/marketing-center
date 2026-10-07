@@ -242,6 +242,9 @@ class MarketingContactCenterCrmService(models.AbstractModel):
         for attribution_link in attribution_links:
             touchpoint = attribution_link.marketing_touchpoint_id
             for conversation_link in conversation_links:
+                # Re-evaluate AFTER the graph lock, including replays and revisions.
+                if not conversation_link._scope_contains(touchpoint.occurred_at):
+                    continue
                 assertion_ref = self._assertion_reference(conversation_link, touchpoint)
                 pair = (CONTACT_CENTER_CONVERSATION_AUTHORITY, assertion_ref)
                 if pair in seen:

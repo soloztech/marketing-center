@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="website_visitor_journey" model="ir.ui.view">
+        <field name="name">website.visitor.whatsapp.journey</field>
+        <field name="model">website.visitor</field>
+        <field name="inherit_id" ref="website.website_visitor_view_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button
+                    name="action_marketing_journey"
+                    type="object"
+                    class="oe_stat_button"
+                    icon="fa-map-signs"
+                    groups="contact_center_base.group_contact_center_admin"
+                ><span class="o_stat_text">Jornada</span></button>
+            </xpath>
+        </field>
+    </record>
+</odoo>

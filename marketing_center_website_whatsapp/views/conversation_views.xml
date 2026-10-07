@@ -21,7 +21,15 @@
                 <field name="score" optional="hide" />
                 <field name="candidate_count" />
                 <field name="candidates_truncated" optional="show" />
-                <field name="page_url" optional="hide" />
+                <field
+                    name="erased_at"
+                    string="Apagado por privacidade em"
+                    optional="show"
+                /><field
+                    name="page_url"
+                    optional="hide"
+                    attrs="{'invisible': [('erased_at', '!=', False)]}"
+                />
                 <field name="reason" optional="show" />
                 <field name="company_id" groups="base.group_multi_company" />
                 <button
@@ -75,8 +83,18 @@
                         </group>
                         <group>
                             <field name="handoff_id" options="{'no_create': True}" />
-                            <field name="page_url" widget="url" />
-                            <field name="landing_url" widget="url" />
+                            <field name="erased_at" invisible="1" /><span
+                                attrs="{'invisible': [('erased_at', '=', False)]}"
+                            >Apagado por privacidade</span><field
+                                name="page_url"
+                                widget="url"
+                                attrs="{'invisible': [('erased_at', '!=', False)]}"
+                            />
+                            <field
+                                name="landing_url"
+                                widget="url"
+                                attrs="{'invisible': [('erased_at', '!=', False)]}"
+                            />
                             <field name="reviewer_id" />
                             <field name="reviewed_at" />
                         </group>
@@ -228,7 +246,14 @@
                             <field name="reference" />
                             <field name="channel_id" />
                             <field name="state" />
-                            <field name="page_url" />
+                            <field
+                                name="erased_at"
+                                string="Apagado por privacidade em"
+                                optional="show"
+                            /><field
+                                name="page_url"
+                                attrs="{'invisible': [('erased_at', '!=', False)]}"
+                            />
                             <field name="message_at" />
                             <field name="reason" />
                         </tree>

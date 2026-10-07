@@ -285,6 +285,40 @@ class MarketingAttributionCrmEffectiveLink(models.Model):
     assertion_count = fields.Integer(readonly=True)
     linked_at = fields.Datetime(readonly=True)
 
+    def _assertion_scope(self, assertion):
+        """Extension point: eligibility belongs to an authority assertion."""
+        self.ensure_one()
+        if assertion.authority_key == "website.whatsapp":
+            return "pending"
+        return "eligible"
+
+    def _scope_partition(self):
+        result = {key: self.browse() for key in ("eligible", "pending", "ineligible")}
+        assertions = self.env["marketing.attribution.crm.link"].sudo()
+        self.invalidate_recordset()
+        for projection in self:
+            support = assertions.search(
+                [
+                    ("company_id", "=", projection.company_id.id),
+                    ("lead_id", "=", projection.lead_id.id),
+                    ("canonical_key", "=", projection.canonical_key),
+                    ("revocation_ids", "=", False),
+                    "|",
+                    ("derived_from_assertion_id", "=", False),
+                    ("derived_from_assertion_id.revocation_ids", "=", False),
+                ]
+            )
+            states = {projection._assertion_scope(row) for row in support}
+            key = (
+                "eligible"
+                if "eligible" in states
+                else "pending"
+                if "pending" in states
+                else "ineligible"
+            )
+            result[key] |= projection
+        return result
+
     def init(self):
         tools.drop_view_if_exists(self.env.cr, self._table)
         self.env.cr.execute(
@@ -565,7 +599,7 @@ class MarketingAttributionEffectiveTouchpoint(models.Model):
             .search([("touchpoint_id", "in", self.ids)])
         )
         links.invalidate_recordset(["touchpoint_id", "lead_id"])
-        for link in links:
+        for link in links._scope_partition()["eligible"]:
             if link.lead_id:
                 result[link.touchpoint_id.id].add(link.lead_id.id)
         return result

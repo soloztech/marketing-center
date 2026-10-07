@@ -480,7 +480,8 @@ class TestWebsiteWhatsappCorrelation(SavepointCase):
         self.env["contact.center.crm.conversation.link"].with_user(self.agent)._link(
             referenced.channel_binding_id.channel_id.with_user(self.agent),
             lead.with_user(self.agent),
-        )
+            writer="manual",
+        ).with_env(self.env).with_user(self.agent)._confirm_scope("2020-01-01 00:00:00")
         self.assertEqual(lead.with_user(self.agent).marketing_whatsapp_match_ids, claim)
         # Reprocessing either message neither recreates nor revives a guess.
         count = self.matches.search_count([("handoff_id", "=", handoff.id)])
@@ -551,9 +552,8 @@ class TestWebsiteWhatsappCorrelation(SavepointCase):
         )
         channel = message.channel_binding_id.channel_id
         self.env["contact.center.crm.conversation.link"].with_user(self.agent)._link(
-            channel.with_user(self.agent),
-            lead.with_user(self.agent),
-        )
+            channel.with_user(self.agent), lead.with_user(self.agent), writer="manual"
+        ).with_env(self.env).with_user(self.agent)._confirm_scope("2020-01-01 00:00:00")
         self.assertFalse(lead.with_user(self.agent).marketing_whatsapp_match_ids)
         match.with_user(self.agent).action_confirm()
         lead.invalidate_recordset(["marketing_whatsapp_match_ids"])
@@ -574,3 +574,29 @@ class TestWebsiteWhatsappCorrelation(SavepointCase):
             with self.assertRaises(type(error)), self.env.cr.savepoint():
                 with patch.object(service_type, "_analyze_inbound", side_effect=error):
                     self._message()
+
+    def test_lead_origin_window_uses_message_time_not_prior_website_click(self):
+        handoff = self._handoff()
+        message = self._message(text="Referência: " + handoff.reference)
+        match = self._results(message)
+        self.assertLess(handoff.clicked_at, match.message_at)
+        lead = self.env["crm.lead"].create(
+            {
+                "name": "Window boundary",
+                "company_id": self.env.company.id,
+                "user_id": self.agent.id,
+            }
+        )
+        row = (
+            self.env["contact.center.crm.conversation.link"]
+            .with_user(self.agent)
+            ._link(
+                message.channel_binding_id.channel_id.with_user(self.agent),
+                lead.with_user(self.agent),
+                writer="manual",
+            )
+        )
+        self.assertFalse(lead.with_user(self.agent).marketing_whatsapp_match_ids)
+        row.with_env(self.env).with_user(self.agent)._confirm_scope(match.message_at)
+        lead.invalidate_recordset(["marketing_whatsapp_match_ids"])
+        self.assertEqual(lead.with_user(self.agent).marketing_whatsapp_match_ids, match)

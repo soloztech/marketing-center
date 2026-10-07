@@ -110,9 +110,7 @@ class WebsiteWhatsappHandoff(models.Model):
         self._check_service()
         return super().write(values)
 
-    @api.constrains(
-        "action_id", "website_id", "company_id", "account_id", "track_id", "visitor_id"
-    )
+    @api.constrains("action_id", "website_id", "company_id", "account_id")
     def _check_scope(self):
         for record in self:
             action = record.action_id
@@ -121,11 +119,18 @@ class WebsiteWhatsappHandoff(models.Model):
                 or record.website_id.company_id != record.company_id
                 or record.account_id.company_id != record.company_id
                 or record.account_id.platform != "whatsapp"
-                or (record.track_id and record.track_id.visitor_id != record.visitor_id)
             ):
                 raise ValidationError(
                     _("O clique, o site e a conta devem pertencer ao mesmo contexto.")
                 )
+
+    @api.constrains("track_id", "visitor_id")
+    def _check_visitor_track(self):
+        # Lifecycle changes must not revalidate the Website's current company
+        # against the historical company frozen when this click was admitted.
+        for record in self:
+            if record.track_id and record.track_id.visitor_id != record.visitor_id:
+                raise ValidationError(_("A visita deve pertencer ao visitante."))
 
     @api.model
     def _record_click(

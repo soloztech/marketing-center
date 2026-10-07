@@ -2,8 +2,9 @@ Website to WhatsApp attribution
 ===============================
 
 This optional bridge adds a reference to configured WhatsApp links and relates
-incoming Contact Center messages to native Website visits. It depends only on
-``marketing_center_website`` and ``contact_center_crm``. It does not replace
+incoming Contact Center messages to native Website visits. It depends on
+``marketing_center_website``, ``contact_center_crm``,
+``marketing_center_contact_center`` and ``queue_job``. It does not replace
 native tracking, create a parallel visitor session, send messages or merge leads.
 
 Configuration
@@ -102,10 +103,66 @@ are attributed to a user and time. The conversation form shows all associations;
 the lead form shows confirmed origins through existing explicit CRM links. The
 addon never chooses a lead by fuzzy phone/name matching or creates a new lead.
 
-No touchpoint projection, advertising conversion feedback or scheduled sending
-is introduced. Temporal suggestions stay distinct from reference and manual
+New captures freeze acquisition, visit, click and policy evidence. A received
+code or human-confirmed association asynchronously projects one first-party
+``website.whatsapp`` touchpoint, including before any business is linked.
+Separate paged match and business-link workers converge retries and revocations.
+Business credit follows the proving message's UTC time within a confirmed
+half-open period; acquisition time is preserved. Editing or deleting the received
+message later preserves the frozen claim; explicit rejection retracts its credit.
+Global company-less leads remain context: this Website authority does not anchor
+their Marketing company or assert credit. Existing Base flows may already have
+anchored that company. Old captures are read-only
+and never backfilled. Advertising conversion feedback and scheduled sending
+are not introduced. Temporal suggestions stay distinct from reference and manual
 associations. Measuring their accuracy against reviewed reference pairs remains
 necessary before considering automatic inference.
+
+Visitor Journey and privacy
+---------------------------
+
+The visitor form's Journey requires native visitor read permission and Contact
+Center administration. It lists visits even without a click, local campaign
+catalog resolution, clicks, authorized conversations and paged visible businesses.
+Catalog ambiguity and absence are explicit; a URL campaign ID does not prove the
+exact ad. Business Journey offers authorized evidence navigation. Every action
+rechecks the current relation and access; payloads omit raw IP, click IDs and
+session values. Native login and partner merge move handoffs only within the same
+Website/company. Native deletion preserves frozen evidence and marks missing
+visitor/track references.
+Historical handoffs can be erased or detached after the Website changes company;
+creation-time topology is not revalidated by navigation cleanup. Optional visitor
+cleanup is isolated from native login/unlink, while concurrency errors still retry.
+
+Only explicitly linked business conversations expose their private Website acquisition
+snapshot; other customer conversations retain their ordinary context only.
+The authorized business Website chain remains visible to its Contact/CRM agent
+without Marketing administration or visitor rights; catalog and other Marketing
+origins keep their own access checks. Acquisition fallback and provenance are
+explicit. Visits trust the active binding's allowed origins, falling back to the
+Website domain; missing host configuration is shown as such.
+
+Possible other accesses compare only the latest valid IP observations on the same
+Website within 24 hours, ordered by time distance. This read-only area does not
+merge identities, visits or credit; a shared network is not a person.
+
+The existing retention cron also erases expired P2 handoffs and all canonical
+private free-form copies (URLs, UTMs and click identifiers) in bounded batches.
+The existing Base erasure contract preserves technical campaign IDs/providers,
+asset-resolution projections and audit metadata. They remain reachable through
+authorized technical records, but the Journey hides the campaign and the erased
+origin cannot grant business credit. Failed rows rotate behind rows attempted fewer
+times using an internal failure counter, so later expired captures can progress.
+Explicit HTTP refusal queues early erasure
+for the cookie-identified decision only; superseded decisions follow retention.
+Each failed item is isolated; successful siblings commit. Five delayed retries
+restart from cursor zero with batches of at most 100. Persistent failures remain
+visible as native Failed jobs for operator repair and requeue, including manual
+retention captures. The browser discards its consent cookie on refusal; repeating
+the browser refusal is not the recovery mechanism.
+Receipt expiry or capture pause after projection does not revoke historical
+credit. Erasure is asynchronous and irreversible to retries; only this bridge's
+assertions are revoked, preserving independent authorities and manual UTMs.
 
 Validation and reversal
 -----------------------

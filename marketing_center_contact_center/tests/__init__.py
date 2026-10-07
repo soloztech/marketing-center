@@ -9,3 +9,5 @@ from . import (
 from . import test_crm_bootstrap, test_convergence
 
 from . import test_legacy_imports
+
+from . import test_business_scope

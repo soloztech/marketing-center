@@ -49,7 +49,7 @@ class MarketingContactCenterCrmTestAdapter(ProviderAdapter):
         return {"state": "connected"}
 
 
-class TestMarketingContactCenterCrmConvergence(SavepointCase):
+class MarketingContactCenterCrmFixture(SavepointCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -160,7 +160,12 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
         link = (
             self.env["contact.center.crm.conversation.link"]
             .with_user(self.user)
-            ._link(channel.with_user(self.user), lead.with_user(self.user))
+            ._link(
+                channel.with_user(self.user), lead.with_user(self.user), writer="manual"
+            )
+        )
+        link._service().write(
+            {"scope_state": "confirmed", "scope_start": "2026-01-01 00:00:00"}
         )
         if reconcile:
             link.company_id._job_marketing_contact_center_crm_conversation_link(link.id)
@@ -231,6 +236,8 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
             )
         return source, bridge_link
 
+
+class TestMarketingContactCenterCrmConvergence(MarketingContactCenterCrmFixture):
     def test_conversation_first_then_attribution_converges(self):
         channel, binding = self._channel("conversation-first")
         lead = self._lead("Conversation first")
@@ -767,39 +774,48 @@ class TestMarketingContactCenterCrmConvergence(SavepointCase):
         with trap_jobs() as trap:
             survivor = leads._merge_opportunity()
             self.assertTrue(trap.enqueued_jobs)
-        links.invalidate_recordset(["lead_id", "state"])
-        self.assertEqual(links.ids, original_ids)
-        self.assertTrue(all(link.state == "active" for link in links))
-        self.assertEqual(links.mapped("lead_id"), survivor)
-        for link in links:
-            link.company_id._job_marketing_contact_center_crm_conversation_link(link.id)
-        for link, bridge in ((links[0], bridge_a), (links[1], bridge_b)):
-            expected = self.convergence._assertion_reference(
-                link, bridge.marketing_touchpoint_id
-            )
-            self.assertTrue(
-                self.env["marketing.attribution.crm.link"].search(
-                    [
-                        ("assertion_ref", "=", expected),
-                        ("lead_id", "=", survivor.id),
-                    ]
-                )
-            )
-        links[0]._tombstone()
+        links.invalidate_recordset()
+        retired = links.filtered(lambda row: row.state == "unlinked")
+        self.assertEqual(len(retired), 1)
+        self.assertTrue(retired.scope_start)
+        active = survivor._conversation_links()
+        review = active.filtered(lambda row: row.scope_state == "review")
+        self.assertEqual(len(review), 1)
+        self.assertNotIn(review.id, original_ids)
+        self.assertTrue(survivor._marketing_scope_review_pending())
+        # Native CRM merge explicitly writes the standard UTM fields and therefore
+        # records manual ownership. Scope review must never override that decision.
+        self.assertTrue(survivor.marketing_utm_manual)
+        self.assertEqual(
+            survivor._journey_origins(review.channel_id, review)["status"],
+            "scope_review",
+        )
+        self.assertEqual(
+            survivor._job_resolve_native_utm()["state"],
+            "manual",
+        )
+        # Neither replay nor native merge may silently confirm a transferred period.
+        for row in active:
+            row.company_id._job_marketing_contact_center_crm_conversation_link(row.id)
+        eligible = (
+            self.env["marketing.attribution.crm.effective.link"]
+            .search([("lead_id", "=", survivor.id)])
+            ._scope_partition()["eligible"]
+        )
+        transferred = bridge_a if review.channel_id == channel_a else bridge_b
+        own = bridge_b if review.channel_id == channel_a else bridge_a
+        self.assertNotIn(
+            transferred.marketing_touchpoint_id.canonical_key,
+            eligible.mapped("touchpoint_id.canonical_key"),
+        )
+        self.assertIn(
+            own.marketing_touchpoint_id.canonical_key,
+            eligible.mapped("touchpoint_id.canonical_key"),
+        )
+        active._tombstone()
         self.assertFalse(
             self.env["marketing.attribution.crm.effective.link"].search(
-                [
-                    ("touchpoint_id", "=", bridge_a.marketing_touchpoint_id.id),
-                    ("lead_id", "=", survivor.id),
-                ]
-            )
-        )
-        self.assertTrue(
-            self.env["marketing.attribution.crm.effective.link"].search(
-                [
-                    ("touchpoint_id", "=", bridge_b.marketing_touchpoint_id.id),
-                    ("lead_id", "=", survivor.id),
-                ]
+                [("lead_id", "=", survivor.id)]
             )
         )
 

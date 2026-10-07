@@ -63,13 +63,25 @@ class MarketingWebsiteConsent(models.Model):
     def write(self, values):
         if self.env.context.get(
             "website_consent_internal"
-        ) is not CONSENT_CONTEXT_TOKEN or set(values) != {"revoked_at"}:
+        ) is not CONSENT_CONTEXT_TOKEN or set(values) - (
+            {"revoked_at"} | self._internal_extension_fields()
+        ):
             raise AccessError(
                 _("An individual decision is immutable except for revocation.")
             )
-        if not values["revoked_at"] or any(self.mapped("revoked_at")):
+        if "revoked_at" in values and (
+            not values["revoked_at"] or any(self.mapped("revoked_at"))
+        ):
             raise AccessError(_("A revoked decision cannot be restored."))
         return super().write(values)
+
+    def _internal_extension_fields(self):
+        """Narrow extension seam for a durable refusal intent, never public CRUD."""
+        return set()
+
+    def _explicit_refusal(self):
+        """Called only after validating the HTTP refusal's previous cookie."""
+        return True
 
     def unlink(self):
         # Keep consent audit rows; autovacuum erases only expired identifiers.

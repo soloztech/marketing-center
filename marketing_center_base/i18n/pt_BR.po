@@ -1492,3 +1492,22 @@ msgstr ""
 "Fatos registrados nos últimos 30 dias (UTC). Ligar a captura ou instalar um "
 "módulo não garante cobertura completa de períodos anteriores; fatos "
 "históricos podem ser reconstruídos quando houver evidência."
+
+#. module: marketing_center_base
+#: model:ir.model.fields.selection,name:marketing_center_base.selection__crm_lead__marketing_utm_state__scope_review
+msgid "Business scope needs review"
+msgstr "Período comercial precisa de revisão"
+
+#. module: marketing_center_base
+#: model_terms:ir.ui.view,arch_db:marketing_center_base.view_crm_native_utm
+msgid ""
+"Confirm the business period in the Journey. If the conversation was deleted,\n"
+"                        ask a Marketing administrator to make an explicit decision in the standard\n"
+"                        Campaign, Source and Medium fields or use Undo automatic classification when available.\n"
+"                        Current values remain preserved while review is pending."
+msgstr ""
+"Confirme o período do negócio na Jornada. Se a conversa foi excluída, peça a"
+" um administrador de Marketing uma decisão explícita nos campos padrão "
+"Campanha, Origem e Mídia ou use Desfazer classificação automática quando "
+"disponível. Os valores atuais permanecem preservados enquanto a revisão está"
+" pendente."

@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<templates xml:space="preserve">
+    <t t-name="marketing_center_website_whatsapp.VisitorJourney" owl="1">
+        <Dialog title="'Jornada do visitante'" size="'lg'">
+            <div class="mw-100 text-break">
+                <p
+                >Uma visita não cria lead. O código recebido ou a confirmação humana liga o clique à conversa; o período confirmado define o negócio.</p>
+                <p
+                    class="small text-muted"
+                >A recusa remove os dados privados capturados sob a decisão identificada pelo navegador. Referências técnicas de campanha e auditoria são preservadas, sem crédito para o negócio. Decisões anteriores substituídas seguem sua retenção.</p>
+                <p
+                    t-if="state.error"
+                    class="alert alert-warning"
+                    role="alert"
+                    t-esc="state.error"
+                />
+                <section
+                    t-foreach="['visits', 'clicks', 'possible']"
+                    t-as="area"
+                    t-key="area"
+                    class="mb-4"
+                    t-att-data-area="area"
+                >
+                    <t t-set="page" t-value="state[area]" />
+                    <h5
+                        t-esc="{visits: 'Visitas e campanhas', clicks: 'Cliques, conversas e negócios', possible: 'Possíveis outros acessos'}[area]"
+                    />
+                    <p
+                        t-if="area === 'possible'"
+                        class="text-muted"
+                    >Mesmo IP observado em até 24 horas antes ou depois. Uma rede pode ser compartilhada por várias pessoas. Estes visitantes permanecem separados, sem crédito de campanha.</p>
+                    <p t-if="page.loading" role="status">Carregando…</p>
+                    <div t-elif="page.error" role="alert"><p
+                            t-esc="page.error"
+                        /><button
+                            class="btn btn-link"
+                            t-on-click="() => this.load(area, page.offset)"
+                        >Tentar novamente</button></div>
+                    <p
+                        t-elif="page.status === 'host_unconfigured'"
+                        class="text-muted"
+                    >Visitas indisponíveis: configure um domínio ou origem autorizada para este site.</p>
+                    <p
+                        t-elif="!page.items.length"
+                        class="text-muted"
+                        t-esc="area === 'clicks' ? 'Nenhum clique vinculado a este visitante. Isso não comprova ausência de contato direto pelo WhatsApp.' : area === 'possible' ? 'Nenhum outro acesso encontrado nas últimas observações disponíveis.' : 'Nenhuma visita disponível.'"
+                    />
+                    <article
+                        t-foreach="page.items"
+                        t-as="row"
+                        t-key="row_index"
+                        class="border rounded p-3 my-2"
+                    >
+                        <t t-if="area === 'possible'">
+                            <button
+                                class="btn btn-link"
+                                t-att-disabled="state.opening"
+                                t-on-click="() => this.related(row.visitor_id)"
+                            >Visitante #<t t-esc="row.visitor_id" /></button>
+                            <p>Observação deste acesso: <t
+                                    t-esc="this.date(row.observed_at)"
+                                /></p>
+                            <p>Observação do visitante consultado: <t
+                                    t-esc="this.date(row.reference_observed_at)"
+                                /></p>
+                        </t>
+                        <t t-else="">
+                            <strong t-esc="this.campaign(row.campaign)" />
+                            <p
+                                t-if="row.campaign.evidence === 'url_and_local_catalog'"
+                                class="small text-muted"
+                            >ID da URL resolvido no catálogo local; não comprova o anúncio exato clicado.</p>
+                            <p t-if="row.page_url" t-esc="row.page_url" />
+                            <p t-if="area === 'visits'">Visita: <t
+                                    t-esc="this.date(row.at)"
+                                /></p>
+                            <t t-else="">
+                                <p>Código: <strong t-esc="row.reference" /></p>
+                                <p>Visita: <t
+                                        t-esc="this.date(row.visit_at)"
+                                    /> · Aquisição: <t
+                                        t-esc="this.date(row.acquisition_at)"
+                                    /> · Clique: <t
+                                        t-esc="this.date(row.clicked_at)"
+                                    /></p>
+                                <p>Referência da campanha: <t
+                                        t-esc="this.provenance(row.provenance)"
+                                    /></p>
+                                <p
+                                    t-if="!row.acquisition_at || row.at !== row.acquisition_at"
+                                >Horário da aquisição não comprovado; a ocorrência usa o horário do clique.</p>
+                                <p t-if="row.landing_url">Página de aquisição: <t
+                                        t-esc="row.landing_url"
+                                    /></p>
+                                <p t-else="">Página de aquisição: Não identificada.</p>
+                                <p
+                                    t-if="row.legacy_collision"
+                                >Evento já capturado anteriormente. Revisar a origem; nenhum crédito duplicado foi criado.</p>
+                                <p
+                                    t-if="row.privacy === 'privacy_unavailable'"
+                                >Dados privados removidos ou prazo encerrado. Referências técnicas de campanha e auditoria são preservadas, sem crédito para o negócio.</p>
+                                <p
+                                    t-elif="row.privacy === 'legacy'"
+                                >Captura anterior: sem projeção histórica automática.</p>
+                                <p
+                                    t-elif="row.privacy === 'decision_changed'"
+                                >Decisão de consentimento revogada ou substituída.</p>
+                                <p
+                                    t-elif="row.privacy !== 'ready'"
+                                >Captura indisponível para nova atribuição.</p>
+                                <p
+                                    t-if="row.visitor_state !== 'available'"
+                                >Vínculo com o visitante removido ou indisponível.</p>
+                                <p
+                                    t-if="!row.conversations.length"
+                                >Conversa ainda não associada.</p>
+                                <div
+                                    t-foreach="row.conversations"
+                                    t-as="chat"
+                                    t-key="chat_index"
+                                    class="border-top pt-2"
+                                >
+                                    <p
+                                        t-if="chat.restricted"
+                                    >Conversa com acesso restrito.</p>
+                                    <t t-else="">
+                                        <p>Mensagem: <t
+                                                t-esc="this.date(chat.message_at)"
+                                            /> · <t
+                                                t-esc="chat.state === 'reference' ? 'Código recebido' : chat.state === 'confirmed' ? 'Confirmado pela equipe' : chat.state === 'suggested' ? 'Sugestão sem crédito' : 'Vínculo descartado ou superado'"
+                                            /></p>
+                                        <button
+                                            class="btn btn-primary btn-sm mb-2"
+                                            t-att-disabled="state.opening"
+                                            t-on-click="() => this.open(chat.match_id)"
+                                        >Abrir conversa</button>
+                                        <p
+                                            t-if="chat.businesses_status === 'restricted'"
+                                        >Negócios com acesso restrito.</p>
+                                        <p
+                                            t-elif="!chat.businesses.length"
+                                        >Sem negócio visível vinculado.</p>
+                                        <div
+                                            t-foreach="chat.businesses"
+                                            t-as="business"
+                                            t-key="business_index"
+                                            class="mb-2"
+                                        >
+                                            <span
+                                                t-if="business.restricted"
+                                            >Negócio com acesso restrito.</span>
+                                            <t t-else=""><button
+                                                    class="btn btn-link btn-sm"
+                                                    t-att-disabled="state.opening"
+                                                    t-on-click="() => this.open(chat.match_id, business.id)"
+                                                    t-esc="business.name"
+                                                /><span
+                                                    t-if="business.archived"
+                                                    class="badge text-bg-secondary me-2"
+                                                >Arquivado</span><span
+                                                    t-esc="this.businessStatus(business)"
+                                                /></t>
+                                        </div>
+                                        <div
+                                            t-if="chat.businesses_offset || chat.businesses_has_more"
+                                            class="d-flex justify-content-between"
+                                        >
+                                            <button
+                                                class="btn btn-link btn-sm"
+                                                t-att-disabled="!chat.businesses_offset || state.opening"
+                                                t-on-click="() => this.businesses(chat, Math.max(0, chat.businesses_offset - 20))"
+                                            >Negócios anteriores</button>
+                                            <button
+                                                class="btn btn-link btn-sm"
+                                                t-att-disabled="!chat.businesses_has_more || state.opening"
+                                                t-on-click="() => this.businesses(chat, chat.businesses_offset + 20)"
+                                            >Próximos negócios</button>
+                                        </div>
+                                    </t>
+                                </div>
+                                <button
+                                    t-if="row.conversations_has_more"
+                                    class="btn btn-link"
+                                    t-att-disabled="state.opening"
+                                    t-on-click="() => this.allConversations(row)"
+                                >Há mais associações. Ver todas.</button>
+                            </t>
+                        </t>
+                    </article>
+                    <div
+                        t-if="page.offset || page.has_more"
+                        class="d-flex justify-content-between"
+                    >
+                        <button
+                            class="btn btn-secondary btn-sm"
+                            t-att-disabled="!page.offset || page.loading"
+                            t-on-click="() => this.load(area, Math.max(0, page.offset - page.limit))"
+                        >Anterior</button>
+                        <button
+                            class="btn btn-secondary btn-sm"
+                            t-att-disabled="!page.has_more || page.loading"
+                            t-on-click="() => this.load(area, page.offset + page.limit)"
+                        >Próxima</button>
+                    </div>
+                </section>
+            </div>
+            <t t-set-slot="footer"><button
+                    class="btn btn-secondary"
+                    t-on-click="props.close"
+                >Fechar</button></t>
+        </Dialog>
+    </t>
+</templates>

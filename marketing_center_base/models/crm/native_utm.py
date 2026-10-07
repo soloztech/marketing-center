@@ -10,6 +10,7 @@ from .tokens import MARKETING_CRM_UTM_TOKEN
 UTM_FIELDS = ("campaign_id", "source_id", "medium_id")
 STATES = [
     ("pending", "Pending"),
+    ("scope_review", "Business scope needs review"),
     ("disabled", "Disabled"),
     ("missing", "Awaiting evidence"),
     ("simulation", "Simulation"),
@@ -181,6 +182,10 @@ class CrmLeadNativeUtm(models.Model):
         }
         if self._native_utm_values() == expected and not self.marketing_utm_manual:
             self._native_utm_write({"marketing_utm_default_json": expected})
+
+    def _marketing_scope_review_pending(self):
+        self.ensure_one()
+        return False
 
     def _enqueue_native_utm(self):
         leads = self.exists()
@@ -389,6 +394,44 @@ class MarketingCrmNativeUtmService(models.AbstractModel):
         return state, reason, evidence, after
 
     @api.model
+    def _eligible_links_and_scope_review(self, lead, company):
+        """Keep attribution support and durable convergence holds in one decision."""
+        links = (
+            self.env["marketing.attribution.crm.effective.link"]
+            .sudo()
+            .search([("company_id", "=", company.id), ("lead_id", "=", lead.id)])
+        )
+        partition = links._scope_partition()
+        return partition["eligible"], (
+            bool(partition["pending"]) or lead._marketing_scope_review_pending()
+        )
+
+    @api.model
+    def _restore_owned_tuple(
+        self, lead, state, reason, before, after, candidates, apply
+    ):
+        # A previously owned tuple must not keep claiming evidence which has
+        # disappeared or become ambiguous. Configuration disable only pauses.
+        last = lead.marketing_utm_receipt_id
+        if (
+            state in {"missing", "conflict", "revoked"}
+            and last
+            and not lead.marketing_utm_manual
+            and before == last.after_json
+        ):
+            if last.source_id.native_utm_mode == "apply" and not any(
+                item.get("source_mode") == "simulate" for item in candidates
+            ):
+                after = lead.marketing_utm_baseline_json or last.before_json
+                if apply:
+                    lead._native_utm_write(after)
+            elif last.source_id.native_utm_mode == "disabled":
+                state, reason = "disabled", "source_classification_disabled"
+            else:
+                state, reason = "simulation", "would_restore_previous_values"
+        return state, reason, after
+
+    @api.model
     def _classify(self, lead, apply=False):
         lead.ensure_one()
         if lead._name != "crm.lead":
@@ -401,12 +444,7 @@ class MarketingCrmNativeUtmService(models.AbstractModel):
         if apply:
             lead._native_utm_lock()
         before = lead._native_utm_values()
-        links = (
-            self.env["marketing.attribution.crm.effective.link"]
-            .sudo()
-            .search([("company_id", "=", company.id), ("lead_id", "=", lead.id)])
-        )
-        links.invalidate_recordset()
+        links, pending_scope = self._eligible_links_and_scope_review(lead, company)
         resolver = self.env["marketing.native.utm.service"].with_company(company)
         candidates = []
         for link in links:
@@ -427,6 +465,11 @@ class MarketingCrmNativeUtmService(models.AbstractModel):
         )
         if lead.marketing_utm_manual:
             state, reason = "manual", "native_fields_edited"
+        elif pending_scope:
+            state, reason = (
+                "scope_review",
+                "confirm_business_period_or_review_orphan_origin",
+            )
         elif not links:
             state, reason = (
                 ("revoked", "effective_evidence_removed")
@@ -443,25 +486,9 @@ class MarketingCrmNativeUtmService(models.AbstractModel):
             )
         elif candidates and not active:
             state, reason = "disabled", "source_classification_disabled"
-        # A previously owned tuple must not keep claiming evidence which has
-        # disappeared or become ambiguous. Configuration disable only pauses.
-        last = lead.marketing_utm_receipt_id
-        if (
-            state in {"missing", "conflict", "revoked"}
-            and last
-            and not lead.marketing_utm_manual
-            and before == last.after_json
-        ):
-            if last.source_id.native_utm_mode == "apply" and not any(
-                item.get("source_mode") == "simulate" for item in candidates
-            ):
-                after = lead.marketing_utm_baseline_json or last.before_json
-                if apply:
-                    lead._native_utm_write(after)
-            elif last.source_id.native_utm_mode == "disabled":
-                state, reason = "disabled", "source_classification_disabled"
-            else:
-                state, reason = "simulation", "would_restore_previous_values"
+        state, reason, after = self._restore_owned_tuple(
+            lead, state, reason, before, after, candidates, apply
+        )
         if apply:
             self._record(lead, state, reason, before, after, evidence)
         return {

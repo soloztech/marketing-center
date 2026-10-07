@@ -9,6 +9,7 @@ from odoo.tests import HttpCase, no_retry, tagged
 class TestMarketingWebsiteJS(HttpCase):
     """Run this addon's real suites; missing or skipped modules cannot pass."""
 
+    _qunit_addon = "marketing_center_website"
     _qunit_modules = (
         "marketing_center_website > landing capture",
         "marketing_center_website > technical actions",
@@ -26,7 +27,7 @@ class TestMarketingWebsiteJS(HttpCase):
         module_filter = "|".join(re.escape(name) for name in self._qunit_modules)
         query = urlencode(
             {
-                "mod": "marketing_center_website",
+                "mod": self._qunit_addon,
                 "filter": "/^(?:%s):/" % module_filter,
                 "debug": "assets" if mode == "assets" else "",
             }
@@ -36,6 +37,15 @@ class TestMarketingWebsiteJS(HttpCase):
         # Odoo's own suite still rejects missing JS dependencies and assertions.
         code = """
             (async () => {
+                const busDeadline = Date.now() + 180000;
+                while (!performance.getEntriesByType("resource").some((entry) =>
+                    new URL(entry.name).pathname === "/bus/get_model_definitions"
+                    && entry.responseEnd > 0)) {
+                    if (Date.now() > busDeadline) {
+                        throw new Error("Native model definitions fetch did not finish");
+                    }
+                    await new Promise((resolve) => setTimeout(resolve, 50));
+                }
                 const required = %s;
                 const deadline = Date.now() + 180000;
                 while (!document.querySelector("#qunit-testresult .total")) {
@@ -82,4 +92,4 @@ class TestMarketingWebsiteJS(HttpCase):
             login="admin",
             timeout=240,
         )
-        self._logger.info("Marketing QUnit verified: marketing_center_website %s", mode)
+        self._logger.info("Marketing QUnit verified: %s %s", self._qunit_addon, mode)
