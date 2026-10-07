@@ -1,4 +1,7 @@
 """Business eligibility without mutating immutable acquisition evidence."""
+
+# Business-period checks compose with separate CRM and conversation bridges.
+# pylint: disable=consider-merging-classes-inherited
 from odoo import api, fields, models
 
 
