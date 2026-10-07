@@ -6,6 +6,7 @@ import uuid
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit, urlunsplit
 
+import requests
 from lxml import etree, html
 
 from odoo import fields
@@ -114,6 +115,13 @@ class TestNativeWebsiteWhatsAppHttp(HttpCase):
         self.addCleanup(proxy.stop)
         self.event_id = str(uuid.uuid4())
 
+    def _proxy_cookie_headers(self):
+        # The test connects over local HTTP while modelling the HTTPS proxy.
+        # Select cookies for that public HTTPS origin, including Secure cookies.
+        prepared = requests.Request("GET", self.origin).prepare()
+        cookie = requests.cookies.get_cookie_header(self.opener.cookies, prepared)
+        return {"Cookie": cookie} if cookie else {}
+
     def _post(self, *, payload=None, headers=None, query=None):
         return self.opener.post(
             self.base_url() + "/marketing/website-whatsapp/claim",
@@ -135,6 +143,7 @@ class TestNativeWebsiteWhatsAppHttp(HttpCase):
                 "X-Forwarded-Host": self.proxy_host,
                 "X-Forwarded-Proto": "https",
                 "Sec-Fetch-Site": "same-origin",
+                **self._proxy_cookie_headers(),
                 **(headers or {}),
             },
             allow_redirects=False,
@@ -208,6 +217,7 @@ class TestNativeWebsiteWhatsAppHttp(HttpCase):
             headers={
                 "X-Forwarded-Host": self.proxy_host,
                 "X-Forwarded-Proto": "https",
+                **self._proxy_cookie_headers(),
             },
             allow_redirects=False,
         )
@@ -236,7 +246,7 @@ class TestNativeWebsiteWhatsAppHttp(HttpCase):
         self.assertEqual(config["data-website-id"], str(self.website.id))
         result = self._post_page(page.url, default)
         self.assertEqual(result.status_code, 202, result.text)
-        self.assertTrue(result.json()["reference"].startswith("WEB-"))
+        self.assertRegex(result.json()["reference"], r"^[A-Z0-9]{4}$")
         self.env.invalidate_all()
         click = self.env["marketing.website.whatsapp.handoff"].search(
             [
@@ -256,7 +266,7 @@ class TestNativeWebsiteWhatsAppHttp(HttpCase):
             "A newly published page must not create an action rule",
         )
 
-    def test_page_overrides_keep_cp_es_and_reject_global_action_claim(self):
+    def test_page_overrides_keep_routing_and_reject_global_action_claim(self):
         default = self._global_default()
         for prefix, path in (
             ("CP", "/global-carport-lp"),
@@ -272,7 +282,32 @@ class TestNativeWebsiteWhatsAppHttp(HttpCase):
             self.assertEqual(rejected.status_code, 400, rejected.text)
             accepted = self._post_page(path, specific)
             self.assertEqual(accepted.status_code, 202, accepted.text)
-            self.assertTrue(accepted.json()["reference"].startswith(prefix + "-"))
+            self.assertRegex(accepted.json()["reference"], r"^[A-Z0-9]{4}$")
+            self.env.invalidate_all()
+            click = self.env["marketing.website.whatsapp.handoff"].search(
+                [("reference", "=", accepted.json()["reference"])]
+            )
+            self.assertEqual(click.action_id, specific)
+            self.assertEqual(click.account_id, specific.handoff_account_id)
+            self.assertEqual(click.page_url, self.origin + path)
+
+    def test_http_retry_keeps_existing_legacy_reference_and_message(self):
+        legacy = "CP-23456789ABCD"
+        with patch(
+            "odoo.addons.marketing_center_website_whatsapp.models.handoff.new_reference",
+            return_value=legacy,
+        ):
+            first = self._post()
+        self.assertEqual(first.status_code, 202, first.text)
+        retry = self._post()
+        self.assertEqual(retry.status_code, 202, retry.text)
+        self.assertEqual(retry.json()["reference"], legacy)
+        self.assertTrue(
+            parse_qs(urlsplit(retry.json()["url"]).query)["text"][0].endswith(
+                "\n\nReferência: " + legacy
+            )
+        )
+        self.assertEqual(len(self._clicks()), 1)
 
     def test_disabled_specific_and_ambiguous_page_do_not_fall_back(self):
         default = self._global_default()
@@ -456,12 +491,12 @@ class TestNativeWebsiteWhatsAppHttp(HttpCase):
         self.assertEqual(target.path, "/5519999999999")
         handoff = self._clicks()
         self.assertEqual(len(handoff), 1)
-        self.assertRegex(handoff.reference, r"^CP-[A-Z0-9]{12}$")
+        self.assertRegex(handoff.reference, r"^[A-Z0-9]{4}$")
         self.assertEqual(result.json()["reference"], handoff.reference)
         self.assertEqual(
             parse_qs(target.query)["text"],
             [
-                self.action.whatsapp_message + "\n\nReferência: " + handoff.reference,
+                self.action.whatsapp_message + "\nMeu código é " + handoff.reference,
             ],
         )
         self.assertEqual(handoff.account_id, self.account)

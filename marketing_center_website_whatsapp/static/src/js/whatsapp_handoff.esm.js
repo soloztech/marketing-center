@@ -49,21 +49,29 @@ export function whatsappTarget(rawHref) {
 export function verifiedTarget(payload, original) {
     const target = payload?.accepted === true && whatsappTarget(payload.url);
     const reference = payload?.reference || "";
-    const referenceText = "Referência: " + reference;
+    const compact = /^[A-Z0-9]{4}$/.test(reference);
+    const legacy = /^[A-Z0-9]{2,8}-[A-Z0-9]{12}$/.test(reference);
+    const referenceText = (compact ? "Meu código é " : "Referência: ") + reference;
+    const separator = compact ? "\n" : "\n\n";
     const serverText = target?.searchParams.get("text") || "";
     if (
         !target ||
         target.pathname !== original.pathname ||
-        !/^[A-Z0-9]{2,8}-[A-Z0-9]{12}$/.test(reference) ||
+        !(compact || legacy) ||
         !validOpaqueUuid(payload.event_id) ||
-        !(serverText === referenceText || serverText.endsWith("\n\n" + referenceText))
+        !(
+            serverText === referenceText ||
+            serverText.endsWith(separator + referenceText)
+        )
     )
         return "";
-    // Keep the selected editorial CTA intact, including document requests and
-    // the floating button on an LP. The server never receives this public text.
+    // Preserve the clicked link's editorial text. The server never receives it.
     const oldText = original.searchParams.get("text") || "";
     const result = new URL(original.href);
-    result.searchParams.set("text", (oldText ? oldText + "\n\n" : "") + referenceText);
+    result.searchParams.set(
+        "text",
+        (oldText ? oldText + separator : "") + referenceText
+    );
     return result.href.length <= 4096 ? result.href : "";
 }
 

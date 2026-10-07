@@ -1,15 +1,19 @@
 """A small immutable record of a Website click, using the native visitor."""
 import datetime
 import re
-import secrets
 import uuid
+
+from psycopg2 import IntegrityError, errorcodes
 
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, ValidationError
+from odoo.tools import mute_logger
 
 from odoo.addons.marketing_center_base.services.serialization import (
     acquire_advisory_xact_lock,
 )
+
+from ..services.references import new_reference
 
 HANDOFF_TOKEN = object()
 ADMIN = "contact_center_base.group_contact_center_admin"
@@ -207,25 +211,33 @@ class WebsiteWhatsappHandoff(models.Model):
         ):
             recent.write({"event_refs": (recent.event_refs or "") + "|%s|" % event_id})
             return recent
-        prefix = action.handoff_reference_prefix or "SITE"
-        # 60 random bits; unique database constraint remains the final arbiter.
-        alphabet = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
-        reference = prefix + "-" + "".join(secrets.choice(alphabet) for _ in range(12))
-        return service.create(
-            {
-                "reference": reference,
-                "action_id": action.id,
-                "website_id": website.id,
-                "company_id": website.company_id.id,
-                "account_id": action.handoff_account_id.id,
-                "visitor_id": visitor.id if visitor else False,
-                "track_id": track.id if track else False,
-                "clicked_at": now,
-                "page_url": page_url,
-                "landing_url": landing_url,
-                "acquisition_json": acquisition,
-                "event_id": event_id,
-                "event_refs": "|%s|" % event_id,
-                "session_key": session_key,
-            }
+        values = {
+            "action_id": action.id,
+            "website_id": website.id,
+            "company_id": website.company_id.id,
+            "account_id": action.handoff_account_id.id,
+            "visitor_id": visitor.id if visitor else False,
+            "track_id": track.id if track else False,
+            "clicked_at": now,
+            "page_url": page_url,
+            "landing_url": landing_url,
+            "acquisition_json": acquisition,
+            "event_id": event_id,
+            "event_refs": "|%s|" % event_id,
+            "session_key": session_key,
+        }
+        # Short codes can collide. The database arbitrates concurrent inserts;
+        # a savepoint lets us retry without losing the original click transaction.
+        for _attempt in range(20):
+            try:
+                with mute_logger("odoo.sql_db"), self.env.cr.savepoint():
+                    return service.create(dict(values, reference=new_reference()))
+            except IntegrityError as error:
+                if (
+                    error.pgcode != errorcodes.UNIQUE_VIOLATION
+                    or error.diag.constraint_name != self._table + "_reference_unique"
+                ):
+                    raise
+        raise ValidationError(
+            _("Não foi possível gerar um código de WhatsApp disponível.")
         )

@@ -55,7 +55,8 @@ class MarketingWebsiteAction(models.Model):
         default="SITE",
         size=8,
         groups="marketing_center_base.group_marketing_center_admin",
-        help="De 2 a 8 letras maiúsculas ou números. Exemplo: SITE ou CP.",
+        help="Prefixo legado, preservado para configurações anteriores. "
+        "Novos códigos têm quatro caracteres e não usam prefixo.",
     )
 
     def _handoff_account_matches(self):
@@ -117,7 +118,7 @@ class Website(models.Model):
         "('active', '=', True), ('handoff_enabled', '=', True)]",
         groups="marketing_center_base.group_marketing_center_admin",
         help="Reutilizada nas páginas públicas sem regra própria. Páginas com uma "
-        "regra própria mantêm seu número e prefixo, inclusive quando desativadas.",
+        "regra própria mantêm seu número e sua conta de destino, inclusive quando desativadas.",
     )
 
     @api.constrains("handoff_default_action_id", "company_id")

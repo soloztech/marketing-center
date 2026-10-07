@@ -401,8 +401,14 @@ def assert_prepared(env):
                 or not row.latest_version
                 or row.latest_version == version
                 or (
-                    name == "marketing_center_website"
-                    and row.latest_version == "16.0.2.1.0"
+                    (
+                        name == "marketing_center_website"
+                        and row.latest_version == "16.0.2.1.0"
+                    )
+                    or (
+                        name == "marketing_center_website_whatsapp"
+                        and row.latest_version == "16.0.1.4.0"
+                    )
                 ),
                 "existing owner without bridges is unsupported: " + name,
             )
@@ -430,6 +436,8 @@ def assert_prepared(env):
             in (
                 (version, VERSIONS[name], "16.0.2.1.0")
                 if name == "marketing_center_website"
+                else (version, VERSIONS[name], "16.0.1.4.0")
+                if name == "marketing_center_website_whatsapp"
                 else (version, VERSIONS[name])
             ),
             "unsupported retained owner lineage: " + name,

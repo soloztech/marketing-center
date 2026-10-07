@@ -11,10 +11,10 @@ const read = (url) =>
 const origin = "https://example.test";
 const action = "10000000-0000-4000-8000-000000000001";
 const eventId = "20000000-0000-4000-8000-000000000001";
-const reference = "CP-23456789ABCD";
+const reference = "WX2Y";
 const original = "https://wa.me/5519999999999?text=" + encodeURIComponent("Olá!");
 const destinationUrl = new URL(original);
-destinationUrl.searchParams.set("text", "Olá!\n\nReferência: " + reference);
+destinationUrl.searchParams.set("text", "Olá!\nMeu código é " + reference);
 const destination = destinationUrl.href;
 let editorEnabled = false;
 let configPresent = true;
@@ -189,7 +189,7 @@ assert.equal(
 await settle();
 assert.equal(
   new URL(navigations.at(-1)).searchParams.get("text"),
-  editorialText + "\n\nReferência: " + reference
+  editorialText + "\nMeu código é " + reference
 );
 assert.deepEqual(
   JSON.parse(requests[beforeEditorial].options.body),
@@ -223,6 +223,47 @@ assert.equal(
   ),
   "",
   "Reference must agree with the fixed server URL"
+);
+
+const legacyReference = "CP-23456789ABCD";
+const legacyUrl = new URL(original);
+legacyUrl.searchParams.set("text", "Olá!\n\nReferência: " + legacyReference);
+assert.equal(
+  context.verifiedTarget(
+    {
+      accepted: true,
+      reference: legacyReference,
+      event_id: eventId,
+      url: legacyUrl.href,
+    },
+    new URL(original)
+  ),
+  legacyUrl.href,
+  "Retries of an existing long reference remain usable"
+);
+for (const invalid of ["WX2", "WX2Y7", "wx2y", "WX2Y-", "WX2Y_", "WX2Y7Z"]) {
+  const invalidUrl = new URL(original);
+  invalidUrl.searchParams.set("text", "Olá!\nMeu código é " + invalid);
+  assert.equal(
+    context.verifiedTarget(
+      {accepted: true, reference: invalid, event_id: eventId, url: invalidUrl.href},
+      new URL(original)
+    ),
+    "",
+    "Only an exact four-character compact reference is accepted"
+  );
+}
+const emptyMessageUrl = new URL(original);
+emptyMessageUrl.searchParams.delete("text");
+assert.equal(
+  new URL(
+    context.verifiedTarget(
+      {accepted: true, reference, event_id: eventId, url: destination},
+      emptyMessageUrl
+    )
+  ).searchParams.get("text"),
+  "Meu código é " + reference,
+  "Links without editorial text still get a compact code"
 );
 
 for (const failure of ["reject", "network", "stall", "hostile"]) {
@@ -342,7 +383,7 @@ assert.deepEqual(JSON.parse(requests[beforeThankYou].options.body), {
 });
 assert.equal(
   new URL(navigations.at(-1)).searchParams.get("text"),
-  editorialText + "\n\nReferência: " + reference
+  editorialText + "\nMeu código é " + reference
 );
 console.log(
   "WhatsApp handoff JS: independent page/Website config, thank-you without GA/forms, editorial and floating CTAs preserved, fixed destination, stable retry UUID, bounded stalled body, fail-open, keyboard, popup, modifier/editor/policy behavior passed."

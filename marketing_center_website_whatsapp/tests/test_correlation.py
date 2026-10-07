@@ -229,6 +229,78 @@ class TestWebsiteWhatsappCorrelation(SavepointCase):
         self.assertEqual(match.candidate_count, 1)
         self.assertTrue(0 <= match.score <= 100)
 
+    def test_compact_reference_links_the_received_message(self):
+        handoff = self._handoff(reference="WX2Y")
+        message = self._message(
+            "Olá! Vim pelo site da Soloz e gostaria de mais informações.\n"
+            "Meu código é WX2Y"
+        )
+        match = self._results(message)
+        self.assertEqual(match.state, "reference")
+        self.assertEqual(match.handoff_id, handoff)
+        self.assertEqual(self.service._analyze_inbound(message), match)
+
+    def test_compact_reference_allows_product_code_question(self):
+        handoff = self._handoff(reference="WX2Y")
+        match = self._results(
+            self._message("Meu código é WX2Y. Qual o código do produto?")
+        )
+        self.assertEqual(match.state, "reference")
+        self.assertEqual(match.handoff_id, handoff)
+
+    def test_product_code_question_can_get_temporal_suggestion(self):
+        self._handoff(reference="WX2Y")
+        self.assertEqual(
+            self._results(self._message("Qual o código do produto?")).state, "suggested"
+        )
+
+    def test_compact_unknown_malformed_and_mixed_refs_do_not_fall_back(self):
+        handoff = self._handoff(reference="WX2Y")
+        for text in (
+            "Meu código é AB23",
+            "Meu código é WX2",
+            "Meu código é WX2Y7",
+            "Meu código é wx2y",
+            "Meu código é WX2Y_",
+            "Meu código é WX2Y-7",
+            "Meu código é WX2Y. Meu código é AB23",
+            "Meu código é WX2Y. Meu código é ???",
+            "Meu código é WX2Y. Referência: ???",
+            "Meu código é WX2Y. Referência: CP-ZZZZZZZZZZZZ",
+        ):
+            with self.subTest(text=text):
+                self.assertFalse(self._results(self._message(text)))
+        self.assertFalse(handoff.match_ids)
+
+    def test_compact_code_collision_retries_without_losing_the_click(self):
+        self._handoff(reference="WX2Y")
+        self.action.binding_id.capture_mode = "native"
+        event_id = str(uuid.uuid4())
+        with patch(
+            "odoo.addons.marketing_center_website_whatsapp.models.handoff.new_reference",
+            side_effect=["WX2Y", "AB23"],
+        ) as generate:
+            handoff = self.env["marketing.website.whatsapp.handoff"]._record_click(
+                self.action,
+                self.env["website.visitor"],
+                event_id,
+                hashlib.sha256(event_id.encode()).hexdigest(),
+                self.origin + "/",
+                self.origin + "/",
+                {"utm_source": "collision-test"},
+            )
+        self.assertEqual(generate.call_count, 2)
+        self.assertEqual(handoff.reference, "AB23")
+        self.assertEqual(handoff.event_id, event_id)
+        self.assertEqual(
+            self.env["marketing.website.whatsapp.handoff"].search_count(
+                [
+                    ("reference", "in", ["WX2Y", "AB23"]),
+                ]
+            ),
+            2,
+        )
+
     def test_unmatched_click_is_eligible_while_claimed_click_is_excluded(self):
         claimed = self._handoff(self.when - datetime.timedelta(seconds=10))
         self.assertEqual(

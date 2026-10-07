@@ -9,12 +9,13 @@ native tracking, create a parallel visitor session, send messages or merge leads
 Configuration
 -------------
 
-On an existing Website WhatsApp action, enable conversation linking, select the
-exact Contact Center account and choose a 2–8 character uppercase prefix.
+On an existing Website WhatsApp action, enable conversation linking and select
+the exact Contact Center account. New clicks receive a four-character code;
+legacy prefix settings remain stored but do not lengthen new codes.
 The account must be active, belong to the Website company, and declare the same
 destination phone as its own identity. Existing actions remain disabled on
 installation. On Website Settings, select an enabled action from that Website as
-``Regra padrão do WhatsApp``. This reuses its destination and reference prefix
+``Regra padrão do WhatsApp``. This reuses its destination and conversation routing
 on every current or future public page without creating a rule for each URL.
 An existing active page action takes precedence, including its disabled linking
 setting; ambiguous page rules fail closed. Archived page actions are ignored.
@@ -43,8 +44,28 @@ An ordinary click or keyboard activation records the native visitor, page,
 server time, account, and available UTM/click identifiers. The snapshot follows
 the page's prior native tracks (up to 24 hours and 200 records) and never fills
 a new click tuple from stale campaign cookies. Context is frozen at the click.
-The visible reference contains a readable prefix and 12 random characters.
-No IP, phone, visitor ID or campaign IDs are encoded in the reference.
+The visible reference contains four random uppercase consonants/digits (29 symbols, 707281 possible codes), without a
+prefix. Codes are attribution evidence, not identity or authentication. The code is appended on one new line as ``Meu código é WX2Y``.
+Database uniqueness and bounded retry
+prevent a repeated code from identifying another click. No IP, phone, visitor
+ID or campaign IDs are encoded in the reference. Previously issued long
+references remain recognizable; retries of those clicks keep their old format.
+The message before the code still comes from the clicked link's ``text``
+parameter; the configured action text does not replace that editorial content.
+
+The 707281-code space is a lifetime limit: codes are not recycled after the
+30-day matching window and the unique constraint covers every company/Website.
+This deliberately preserves historical evidence without assigning an old code
+to another click. New capture fails open to the original WhatsApp link if all
+20 allocation attempts collide; it never deletes evidence to free a code.
+Operators must check global compact-code occupancy in the native Odoo shell:
+``env['marketing.website.whatsapp.handoff'].sudo().search_count([('reference', '=like', '____')])``.
+Investigate growth at 10 percent and plan capacity/retention work before 25 percent;
+disable ``handoff_enabled`` to stop new allocations during an incident while
+keeping conversations and legacy associations usable. A sustained unauthenticated
+flood can consume this finite space despite the existing endpoint/edge limits.
+Any recycling or purge needs a separate reviewed retention migration; never
+manually remove attribution records as an exhaustion workaround.
 
 Retries reuse the reference; repeated activations with the same session, action,
 page and acquisition within 60 seconds normally share a click; concurrent requests
@@ -57,7 +78,10 @@ An exact reference in an original inbound direct message can associate a click
 within the preceding 30 days, in the same account and company. It does not prove
 that a forwarded/copied code belongs to the original person. Provider-marked
 forwarded messages and replies are excluded. Unknown, partial or multiple codes
-do not silently become temporal matches. No historical messages are backfilled.
+do not silently become temporal matches. Compact codes require the explicit
+``Meu código é`` label (ASCII spelling is also accepted), so ordinary
+four-character words do not become reference matches. No historical messages
+are backfilled.
 
 Suggestions and review
 ----------------------
@@ -92,6 +116,8 @@ time candidates, permissions, review and absence of sending/CRM side effects.
 The Node regression exercises timeout, fallback, fixed target, keyboard and
 popup behavior. Run ``node static/tests/whatsapp_handoff_node.mjs`` from the
 addon directory, and Odoo with ``--test-tags /marketing_center_website_whatsapp``.
+Pure parsing/formatting checks can also run locally with
+``python3 tools/test_whatsapp_references.py`` from the repository root.
 
 Disable ``handoff_enabled`` to stop new captures without affecting the original
 links or native tracking. Existing evidence remains reviewable. No uninstall or

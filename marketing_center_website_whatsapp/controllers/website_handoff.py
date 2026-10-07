@@ -27,6 +27,8 @@ from odoo.addons.marketing_center_website.services.contracts import (
     opaque_uuid,
 )
 
+from ..services.references import reference_message
+
 _logger = logging.getLogger(__name__)
 
 
@@ -156,10 +158,8 @@ class WebsiteWhatsAppHandoff(http.Controller):
                         track=snapshot["track"],
                     )
                 )
-                message = "%s%sReferência: %s" % (
-                    action.whatsapp_message or "",
-                    "\n\n" if action.whatsapp_message else "",
-                    handoff.reference,
+                message = reference_message(
+                    action.whatsapp_message or "", handoff.reference
                 )
                 target = "https://wa.me/%s?%s" % (
                     action.whatsapp_destination,

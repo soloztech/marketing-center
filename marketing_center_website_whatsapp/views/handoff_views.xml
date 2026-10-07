@@ -70,10 +70,6 @@
                     options="{'no_create': True}"
                     attrs="{'required': [('handoff_enabled', '=', True)]}"
                 />
-                <field
-                    name="handoff_reference_prefix"
-                    attrs="{'required': [('handoff_enabled', '=', True)]}"
-                />
             </field>
         </field>
     </record>

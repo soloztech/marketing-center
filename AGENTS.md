@@ -41,12 +41,17 @@ configuração padrão por Website, reaproveitada nas páginas atuais e novas. N
 ações ou copiar configuração para cada página apenas para habilitar o rastreamento. Usar
 `website.handoff_default_action_id`; uma ação específica ativa prevalece sobre o padrão,
 inclusive quando a captura específica estiver desligada. Reservar exceções para uma
-necessidade de destino/prefixo da página.
+necessidade explícita de destino ou roteamento da página.
 
-Preservar os textos dos botões e os prefixos específicos das LPs. Validar a mesma
-resolução no HTML e no endpoint, a página pública real, a empresa, o destino e a
-política de captura. Herança de WhatsApp não habilita outros trackers/formulários nem
-autoriza envios. Proximidade temporal permanece uma sugestão revisável, sem afirmar
-identidade. O QA deve incluir uma página criada depois do padrão e auditar URLs públicas
-únicas, incluindo botões flutuantes e editoriais; conferir somente o cadastro de ações
-não prova cobertura do site.
+Decisão de 06/10/2026: somente o botão global flutuante abre o WhatsApp comercial. Usar
+“Fale com a gente” nos convites e “Enviar mensagem” no envio dos formulários. A mensagem
+vem do href clicado, com uma linha “Meu código é XXXX”; novos códigos têm quatro
+caracteres. Prefixos legados e ações permanecem armazenados, e os códigos longos já
+emitidos continuam reconhecidos. Não recriar botões editoriais ou por documento/LP.
+Preservar destinos, prefill e formulários. Validar a mesma resolução no HTML e no
+endpoint, a página pública real, a empresa, o destino e a política de captura. Herança
+de WhatsApp não habilita outros trackers/formulários nem autoriza envios. Proximidade
+temporal permanece uma sugestão revisável, sem afirmar identidade. O QA deve incluir uma
+página criada depois do padrão e auditar URLs públicas únicas, conferindo exatamente um
+link comercial no botão flutuante; conferir somente o cadastro de ações não prova
+cobertura do site.

@@ -1,7 +1,6 @@
 """Website handoff associations; temporal evidence never claims an identity."""
 
 import datetime
-import re
 
 from psycopg2 import IntegrityError
 
@@ -14,16 +13,10 @@ from odoo.addons.marketing_center_base.services.serialization import (
     acquire_advisory_xact_lock,
 )
 
+from ..services.references import extract_reference, has_reference_hint
+
 MATCH_TOKEN = object()
 CLAIMED_STATES = ("reference", "confirmed")
-REFERENCE_RE = re.compile(
-    r"(?<![A-Za-z0-9-])([A-Z0-9]{2,8}-[A-Z0-9]{12})(?![A-Za-z0-9-])"
-)
-REFERENCE_TOKEN_HINT_RE = re.compile(r"\b[A-Za-z0-9]{2,8}[-‐‑‒–—][A-Za-z0-9]{6,32}\b")
-REFERENCE_HINT_RE = re.compile(
-    r"refer[eê]ncia\s*:|\b[A-Za-z0-9]{2,8}[-‐‑‒–—][A-Za-z0-9]{6,32}\b",
-    re.IGNORECASE,
-)
 REFERENCE_TTL = datetime.timedelta(days=30)
 TEMPORAL_WINDOW = datetime.timedelta(minutes=10)
 RETURN_GAP = datetime.timedelta(hours=24)
@@ -422,7 +415,7 @@ class WebsiteWhatsappCorrelation(models.AbstractModel):
         text = html2plaintext(message.message_id.body or "")
         if len(text) > 8192:
             return empty
-        references = REFERENCE_RE.findall(text)
+        reference = extract_reference(text)
         when = message.message_id.date
         base_domain = [
             ("account_id", "=", message.account_id.id),
@@ -430,16 +423,11 @@ class WebsiteWhatsappCorrelation(models.AbstractModel):
             ("clicked_at", "<=", when + ROUNDING_ALLOWANCE),
         ]
         handoffs = self.env["marketing.website.whatsapp.handoff"].sudo()
-        if references:
-            if (
-                len(references) != 1
-                or REFERENCE_TOKEN_HINT_RE.findall(text) != references
-            ):
-                return empty
+        if reference:
             handoff = handoffs.search(
                 base_domain
                 + [
-                    ("reference", "=", references[0]),
+                    ("reference", "=", reference),
                     ("clicked_at", ">=", when - REFERENCE_TTL),
                 ],
                 limit=1,
@@ -461,7 +449,7 @@ class WebsiteWhatsappCorrelation(models.AbstractModel):
                     else empty
                 )
             return self._create_association(handoff, message, "reference")
-        if REFERENCE_HINT_RE.search(text) or not self._is_entry_message(message):
+        if has_reference_hint(text) or not self._is_entry_message(message):
             return empty
         # In Odoo 16, negating a dotted One2many condition selects parents that
         # HAVE a non-matching child; it excludes clicks with no association at
