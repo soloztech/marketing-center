@@ -34,7 +34,7 @@ class TestMarketingIntegrationFusionGuards(SavepointCase):
         with patch.object(fusion, "_modules", return_value=modules):
             assert_prepared(self.env)
             website = modules["marketing_center_website"]
-            for version in ("16.0.2.2.1", "16.0.2.1.2", "16.0.999.0.0"):
+            for version in ("16.0.2.2.1", "16.0.2.3.1", "16.0.2.1.2", "16.0.999.0.0"):
                 with self.subTest(website_version=version):
                     website.latest_version = version
                     with self.assertRaisesRegex(
@@ -130,7 +130,7 @@ class TestMarketingIntegrationFusionGuards(SavepointCase):
             # The positive above proves every other owner is supported before
             # checking Website alone; Base must not mask these rejections.
             website = owners["marketing_center_website"]
-            for version in ("16.0.2.2.1", "16.0.2.1.2", "16.0.999.0.0"):
+            for version in ("16.0.2.2.1", "16.0.2.3.1", "16.0.2.1.2", "16.0.999.0.0"):
                 with self.subTest(website_version=version):
                     website.latest_version = version
                     with self.assertRaisesRegex(
