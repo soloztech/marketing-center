@@ -144,6 +144,11 @@ configuration. The server independently enforces the gate on stale clients.
 Native Website forms continue their usual record creation without a marketing
 receipt or correlation. Ordinary links and the configured fallback navigation
 remain native browser behavior.
+Failed/unavailable configuration reads preserve native UTM cookies and stored
+campaign context. A non-granted individual-policy GET does not erase native UTM
+cookies; an explicit individual refusal does, including an authoritative accepted
+refusal POST after a failed GET. The server still blocks first-party capture
+without an individual grant. Informational policy keeps native attribution.
 
 Create each tracked form or WhatsApp handoff under *Marketing Center >
 Configuration > Website Actions*. An action stores an immutable technical

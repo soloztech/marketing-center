@@ -49,9 +49,9 @@ function clearNativeUtms() {
     }
 }
 
-function clearOptionalSession() {
+function clearOptionalSession(confirmedIndividualWithdrawal = false) {
     // Unknown/unavailable configuration cannot justify erasing attribution.
-    if (!choice || choice.available !== true || choice.informational_notice === true) {
+    if (!confirmedIndividualWithdrawal && (!choice || choice.available !== true || choice.informational_notice === true)) {
         return;
     }
     try {
@@ -135,6 +135,7 @@ if (channel) {
 
 export async function submitConsent(granted) {
     const sequence = ++serial;
+    let utmsCleared = false;
     if (!granted) {
         broadcastWithdrawal();
         withdrawalPending = true;
@@ -160,6 +161,7 @@ export async function submitConsent(granted) {
             // Explicit individual refusal only; never a failed GET or a site
             // whose native cookie bar is disabled / policy is informational.
             clearNativeUtms();
+            utmsCleared = true;
         }
         if (granted && !config.available) {
             // Informational capture has no grant POST. Refresh here as well on
@@ -215,12 +217,11 @@ export async function submitConsent(granted) {
             capture_allowed:
                 accepted && (result.capture_allowed === true || actualGrant),
         };
-        if (
-            !actualGrant &&
-            config.informational_notice === true &&
-            !choice.informational_notice
-        ) {
-            clearOptionalSession();
+        if (accepted && !granted && !actualGrant && result.informational_notice !== true) {
+            // The accepted POST is authoritative if its preceding config GET
+            // failed or the cached policy changed in the meantime.
+            if (!utmsCleared) clearNativeUtms();
+            clearOptionalSession(true);
         }
         pending = Promise.resolve(choice);
         notify("consent-changed", {...choice, confirmed: accepted});

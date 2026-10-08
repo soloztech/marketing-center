@@ -530,6 +530,25 @@ for (const response of [
   assert.deepEqual(page.deleted, []);
   assert.deepEqual(page.removedStorage, []);
 }
+// A confirmed individual refusal is authoritative after a failed config GET.
+{
+  const page = tab(path => path.endsWith("/config")
+    ? Promise.reject(new Error("temporary config failure"))
+    : Promise.resolve(answer({accepted: true, granted: false, informational_notice: false})));
+  await page.api.submitConsent(false);
+  assert.equal(page.deleted.length, 3);
+  assert.ok(page.removedStorage.includes("marketing_center.website.v1.test"));
+}
+// Cached informational data cannot override the accepted current individual policy.
+{
+  const page = tab(path => Promise.resolve(answer(path.endsWith("/config")
+    ? {available: false, granted: false, informational_notice: true, capture_allowed: true}
+    : {accepted: true, granted: false, informational_notice: false})));
+  await page.api.loadConsent();
+  await page.api.submitConsent(false);
+  assert.equal(page.deleted.length, 3);
+  assert.ok(page.removedStorage.includes("marketing_center.website.v1.test"));
+}
 
 console.log(
   "Consent race tests passed: stock choice bridge, informational attribution, refusal and restoration."
