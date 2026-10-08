@@ -307,7 +307,7 @@ function tab(fetch, bus = [], cookies = {optional: true}, noticeBar = null) {
   assert.equal(page.deleted.length, 0);
   await page.api.submitConsent(false);
   assert.equal(page.cookies.optional, false);
-  assert.ok(page.deleted.includes("odoo_utm_source"));
+  assert.equal(page.deleted.length, 0);
   assert.equal(
     page.events.some((event) => event.detail.granted === true),
     false
@@ -322,6 +322,8 @@ function tab(fetch, bus = [], cookies = {optional: true}, noticeBar = null) {
   const restored = await page.api.loadConsent(true);
   assert.equal(restored.informational_notice, false);
   assert.equal(restored.capture_allowed, false);
+  assert.equal(page.deleted.length, 0, "a policy GET does not erase native attribution");
+  await page.api.submitConsent(false);
   assert.ok(page.deleted.includes("odoo_utm_source"));
 }
 
@@ -493,6 +495,40 @@ for (const informational of [true, false]) {
     second.events.some((event) => event.detail.granted === true),
     false
   );
+}
+
+// An unavailable/failed config is not a decision to erase native attribution.
+for (const response of [
+  {ok: false},
+  answer({available: false, granted: false, informational_notice: false, capture_allowed: false}),
+  answer({available: false, granted: false, enabled: false}),
+]) {
+  const page = tab(() => Promise.resolve(response));
+  await page.api.loadConsent();
+  assert.deepEqual(page.deleted, []);
+  assert.deepEqual(page.removedStorage, []);
+}
+{
+  const page = tab(() => Promise.reject(new Error("temporary proxy failure")));
+  await page.api.loadConsent();
+  assert.deepEqual(page.deleted, []);
+  assert.deepEqual(page.removedStorage, []);
+}
+// Loading an individual policy without a grant is not an explicit withdrawal.
+{
+  const page = tab(() => Promise.resolve(answer({...ready, granted: false})));
+  await page.api.loadConsent();
+  assert.deepEqual(page.deleted, []);
+  await page.api.submitConsent(false);
+  assert.equal(page.deleted.length, 3);
+}
+// Informational policy keeps native UTMs even if an obsolete tab requests withdrawal.
+{
+  const page = tab(() => Promise.resolve(answer({available: false, informational_notice: true, capture_allowed: true, granted: false})));
+  await page.api.loadConsent();
+  await page.api.submitConsent(false);
+  assert.deepEqual(page.deleted, []);
+  assert.deepEqual(page.removedStorage, []);
 }
 
 console.log(

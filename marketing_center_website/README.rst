@@ -72,7 +72,9 @@ For public HTTPS GET requests to a published page with one active CRM form
 action, an active same-company binding and an eligible informational policy,
 the adapter lets Odoo's native ``ir.http._set_utm`` persist its three standard
 UTM cookies. Odoo retains the cookie values, lifetime and later CRM defaults.
-An existing native optional-cookie choice retains native behavior, including refusal;
+While the native bar is enabled, an existing optional-cookie choice retains
+native behavior, including refusal. With the bar disabled, Odoo ignores a stored
+refusal. In the bar-enabled exception described here,
 paused capture, individual consent, other pages and extended tracking fields
 receive no exception. The temporary permission ends with the native UTM writer:
 other optional cookies remain subject to Odoo's normal decision. The adapter
@@ -204,13 +206,17 @@ requires both server flags. Native GA4 follows Website settings independently.
 Upgrade / explicit migration contract
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-In 16.0.2.3.0, inventory measurement-layout copies before upgrading. Every stored
-language of every view with key ``marketing_center_website.measurement_layout``,
-including inactive and Website-specific copies, must contain the final two native
-Google guards. Stale/edited copies abort the upgrade. Their ``arch_prev`` is
+In 16.0.2.3.0, inventory measurement-layout copies before upgrading: reconcile
+Website-specific or edited copies in the reviewed offline operation, or prove
+there are none. Do not pre-edit live 2.2 views to methods absent from 2.2 source.
+After native data load, every stored language of every view with key
+``marketing_center_website.measurement_layout``, including inactive copies, must
+contain the final two native Google guards. Stale copies abort the upgrade. Their ``arch_prev`` is
 normalized to the final architecture so an editor soft reset remains safe.
 On failure inspect module versions and stored views before recovery; never reset
-module states blindly or replay a completed upgrade.
+module states blindly or replay a completed upgrade. An abort can leave old views
+and 2.2 database metadata with 2.3 source on disk: keep HTTP stopped until the
+exact old source is restored or the final registry/view state is proved.
 
 Historical 16.0.2.2.0 cleanup: that release preserved campaign configuration,
 revisions and all historical
@@ -287,7 +293,7 @@ or button label. Capture policy remains in the Marketing endpoint configuration.
 GA4 reads the native Website ``google_analytics_key``. A managed Website permits
 the stock scripts on public HTTPS frontend GET/HEAD pages without access
 credentials, including Blog, Jobs and thank-you pages. ERP/access routes and
-internal users are excluded. Unmanaged Websites retain native behavior. Pausing
+all authenticated users (internal and portal) are excluded. Unmanaged Websites retain native behavior. Pausing
 a Marketing binding affects first-party capture but does not pause native Google.
 Action configuration still requires an eligible Website/company and published
 unrestricted CMS page; DOM metadata is not an authorization capability.
