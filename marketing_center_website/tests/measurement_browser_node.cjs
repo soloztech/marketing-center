@@ -117,47 +117,10 @@ function fixture(options = {}) {
     ga4: "G-TEST1234",
     form: "",
     whatsapp: "",
-    cookieNotice: "Notice chosen in Website settings.",
-    cookieProceedLabel: "Continue",
-    cookiePolicyUrl: "/privacy",
     ...options.dataset,
   };
-  const nativeNotice = new Element("span");
-  nativeNotice.textContent = options.nativePolicy
-    ? "The native cookie choice."
-    : config.dataset.cookieNotice;
-  const policy = new Element("a");
-  policy.className = "o_cookies_bar_text_policy";
-  policy.previousElementSibling = nativeNotice;
-  policy.setAttribute(
-    "href",
-    options.nativePolicy ? "/cookie-policy" : config.dataset.cookiePolicyUrl
-  );
-  const controls = options.nativePolicy
-    ? [new Element("button"), new Element("button")]
-    : [];
   const bar = new Element("div");
-  if (!options.nativePolicy) {
-    bar.dataset.marketingTrackingNotice = "1";
-    bar.dataset.marketingNoticeStorageKey =
-      "marketing_center.website.notice.dismissed." +
-      config.dataset.websiteId +
-      ".copy-v1";
-  }
-  const modal = new Element("div");
-  modal.className = "modal";
-  modal.setAttribute("aria-label", "Native cookie preferences");
-  bar.appendChild(modal);
-  modal.appendChild(nativeNotice);
-  modal.appendChild(policy);
-  for (const control of controls) modal.appendChild(control);
-  if (!options.nativePolicy) {
-    const proceed = new Element("button");
-    proceed.className = "marketing-cookie-notice-proceed";
-    proceed.textContent = config.dataset.cookieProceedLabel;
-    modal.appendChild(proceed);
-  }
-  bar.querySelectorAll = () => controls;
+  const controls = [new Element("a"), new Element("a")];
   const cookieWrites = [];
   let cookie = options.cookie || "";
   Object.defineProperty(document, "cookie", {
@@ -184,10 +147,12 @@ function fixture(options = {}) {
         ? options.noBar
           ? null
           : bar
+        : id === "cookies-consent-essential" && !options.missingEssential
+        ? controls[0]
         : null,
     querySelectorAll: (selector) =>
       selector === "[data-marketing-consent-revoke]"
-        ? options.legacyControls || []
+        ? []
         : selector === "a[href]"
         ? options.links || []
         : options.forms || [],
@@ -201,45 +166,16 @@ function fixture(options = {}) {
   window.crypto = options.noCrypto ? null : webcrypto;
   let authorization = options.authorization || REFUSED;
   let consentReads = 0;
-  let nativeWrites = 0;
-  let focusReleases = 0;
-  const widgetMethods = {};
-  const modalCalls = [];
-  const widget = {
-    el: bar,
-    _super: () => nativeWrites++,
-    releaseFocus: () => focusReleases++,
-    _canShowPopup: () => true,
-    _trapFocus: () => () => focusReleases++,
-    $target: {find: () => ({modal: () => modalCalls.push("native-show")})},
-  };
-  window.Modal = {
-    getOrCreateInstance: () => ({
-      show: () => modalCalls.push("show"),
-      hide: () => {
-        modalCalls.push("hide");
-        widgetMethods._onHideModal.call(widget);
-      },
-    }),
-  };
-  const storage = new Map(Object.entries(options.storage || {}));
-  window.localStorage = window.sessionStorage = {
-    getItem: (key) => {
-      if (options.blockedStorage) throw Error("Blocked");
-      return storage.get(key) || null;
-    },
-    setItem: (key, value) => {
-      if (options.blockedStorage) throw Error("Blocked");
-      storage.set(key, value);
-    },
-    removeItem: (key) => {
-      if (options.blockedStorage) throw Error("Blocked");
-      storage.delete(key);
-    },
-  };
   const context = vm.createContext({
     document,
     window,
+    cookieUtils: {
+      getCookie: () =>
+        options.nativeCookie === undefined
+          ? '{"required":true,"optional":true}'
+          : options.nativeCookie,
+      isAllowedCookie: () => options.nativeAllowed !== false,
+    },
     URL,
     Set,
     WeakSet,
@@ -255,16 +191,11 @@ function fixture(options = {}) {
     eligibleLandingPath: (pathname) =>
       !/^\/(?:web|website|my|auth|portal|marketing)(?:\/|$)/.test(pathname),
     validOpaqueUuid: (value) => UUID.test(value),
-    publicWidget: {
-      registry: {
-        cookies_bar: {include: (methods) => Object.assign(widgetMethods, methods)},
-      },
-    },
   });
   for (const [filename, exports] of [
     [
-      "cookie_notice.esm.js",
-      "eligibleMeasurementConfig,refreshMeasurementConsent,startCookieNotice",
+      "measurement_context.esm.js",
+      "eligibleMeasurementConfig,refreshMeasurementConsent",
     ],
     [
       "measurement.esm.js",
@@ -280,33 +211,15 @@ function fixture(options = {}) {
       context
     );
   }
-  widgetMethods._showPopup.call(widget);
   return {
-    clickProceed: () => {
-      const button = bar.querySelector(".marketing-cookie-notice-proceed");
-      for (const fn of bar.listeners.get("click") || [])
-        fn({
-          target: button,
-          preventDefault() {
-            /* Browser API stub; no side effect needed in this fixture. */
-          },
-        });
-    },
     document,
     window,
     context,
     config,
-    nativeNotice,
-    policy,
     bar,
-    modal,
     controls,
     scripts,
     cookieWrites,
-    modalCalls,
-    storage,
-    widgetMethods,
-    widget,
     setAuthorization: (value) => {
       authorization = value;
     },
@@ -314,8 +227,6 @@ function fixture(options = {}) {
       cookie = value;
     },
     consentReads: () => consentReads,
-    nativeWrites: () => nativeWrites,
-    focusReleases: () => focusReleases,
     commands: () => (window.dataLayer || []).map((row) => Array.from(row)),
     events: (name) =>
       (window.dataLayer || [])
@@ -324,158 +235,82 @@ function fixture(options = {}) {
   };
 }
 
-async function testIndependentNotice() {
-  const legacy = new Element("button");
-  const f = fixture({
-    authorization: INFORMATIONAL,
-    legacyControls: [legacy],
-    dataset: {
-      ga4: "",
-      cookieNotice: '<img src=x onerror="alert(1)">',
-      cookieProceedLabel: "Keep browsing",
-    },
-  });
-  await flush();
-  assert.equal(f.scripts.length, 0, "notice works with GA4 disabled");
-  assert.equal(
-    f.nativeNotice.textContent,
-    '<img src=x onerror="alert(1)">',
-    "settings are rendered as literal text"
-  );
-  assert.equal(f.policy.getAttribute("href"), "/privacy");
-  assert.equal(
-    f.bar.querySelector(".marketing-cookie-notice-proceed").textContent,
-    "Keep browsing"
-  );
-  assert.equal(
-    f.controls.length,
-    0,
-    "native choice controls are absent from server-rendered markup"
-  );
-  assert.equal(
-    legacy.hidden,
-    true,
-    "legacy CMS preferences shortcut is hidden under the informational policy"
-  );
-  assert.equal(legacy.classList.contains("d-none"), true);
-  const originalCookie = f.document.cookie;
-  f.clickProceed();
-  assert.equal(f.document.cookie, originalCookie);
-  assert.equal(
-    f.cookieWrites.length,
-    0,
-    "dismissal cannot write consent or UTM cookies"
-  );
-  assert.equal(
-    f.nativeWrites(),
-    0,
-    "native choice persistence bypassed only during informational mode"
-  );
-  assert.equal(f.focusReleases(), 1, "native modal focus cleanup retained");
-  assert.equal(f.widget.releaseFocus, null);
-  assert.equal(INFORMATIONAL.granted, false, "visitor decision was never changed");
-  assert.equal(
-    f.storage.get("marketing_center.website.notice.dismissed.7.copy-v1"),
-    "1"
-  );
-  f.context.startCookieNotice(f.bar);
-  assert.equal(f.bar.listeners.get("click").length, 1);
-  for (const options of [{nativePolicy: true}, {editor: true}]) {
-    const control = new Element("button");
-    fixture({...options, legacyControls: [control]});
-    assert.equal(
-      Boolean(control.hidden),
-      false,
-      "individual mode and editor keep their CMS control"
-    );
-    assert.equal(control.classList.contains("d-none"), false);
+async function testNativeMatrix() {
+  for (const policy of [INFORMATIONAL, {...REFUSED, granted: true}]) {
+    for (const nativeCookie of [
+      "",
+      '{"optional":true}',
+      '{"optional":false}',
+      "{bad",
+      '"true"',
+      "null",
+      "[]",
+      '{"optional":"true"}',
+    ]) {
+      const f = fixture({authorization: policy, nativeCookie});
+      await flush();
+      assert.equal(
+        f.scripts.length,
+        nativeCookie === '{"optional":true}' ? 1 : 0,
+        JSON.stringify([policy, nativeCookie])
+      );
+      f.document.emit("marketing_center:consent-changed", {...policy, confirmed: true});
+      assert.equal(
+        f.window["ga-disable-G-TEST1234"],
+        nativeCookie !== '{"optional":true}'
+      );
+    }
   }
-}
-
-async function testNoticeNeverRevertsAfterProceed() {
-  const f = fixture({authorization: INFORMATIONAL});
+  for (const options of [{missingEssential: true}, {nativeAllowed: false}]) {
+    const f = fixture({...options, authorization: INFORMATIONAL});
+    await flush();
+    assert.equal(f.scripts.length, 0);
+  }
+  const options = {authorization: INFORMATIONAL, nativeCookie: ""};
+  const f = fixture(options);
   await flush();
-  assert.equal(f.events("page_view").length, 1, "capture starts before dismissal");
-  f.clickProceed();
-  f.document.emit("marketing_center:consent-ready", REFUSED);
-  f.document.emit("marketing_center:consent-changed", {...REFUSED, confirmed: true});
-  f.setAuthorization(REFUSED);
+  assert.equal(f.scripts.length, 0);
+  options.nativeCookie = '{"optional":true}';
+  f.document.emit("marketing_center:native-cookie-choice", {granted: true});
+  await flush();
+  assert.equal(f.scripts.length, 1);
+  options.nativeCookie = '{"optional":false}';
+  f.document.emit("marketing_center:native-cookie-choice", {granted: false});
+  await flush();
+  assert.equal(f.window["ga-disable-G-TEST1234"], true);
+  options.nativeCookie = "";
   f.window.emit("focus");
   await flush();
-  assert.equal(f.controls.length, 0);
   assert.equal(
-    f.bar.dataset.marketingTrackingNotice,
-    "1",
-    "pause/fetch failures never restore native choices"
+    f.window["ga-disable-G-TEST1234"],
+    true,
+    "refuse -> revoke -> reload/no-choice stays denied"
   );
-  assert.equal(f.nativeWrites(), 0);
-  f.modalCalls.length = 0;
-  f.widgetMethods._onHideModal.call(f.widget);
-  f.widget._popupAlreadyShown = false;
-  f.widgetMethods._showPopup.call(f.widget);
-  assert.deepEqual(
-    f.modalCalls,
-    [],
-    "native callbacks after dismissal cannot reopen notice"
-  );
-  assert.equal(f.nativeWrites(), 0);
-  for (const route of [
-    "/",
-    "/lp-carport-biposte",
-    "/politica-de-privacidade",
-    "/web/login",
-    "/missing-404",
-  ]) {
-    const next = fixture({
-      url: "https://sales.example.test" + route,
-      noConfig: true,
-      authorization: REFUSED,
-      storage: Object.fromEntries(f.storage),
-    });
+  for (const lifecycle of ["pageshow", "visibilitychange"]) {
+    options.nativeCookie = '{"optional":true}';
+    f.document.emit("marketing_center:native-cookie-choice", {granted: true});
     await flush();
-    assert.equal(next.controls.length, 0);
+    assert.equal(f.window["ga-disable-G-TEST1234"], false);
+    options.nativeCookie = "";
+    if (lifecycle === "pageshow") {
+      for (const callback of f.window.listeners.get("pageshow"))
+        callback({persisted: true});
+    } else {
+      f.document.visibilityState = "visible";
+      f.document.emit("visibilitychange");
+    }
     assert.equal(
-      next.scripts.length,
-      0,
-      "missing measurement config never tracks login/404"
+      f.window["ga-disable-G-TEST1234"],
+      true,
+      "return immediately denies stale GA grant"
     );
-    assert.equal(next.consentReads(), 0);
-    assert.deepEqual(
-      next.modalCalls,
-      [],
-      "dismissal survives navigation without eligible measurement config"
+    await flush();
+    assert.equal(
+      f.window["ga-disable-G-TEST1234"],
+      true,
+      "revoked native choice stays denied on " + lifecycle
     );
-    assert.equal(next.nativeWrites(), 0);
   }
-  const blocked = fixture({
-    authorization: INFORMATIONAL,
-    blockedStorage: true,
-    dataset: {ga4: ""},
-  });
-  blocked.clickProceed();
-  blocked.modalCalls.length = 0;
-  blocked.widget._popupAlreadyShown = false;
-  blocked.widgetMethods._showPopup.call(blocked.widget);
-  assert.deepEqual(
-    blocked.modalCalls,
-    [],
-    "blocked storage keeps dismissal in this document"
-  );
-  const other = fixture({
-    dataset: {ga4: "", websiteId: "8"},
-    storage: Object.fromEntries(f.storage),
-  });
-  assert.ok(
-    other.modalCalls.includes("native-show"),
-    "dismissal belongs to its Website and notice copy"
-  );
-  const native = fixture({nativePolicy: true, noConfig: true});
-  native.widgetMethods._onHideModal.call(native.widget);
-  assert.equal(
-    native.nativeWrites(),
-    2,
-    "unselected websites retain Odoo native popup behavior"
-  );
 }
 
 async function testContextBoundaries() {
@@ -496,18 +331,14 @@ async function testContextBoundaries() {
       "private/stale/editor markup cannot bootstrap measurement"
     );
     assert.equal(f.cookieWrites.length, 0);
-    assert.equal(
-      f.controls.length,
-      0,
-      "capture exclusion does not change the Website notice policy"
-    );
+    assert.equal(f.controls.length, 2, "capture exclusion keeps both stock controls");
   }
   const denied = fixture({
     authorization: {available: false, granted: false, capture_allowed: false},
   });
   await flush();
   assert.equal(denied.scripts.length, 0);
-  assert.equal(denied.controls.length, 0);
+  assert.equal(denied.controls.length, 2);
   const f = fixture({authorization: INFORMATIONAL});
   await flush();
   f.document.body.className = "editor_enable";
@@ -727,13 +558,12 @@ async function testActionAnnotations() {
 }
 
 (async () => {
-  await testIndependentNotice();
-  await testNoticeNeverRevertsAfterProceed();
+  await testNativeMatrix();
   await testContextBoundaries();
   await testGoogleEventsAndPrivacy();
   await testActionAnnotations();
   console.log(
-    "Marketing Website browser: independent configurable notice; permanent SSR notice with no fallback choices after dismissal/navigation; editor/context guards; GA privacy/confirmed events; exact action annotation passed."
+    "Marketing Website: native optional permission matrix, editor/context guards, GA privacy/confirmed events and exact action annotation passed."
   );
 })().catch((error) => {
   console.error(error);

@@ -8,7 +8,7 @@ class MarketingWebIngressEndpoint(models.Model):
     website_tracking_policy = fields.Selection(
         [
             ("individual_consent", "Escolha individual de cookies"),
-            ("informational_notice", "Aviso informativo com Prosseguir"),
+            ("informational_notice", "Captura própria por política informativa"),
         ],
         default="individual_consent",
         required=True,
@@ -63,8 +63,8 @@ class MarketingWebIngressEndpoint(models.Model):
     ):
         """Explicit reviewed deployment operation; never called on upgrade or HTTP.
 
-        The caller first snapshots/copies legacy notice translations with the old
-        registry. Only this exact endpoint/binding/site/company is promoted; an
+        The caller supplies a separately reviewed policy change. Only this exact
+        endpoint/binding/site/company is promoted; an
         obsolete global test allowlist does not authorize permanent capture.
         """
         self.ensure_one()

@@ -20,6 +20,7 @@ const tick = () => new Promise((resolve) => setImmediate(resolve));
 function tab(fetch, bus = [], cookies = {optional: true}, noticeBar = null) {
   const events = [];
   const deleted = [];
+  const removedStorage = [];
   const handlers = new Map();
   const cookieWrites = [];
   let widget;
@@ -80,8 +81,9 @@ function tab(fetch, bus = [], cookies = {optional: true}, noticeBar = null) {
       fetch,
       BroadcastChannel: Channel,
       sessionStorage: {
-        removeItem() {
-          /* Browser API stub; no side effect needed in this fixture. */
+        "marketing_center.website.v1.test": "preserve",
+        removeItem(key) {
+          removedStorage.push(key);
         },
       },
       location: {
@@ -98,6 +100,7 @@ function tab(fetch, bus = [], cookies = {optional: true}, noticeBar = null) {
   vm.runInContext(source, context);
   return {
     api: context.api,
+    removedStorage,
     events,
     widget,
     cookies,
@@ -118,11 +121,14 @@ function tab(fetch, bus = [], cookies = {optional: true}, noticeBar = null) {
 // A config response captured before withdrawal must not reactivate consumers.
 {
   let resolveGet;
+  let reads = 0;
   const page = tab((path) =>
     path.endsWith("/config")
-      ? new Promise((resolve) => {
-          resolveGet = resolve;
-        })
+      ? ++reads === 1
+        ? new Promise((resolve) => {
+            resolveGet = resolve;
+          })
+        : Promise.resolve(answer({...ready, granted: false}))
       : Promise.resolve(answer({accepted: true, granted: false}))
   );
   const old = page.api.loadConsent();
@@ -163,6 +169,7 @@ function tab(fetch, bus = [], cookies = {optional: true}, noticeBar = null) {
   await page.api.loadConsent();
   const grant = page.api.submitConsent(true);
   await tick();
+  page.cookies.optional = false; // Original native widget has persisted the refusal.
   const withdrawal = page.api.submitConsent(false);
   await tick();
   assert.deepEqual(calls, [true]);
@@ -193,6 +200,7 @@ function tab(fetch, bus = [], cookies = {optional: true}, noticeBar = null) {
     second = tab(fetch, bus, cookies);
   await Promise.all([first.api.loadConsent(), second.api.loadConsent()]);
   second.events.length = 0;
+  cookies.optional = false; // Shared native cookie written by the stock handler.
   await first.api.submitConsent(false);
   await tick();
   assert.ok(second.events.length > 0);
@@ -228,7 +236,7 @@ function tab(fetch, bus = [], cookies = {optional: true}, noticeBar = null) {
   assert.equal(nativeTarget, "cookies-consent-all");
   await tick();
 }
-// Stale native buttons cannot manufacture a decision on a server-rendered notice.
+// The native handler persists informational choices too; no backend grant is fabricated.
 {
   let writes = 0,
     posts = 0;
@@ -247,60 +255,34 @@ function tab(fetch, bus = [], cookies = {optional: true}, noticeBar = null) {
   await page.api.loadConsent();
   page.widget._onAcceptClick.call(
     {
-      el: {dataset: {marketingTrackingNotice: "1"}},
+      el: {dataset: {}},
       _super() {
         writes++;
       },
     },
-    {
-      target: {id: "cookies-consent-all"},
-      preventDefault() {
-        /* Browser API stub; no side effect needed in this fixture. */
-      },
-    }
+    {target: {id: "cookies-consent-all"}, currentTarget: {id: "cookies-consent-all"}}
   );
   await tick();
-  assert.equal(writes, 0);
+  assert.equal(writes, 1);
   assert.equal(posts, 0);
-  assert.equal(
-    page.events.some((event) => event.detail.granted === true),
-    false
+  assert.ok(
+    page.events.some((e) => e.type === "marketing_center:native-cookie-choice")
   );
-}
-// A stale CMS footer shortcut must not write native cookies or submit a decision.
-{
-  let requests = 0;
-  const page = tab(
-    () => {
-      requests++;
-      return Promise.resolve(answer(ready));
-    },
-    [],
-    {optional: true},
-    {dataset: {marketingTrackingNotice: "1"}}
+  assert.equal(
+    page.events.some(
+      (e) =>
+        e.detail.granted === true && e.type !== "marketing_center:native-cookie-choice"
+    ),
+    false
   );
   page.clickRevoke();
   await tick();
-  assert.equal(requests, 0);
-  assert.equal(page.cookieWrites.length, 0);
-  assert.equal(page.deleted.length, 0);
-  assert.equal(page.cookies.optional, true);
-  const native = tab(
-    (path) =>
-      Promise.resolve(
-        answer(path.endsWith("/config") ? ready : {accepted: true, granted: false})
-      ),
-    [],
-    {optional: true},
-    {dataset: {}}
+  assert.equal(
+    page.cookieWrites.length,
+    1,
+    "only explicit reopen writes a temporary native refusal"
   );
-  native.clickRevoke();
-  await tick();
-  assert.ok(
-    native.cookieWrites.includes("website_cookies_bar"),
-    "individual mode still supports withdrawal"
-  );
-  assert.equal(native.cookies.optional, false);
+  assert.ok(page.deleted.includes("website_cookies_bar"));
 }
 // The server's informational mode is independent of an absent or refused choice.
 {
@@ -325,7 +307,7 @@ function tab(fetch, bus = [], cookies = {optional: true}, noticeBar = null) {
   assert.equal(page.deleted.length, 0);
   await page.api.submitConsent(false);
   assert.equal(page.cookies.optional, false);
-  assert.equal(page.deleted.length, 0);
+  assert.ok(page.deleted.includes("odoo_utm_source"));
   assert.equal(
     page.events.some((event) => event.detail.granted === true),
     false
@@ -361,6 +343,7 @@ function tab(fetch, bus = [], cookies = {optional: true}, noticeBar = null) {
     second = tab(fetch, bus, cookies);
   await Promise.all([first.api.loadConsent(), second.api.loadConsent()]);
   second.events.length = 0;
+  cookies.optional = false; // Shared native cookie written by the stock handler.
   await first.api.submitConsent(false);
   await tick();
   assert.equal(second.deleted.length, 0);
@@ -373,6 +356,145 @@ function tab(fetch, bus = [], cookies = {optional: true}, noticeBar = null) {
     true
   );
 }
+
+// A failed optional-refusal POST cannot change the operator's capture policy.
+for (const failure of ["http", "network", "not-accepted"]) {
+  const mode = {
+    ...ready,
+    granted: false,
+    informational_notice: true,
+    capture_allowed: true,
+  };
+  const page = tab((path) => {
+    if (path.endsWith("/config")) return Promise.resolve(answer(mode));
+    if (failure === "not-accepted") return Promise.resolve(answer({accepted: false}));
+    return failure === "http"
+      ? Promise.resolve({ok: false})
+      : Promise.reject(new Error("offline"));
+  });
+  await page.api.loadConsent();
+  assert.equal(await page.api.submitConsent(false), false);
+  assert.deepEqual(page.removedStorage, []);
+  page.clickRevoke();
+  await tick();
+  assert.deepEqual(page.removedStorage, []);
+  const decisions = page.events.filter(
+    (e) => e.type.endsWith("consent-changed") || e.type.endsWith("consent-ready")
+  );
+  assert.ok(
+    decisions.every(
+      (e) => e.detail.informational_notice === true && e.detail.capture_allowed === true
+    )
+  );
+  assert.ok(decisions.every((e) => e.detail.granted === false));
+}
+
+// The choice bridge works before boot config finishes, without GA4 listeners.
+for (const informational of [true, false]) {
+  for (const granted of [true, false]) {
+    for (const failure of ["none", "http", "network"]) {
+      let oldResolve,
+        reads = 0,
+        posts = 0;
+      const mode = {
+        ...ready,
+        available: !informational,
+        granted: false,
+        informational_notice: informational,
+        capture_allowed: informational,
+      };
+      const page = tab(
+        (path) => {
+          if (path.endsWith("/config")) {
+            if (++reads === 1)
+              return new Promise((resolve) => {
+                oldResolve = resolve;
+              });
+            return Promise.resolve(answer(mode));
+          }
+          posts++;
+          if (failure === "network") return Promise.reject(new Error("offline"));
+          if (failure === "not-accepted")
+            return Promise.resolve(answer({accepted: false}));
+          if (failure === "http") return Promise.resolve({ok: false});
+          return Promise.resolve(
+            answer({
+              ...mode,
+              accepted: true,
+              granted: !informational && granted,
+              capture_allowed: informational || granted,
+            })
+          );
+        },
+        [],
+        {optional: granted}
+      );
+      const boot = page.api.loadConsent();
+      const decision = page.api.submitConsent(granted).catch(() => false);
+      await tick();
+      oldResolve(answer(mode));
+      await Promise.all([boot, decision]);
+      await tick();
+      const last = page.events
+        .filter(
+          (e) => e.type.endsWith("consent-ready") || e.type.endsWith("consent-changed")
+        )
+        .at(-1).detail;
+      if (informational) {
+        assert.equal(last.informational_notice, true);
+        assert.equal(last.capture_allowed, true);
+        assert.equal(last.granted, false);
+        assert.deepEqual(page.removedStorage, []);
+        if (granted) assert.equal(posts, 0);
+      } else if (!granted || failure !== "none") assert.equal(last.granted, false);
+      else assert.equal(last.granted, true);
+    }
+  }
+}
+
+// Another tab can refuse while this tab still has an unresolved policy GET.
+// Preserve first-party session data until the authoritative informational policy arrives.
+{
+  const bus = [];
+  const info = {
+    available: false,
+    granted: false,
+    informational_notice: true,
+    capture_allowed: true,
+  };
+  const first = tab(
+    (path) =>
+      Promise.resolve(
+        answer(path.endsWith("/config") ? info : {accepted: true, granted: false})
+      ),
+    bus
+  );
+  let resolveOld;
+  let reads = 0;
+  const second = tab(
+    () =>
+      ++reads === 1
+        ? new Promise((resolve) => {
+            resolveOld = resolve;
+          })
+        : Promise.resolve(answer(info)),
+    bus
+  );
+  const stale = second.api.loadConsent();
+  await first.api.loadConsent();
+  await first.api.submitConsent(false);
+  await tick();
+  resolveOld(answer(info));
+  await stale;
+  assert.deepEqual(second.removedStorage, []);
+  assert.equal(second.events.at(-1).detail.informational_notice, true);
+  assert.equal(second.events.at(-1).detail.capture_allowed, true);
+  assert.equal(
+    second.events.some((event) => event.detail.granted === true),
+    false
+  );
+}
+
 console.log(
-  "Consent race tests passed, including informational mode, stale CMS shortcuts, refusal and restoration."
+  "Consent race tests passed: stock choice bridge, informational attribution, refusal and restoration."
 );

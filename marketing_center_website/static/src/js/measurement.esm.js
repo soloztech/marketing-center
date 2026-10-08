@@ -1,10 +1,11 @@
 /** @odoo-module **/
 
+import cookieUtils from "web.utils.cookies";
 import {loadConsent} from "@marketing_center_website/js/consent.esm";
 import {
     eligibleMeasurementConfig,
     refreshMeasurementConsent,
-} from "@marketing_center_website/js/cookie_notice.esm";
+} from "@marketing_center_website/js/measurement_context.esm";
 import {validOpaqueUuid} from "@marketing_center_website/js/action_capture.esm";
 
 // The Google adapter consumes confirmed Website events; it never reads form
@@ -55,8 +56,36 @@ export function referrerOrigin(value) {
     }
 }
 
+export function nativeOptionalAllowed() {
+    try {
+        const bar = document.getElementById("website_cookies_bar");
+        if (bar) {
+            // An edited bar missing a choice anchor cannot imply permission.
+            if (!document.getElementById("cookies-consent-essential")) {
+                return false;
+            }
+            const value = JSON.parse(
+                cookieUtils.getCookie("website_cookies_bar") || "{}"
+            );
+            if (
+                !value ||
+                typeof value !== "object" ||
+                Array.isArray(value) ||
+                value.optional !== true
+            ) {
+                return false;
+            }
+        }
+        // Call the runtime object so Website's native patch is always used.
+        return cookieUtils.isAllowedCookie("optional") === true;
+    } catch (_error) {
+        return false;
+    }
+}
+
 export function measurementAllowed(value, confirmed = true) {
     return (
+        nativeOptionalAllowed() &&
         confirmed === true &&
         (value?.granted === true ||
             (value?.informational_notice === true && value?.capture_allowed === true))
@@ -244,10 +273,20 @@ export function startMeasurement(config) {
     document.addEventListener("marketing_center:consent-changed", (event) => {
         applyAuthorization(event.detail, event.detail?.confirmed === true);
     });
+    document.addEventListener("marketing_center:native-cookie-choice", (event) => {
+        // UI persistence belongs to Odoo. Refresh the independent server policy.
+        applyAuthorization(null);
+        Promise.resolve(event.detail?.settled)
+            .catch(() => null)
+            .then(() => refreshMeasurementConsent())
+            .then((value) => applyAuthorization(value))
+            .catch(() => applyAuthorization(null));
+    });
     document.addEventListener("marketing_center:action-confirmed", (event) => {
         const detail = event.detail || {};
         if (
             !granted ||
+            !nativeOptionalAllowed() ||
             !eligibleMeasurementConfig(config) ||
             !validOpaqueUuid(detail.event_id || "") ||
             events.has(detail.event_id)
@@ -291,12 +330,19 @@ export function startMeasurement(config) {
             tag("event", eventName, payload);
         }
     });
-    window.addEventListener("focus", () => {
+    const refreshOnReturn = () => {
         granted = false;
         window[disabledKey] = true;
         refreshMeasurementConsent()
             .then((value) => applyAuthorization(value))
             .catch(() => applyAuthorization(null));
+    };
+    window.addEventListener("focus", refreshOnReturn);
+    window.addEventListener("pageshow", (event) => {
+        if (event.persisted) refreshOnReturn();
+    });
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") refreshOnReturn();
     });
     loadConsent()
         .then((value) => applyAuthorization(value))

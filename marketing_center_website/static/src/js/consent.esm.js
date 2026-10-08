@@ -36,12 +36,7 @@ function notify(name, detail) {
     document.dispatchEvent(new CustomEvent(`marketing_center:${name}`, {detail}));
 }
 
-function clearOptionalSession() {
-    // An explicit server informational policy preserves attribution independently of the
-    // cookie choice. It never changes that choice or creates a grant.
-    if (choice && choice.informational_notice === true) {
-        return;
-    }
+function clearNativeUtms() {
     const hostname = window.location.hostname || "";
     const domains = /^[a-z0-9.-]+$/i.test(hostname) ? [hostname, `.${hostname}`] : [];
     for (const name of ["odoo_utm_campaign", "odoo_utm_source", "odoo_utm_medium"]) {
@@ -51,6 +46,16 @@ function clearOptionalSession() {
         for (const domain of domains) {
             document.cookie = `${name}=; Max-Age=0; Path=/; Domain=${domain}; Secure; SameSite=Lax`;
         }
+    }
+}
+
+function clearOptionalSession(clearUtms = true) {
+    // First-party attribution remains governed by the backend policy.
+    if (choice && choice.informational_notice === true) {
+        return;
+    }
+    if (clearUtms) {
+        clearNativeUtms();
     }
     try {
         for (const key of Object.keys(window.sessionStorage)) {
@@ -96,7 +101,7 @@ export function loadConsent(refresh = false) {
                     );
                 }
                 if (!choice.granted) {
-                    clearOptionalSession();
+                    clearOptionalSession(!withdrawalPending);
                 }
                 notify("consent-ready", choice);
                 return choice;
@@ -110,8 +115,10 @@ function receiveWithdrawal() {
     ++serial;
     withdrawalPending = true;
     pending = null;
-    choice = {...(choice || {}), granted: false};
-    clearOptionalSession();
+    if (choice) {
+        choice = {...choice, granted: false};
+        clearOptionalSession(false);
+    }
     notify("consent-changed", {...choice, granted: false, confirmed: false});
     loadConsent(true);
 }
@@ -132,17 +139,15 @@ if (channel) {
 export async function submitConsent(granted) {
     const sequence = ++serial;
     if (!granted) {
-        setCookie(
-            "website_cookies_bar",
-            '{"required":true,"optional":false}',
-            999 * 86400,
-            "required"
-        );
+        clearNativeUtms();
         broadcastWithdrawal();
         withdrawalPending = true;
         pending = null;
-        choice = {...(choice || {}), granted: false};
-        clearOptionalSession();
+        if (choice) {
+            choice = {...choice, granted: false};
+            clearOptionalSession(false);
+        }
+        // Unknown policy cannot justify erasing first-party storage.
         // Fail closed immediately in this document, even if the request fails.
         notify("consent-changed", {...choice, granted: false, confirmed: false});
     }
@@ -153,28 +158,48 @@ export async function submitConsent(granted) {
     });
     await previous;
     try {
-        const config = choice || (await loadConsent());
+        const config = choice || (await loadConsent(true));
+        if (sequence !== serial) return false;
         if (granted && !config.available) {
+            // Informational capture has no grant POST. Refresh here as well on
+            // Blog/jobs and pages without a Google measurement consumer.
+            await loadConsent(true);
             return false;
         }
-        const response = await window.fetch(DECISION, {
-            method: "POST",
-            credentials: "same-origin",
-            cache: "no-store",
-            headers: {
-                Accept: "application/json",
-                "Content-Type": "application/json",
-                "X-Marketing-Consent": "1",
-            },
-            body: JSON.stringify({
-                granted,
-                config_revision: config.config_revision || 0,
-                policy_version: config.policy_version || "",
-                notice_version: config.notice_version || "",
-            }),
-        });
-        const result = response.ok ? await response.json() : null;
+        const response = await window
+            .fetch(DECISION, {
+                method: "POST",
+                credentials: "same-origin",
+                cache: "no-store",
+                headers: {
+                    Accept: "application/json",
+                    "Content-Type": "application/json",
+                    "X-Marketing-Consent": "1",
+                },
+                body: JSON.stringify({
+                    granted,
+                    config_revision: config.config_revision || 0,
+                    policy_version: config.policy_version || "",
+                    notice_version: config.notice_version || "",
+                }),
+            })
+            .catch((error) => {
+                if (!granted && config.informational_notice === true) return null;
+                throw error;
+            });
+        const result = response && response.ok ? await response.json() : null;
         if (sequence !== serial) {
+            return false;
+        }
+        if (
+            result?.accepted !== true &&
+            !granted &&
+            config.informational_notice === true
+        ) {
+            choice = {...config, granted: false};
+            pending = Promise.resolve(choice);
+            notify("consent-changed", {...choice, confirmed: false});
+            await loadConsent(true);
             return false;
         }
         const accepted = Boolean(result && result.accepted === true);
@@ -206,12 +231,6 @@ export async function submitConsent(granted) {
 
 publicWidget.registry.cookies_bar.include({
     _onAcceptClick(event) {
-        if (this.el.dataset.marketingTrackingNotice === "1") {
-            // Defensive against stale CMS markup: an informational notice never
-            // delegates to Odoo's optional-cookie grant/persistence handler.
-            event.preventDefault?.();
-            return;
-        }
         const control =
             event.currentTarget ||
             event.target.closest("#cookies-consent-all, #cookies-consent-essential");
@@ -220,8 +239,14 @@ publicWidget.registry.cookies_bar.include({
         // the meaning of its containing choice button.
         this._super({target: control || event.target});
         // The native handler has now stored the actual optional-cookie choice.
-        submitConsent(granted).catch(() =>
-            notify("consent-changed", {granted: false, confirmed: false})
+        const decision = submitConsent(granted);
+        notify("native-cookie-choice", {granted, settled: decision});
+        decision.catch(() =>
+            notify("consent-changed", {
+                ...(choice || {}),
+                granted: false,
+                confirmed: false,
+            })
         );
     },
 });
@@ -233,14 +258,6 @@ document.addEventListener("click", (event) => {
         return;
     }
     event.preventDefault();
-    if (
-        document.getElementById("website_cookies_bar")?.dataset
-            .marketingTrackingNotice === "1"
-    ) {
-        // A stale CMS shortcut cannot change cookies or reload a native choice
-        // on a site whose server-rendered notice is informational.
-        return;
-    }
     setCookie(
         "website_cookies_bar",
         '{"required":true,"optional":false}',

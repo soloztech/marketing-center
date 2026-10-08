@@ -177,15 +177,15 @@ record the responsible administrator and timestamp. Purpose, policy and notice
 versions, justification, retention, capture enablement, host/company, anonymous
 session, HTTPS, technical-page and confirmed-event guards still apply.
 
-The Website cookie bar is rendered with one informational text and a Prosseguir
-button. Native choice anchors remain in XML for inherited view compatibility,
-but are not rendered as HTML under this policy. The guard exists before the
-native Odoo popup initializes; no failed/delayed consent request, paused capture,
-old native preference or navigation to login/404 restores choice buttons.
-Prosseguir stores only a dismissal in localStorage, scoped to Website and notice
-content. It creates no native optional-cookie choice or consent receipt. Storage
-failure keeps dismissal in the current page. The notice works without GA4 and
-without a public measurement configuration on the current route.
+Since 16.0.2.2.0 the cookie bar is entirely standard Odoo, with Accept and
+Essential-only choices. There is no Marketing notice, dismissal localStorage,
+notice settings or compatibility markup. GA4 requires native optional permission
+in addition to server authorization, even under informational capture. No native
+choice, refusal or malformed preference denies GA4. Native choice persistence
+belongs to Odoo; the integration refreshes policy after the backend decision.
+First-party informational attribution remains governed by its existing server
+policy independently; explicit refusal prevents native UTM cookies. Forms and
+ordinary WhatsApp navigation remain usable under either choice.
 
 New evidence records ``consent_state=unknown``,
 ``decision_source=operator.website_notice`` and
@@ -194,21 +194,23 @@ clears an old consent legal-basis label rather than claiming a different legal
 basis. Historical receipts and evidence are not modified or reclassified.
 Public configuration exposes ``informational_notice`` and ``capture_allowed``
 separately from the actual ``granted`` decision. Capturing under this policy
-requires both server flags. It never depends on clicking Prosseguir.
+requires both server flags. GA4 additionally requires native optional acceptance.
 
 Upgrade / explicit migration contract
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The old global parameter ``marketing_center_website.tracking_test_endpoint_ids``
-is no longer read. An ordinary module upgrade never promotes its IDs to the
-permanent policy. Before upgrading, the release operator snapshots both old
-Website text fields in every installed language (including ``en_US``), then
-copies the chosen old ``marketing_cookie_test_notice_text`` into
-``marketing_cookie_notice_text`` with the old registry's ORM. This preserves
-custom text and translations when the old field is removed by native upgrade.
-The settings retain just one text, the button label and privacy URL.
+This release preserves campaign configuration, revisions and all historical
+receipts. Before upgrading a Soloz 3.0 installation, run the reviewed native
+cleanup offline preparation to retire its cookie descendant and adapt native
+privacy expressions. Marketing pre-migration refuses unexpected children or CMS
+overrides; Odoo removes the three retired Website notice fields. The native
+upgrade also reloads installed marketing_center_website_whatsapp at its unchanged
+version. Do not reset module states blindly after a failed upgrade.
 
-After upgrading, use the private ORM helper on the exactly reviewed endpoint::
+For a deliberate future change of backend capture policy (not part of this UI
+cleanup), the audited activation helper remains available.
+
+Only for that separately authorized future policy change, use the private ORM helper::
 
     endpoint._activate_informational_notice(
         website_id=reviewed_website_id,
@@ -255,18 +257,17 @@ one-way (``issued`` to ``consumed`` or ``revoked``) in both ORM and database
 constraints. Grant lookup is
 scoped to the resolved Website and company before any cross-model row is locked.
 
-Website notice and optional Google measurement
----------------------------------------------
+Native cookie choices and optional Google measurement
+-----------------------------------------------------
 
 Since 16.0.1.3.0 this adapter also owns the native cookie-bar integration and
 the optional GA4 consumer of confirmed Marketing events. Native CRM submission
 correlation is included in this adapter since 16.0.2.0.0, using ``website_crm``.
 No company-specific Website addon or separate Marketing CRM bridge is required.
 
-Website → Configuration → Settings → Privacy exposes one notice text, the
-continue-button label and policy URL for the selected Website. Values are
-escaped as plain text. Editing them does not grant consent or change endpoint
-policy/revisions. The informational bar works independently of GA4.
+Website settings enable Odoo's stock cookie bar. Edit privacy/cookie-policy
+content through the native CMS. This module owns no notice text or button label.
+Capture policy remains in the audited Marketing endpoint configuration.
 
 GA4 reads the native Website ``google_analytics_key``. A configured Marketing
 binding suppresses both native Google scripts, even when paused, so pausing
