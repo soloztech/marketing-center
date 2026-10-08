@@ -193,10 +193,7 @@ function fixture(options = {}) {
     validOpaqueUuid: (value) => UUID.test(value),
   });
   for (const [filename, exports] of [
-    [
-      "measurement_context.esm.js",
-      "eligibleMeasurementConfig",
-    ],
+    ["measurement_context.esm.js", "eligibleMeasurementConfig"],
     [
       "measurement.esm.js",
       "measurementUrl,referrerOrigin,annotateWebsiteActions,startMeasurement",
@@ -237,21 +234,38 @@ function fixture(options = {}) {
 
 async function testNativeMatrix() {
   for (const authorization of [REFUSED, INFORMATIONAL, {...REFUSED, granted: true}]) {
-    for (const nativeCookie of ["", '{"optional":true}', '{"optional":false}', "{bad", '"true"', "null", "[]"]) {
+    for (const nativeCookie of [
+      "",
+      '{"optional":true}',
+      '{"optional":false}',
+      "{bad",
+      '"true"',
+      "null",
+      "[]",
+    ]) {
       const f = fixture({authorization, nativeCookie});
       await flush();
       f.document.emit("marketing_center:action-confirmed", {
-        kind: "form_submission", event_id: REF,
+        kind: "form_submission",
+        event_id: REF,
       });
-      assert.equal(f.events("generate_lead").length, 1, "confirmed capture does not depend on cookie choice");
-      f.document.emit("marketing_center:consent-changed", {...REFUSED, confirmed: true});
+      assert.equal(
+        f.events("generate_lead").length,
+        1,
+        "confirmed capture does not depend on cookie choice"
+      );
+      f.document.emit("marketing_center:consent-changed", {
+        ...REFUSED,
+        confirmed: true,
+      });
       f.document.emit("marketing_center:action-confirmed", {
-        kind: "whatsapp_handoff", event_id: SECOND_REF,
+        kind: "whatsapp_handoff",
+        event_id: SECOND_REF,
       });
       assert.equal(f.events("whatsapp_handoff").length, 1);
       assert.equal(f.scripts.length, 0, "only Website loads Google");
       assert.equal(f.events("page_view").length, 0, "only Website emits pageviews");
-      assert.equal(f.commands().filter(row => row[0] !== "event").length, 0);
+      assert.equal(f.commands().filter((row) => row[0] !== "event").length, 0);
       assert.equal(f.window["ga-disable-G-TEST1234"], undefined);
       assert.equal(f.cookieWrites.length, 0);
       assert.equal(f.consentReads(), 0, "Google adapter has no extra consent request");
@@ -261,67 +275,122 @@ async function testNativeMatrix() {
 
 async function testContextBoundaries() {
   for (const options of [
-    {noConfig: true}, {editor: true}, {dataset: {websiteId: ""}},
-    {dataset: {path: "/other"}}, {url: "http://sales.example.test/contactus"},
+    {noConfig: true},
+    {editor: true},
+    {dataset: {websiteId: ""}},
+    {dataset: {path: "/other"}},
+    {url: "http://sales.example.test/contactus"},
     {url: "https://sales.example.test/web/login", dataset: {path: "/web/login"}},
   ]) {
     const f = fixture(options);
     await flush();
-    f.document.emit("marketing_center:action-confirmed", {kind: "form_submission", event_id: REF});
-    assert.equal(f.events("generate_lead").length, 0, "private/stale/editor config cannot emit business events");
+    f.document.emit("marketing_center:action-confirmed", {
+      kind: "form_submission",
+      event_id: REF,
+    });
+    assert.equal(
+      f.events("generate_lead").length,
+      0,
+      "private/stale/editor config cannot emit business events"
+    );
     assert.equal(f.scripts.length, 0);
     assert.equal(f.cookieWrites.length, 0);
   }
   const f = fixture();
   await flush();
   f.document.body.className = "editor_enable";
-  f.document.emit("marketing_center:action-confirmed", {kind: "form_submission", event_id: REF});
+  f.document.emit("marketing_center:action-confirmed", {
+    kind: "form_submission",
+    event_id: REF,
+  });
   assert.equal(f.events("generate_lead").length, 0);
 }
 
 async function testGoogleEventsAndPrivacy() {
   const f = fixture({cookie: "_ga=123; _ga_TEST1234=456; session_id=opaque"});
   await flush();
-  assert.equal(f.commands().length, 0, "visiting a page is never a lead or adapter pageview");
-  assert.equal(f.context.measurementUrl(f.window.location.href, "/contactus"),
-    "https://sales.example.test/contactus?utm_source=google");
-  assert.equal(f.context.measurementUrl(
-    "https://example.test/?utm_term=user%40example.com&gclid=valid-id&utm_source=first&utm_source=second&fbclid=bad%00id", "/"),
-    "https://example.test/?gclid=valid-id&utm_source=first");
-  assert.equal(f.context.referrerOrigin(f.document.referrer), "https://search.example/");
+  assert.equal(
+    f.commands().length,
+    0,
+    "visiting a page is never a lead or adapter pageview"
+  );
+  assert.equal(
+    f.context.measurementUrl(f.window.location.href, "/contactus"),
+    "https://sales.example.test/contactus?utm_source=google"
+  );
+  assert.equal(
+    f.context.measurementUrl(
+      "https://example.test/?utm_term=user%40example.com&gclid=valid-id&utm_source=first&utm_source=second&fbclid=bad%00id",
+      "/"
+    ),
+    "https://example.test/?gclid=valid-id&utm_source=first"
+  );
+  assert.equal(
+    f.context.referrerOrigin(f.document.referrer),
+    "https://search.example/"
+  );
   assert.equal(f.context.referrerOrigin("javascript:alert(1)"), "");
   for (const detail of [
-    {kind: "toString", event_id: REF}, {kind: "form_submission", event_id: "invalid"},
-  ]) f.document.emit("marketing_center:action-confirmed", detail);
+    {kind: "toString", event_id: REF},
+    {kind: "form_submission", event_id: "invalid"},
+  ])
+    f.document.emit("marketing_center:action-confirmed", detail);
   f.document.emit("submit", {event_id: REF});
-  assert.equal(f.commands().length, 0, "ordinary submit or invalid event cannot fabricate a lead");
+  assert.equal(
+    f.commands().length,
+    0,
+    "ordinary submit or invalid event cannot fabricate a lead"
+  );
   const event = {kind: "form_submission", event_id: REF, email: "private@example.com"};
   f.document.emit("marketing_center:action-confirmed", event);
   f.document.emit("marketing_center:action-confirmed", event);
   assert.equal(f.events("generate_lead").length, 1, "confirmed UUID deduplicated");
   f.context.startMeasurement(f.config);
-  f.document.emit("marketing_center:action-confirmed", {kind: "whatsapp_handoff", event_id: SECOND_REF});
-  assert.equal(f.events("whatsapp_handoff").length, 1, "repeat boot does not duplicate listeners");
+  f.document.emit("marketing_center:action-confirmed", {
+    kind: "whatsapp_handoff",
+    event_id: SECOND_REF,
+  });
+  assert.equal(
+    f.events("whatsapp_handoff").length,
+    1,
+    "repeat boot does not duplicate listeners"
+  );
   let deferred;
   f.document.emit("marketing_center:action-confirmed", {
-    kind: "form_submission", event_id: "10000000-0000-4000-8000-000000000003",
-    waitUntil: promise => { deferred = promise; },
+    kind: "form_submission",
+    event_id: "10000000-0000-4000-8000-000000000003",
+    waitUntil: (promise) => {
+      deferred = promise;
+    },
   });
   const payload = f.events("generate_lead").at(-1)[2];
   assert.equal(payload.event_timeout, 600);
   payload.event_callback();
   await deferred;
   assert.equal(JSON.stringify(f.commands()).includes("private@example.com"), false);
-  assert.equal(f.cookieWrites.length, 0, "existing cookies remain owned by their native providers");
+  assert.equal(
+    f.cookieWrites.length,
+    0,
+    "existing cookies remain owned by their native providers"
+  );
   assert.equal(f.scripts.length, 0);
   assert.equal(f.events("page_view").length, 0);
-  assert.ok(f.commands().every(row => row[0] === "event"));
+  assert.ok(f.commands().every((row) => row[0] === "event"));
   const native = fixture();
   let nativeCalls = 0;
-  native.window.gtag = function () { nativeCalls++; };
-  native.document.emit("marketing_center:action-confirmed", {kind: "form_submission", event_id: REF});
+  native.window.gtag = function () {
+    nativeCalls++;
+  };
+  native.document.emit("marketing_center:action-confirmed", {
+    kind: "form_submission",
+    event_id: REF,
+  });
   assert.equal(nativeCalls, 1, "adapter uses the native gtag function");
-  assert.equal(native.commands().length, 0, "no competing queue when native gtag exists");
+  assert.equal(
+    native.commands().length,
+    0,
+    "no competing queue when native gtag exists"
+  );
 }
 
 function link(href, marker) {

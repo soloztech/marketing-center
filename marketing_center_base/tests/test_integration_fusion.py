@@ -23,6 +23,27 @@ from ..integration_migration import (
 
 @tagged("-at_install", "post_install")
 class TestMarketingIntegrationFusionGuards(SavepointCase):
+    def test_current_owner_versions_without_legacy_bridges(self):
+        # Select the fresh topology even on a migrated database. All metadata
+        # changes stay inside this test's savepoint.
+        self.env["ir.model.data"].search([("module", "in", list(OWNERS))]).unlink()
+        modules = {
+            name: SimpleNamespace(latest_version=get_manifest(name)["version"])
+            for name in VERSIONS
+        }
+        with patch.object(fusion, "_modules", return_value=modules):
+            assert_prepared(self.env)
+            website = modules["marketing_center_website"]
+            for version in ("16.0.2.2.1", "16.0.2.3.1", "16.0.2.1.2", "16.0.999.0.0"):
+                with self.subTest(website_version=version):
+                    website.latest_version = version
+                    with self.assertRaisesRegex(
+                        ValidationError,
+                        "existing owner without bridges is unsupported: "
+                        "marketing_center_website$",
+                    ):
+                        assert_prepared(self.env)
+
     def test_prepared_legacy_graph_accepts_each_current_owner_upgrade(self):
         # Use a small, valid alias catalog to isolate the version transition.
         # All source-guard checks still execute against real ORM metadata.
@@ -106,6 +127,19 @@ class TestMarketingIntegrationFusionGuards(SavepointCase):
                 with self.subTest(owner=name):
                     row.latest_version = get_manifest(name)["version"]
                     assert_prepared(self.env)
+            # The positive above proves every other owner is supported before
+            # checking Website alone; Base must not mask these rejections.
+            website = owners["marketing_center_website"]
+            for version in ("16.0.2.2.1", "16.0.2.3.1", "16.0.2.1.2", "16.0.999.0.0"):
+                with self.subTest(website_version=version):
+                    website.latest_version = version
+                    with self.assertRaisesRegex(
+                        ValidationError,
+                        "unsupported retained owner lineage: "
+                        "marketing_center_website$",
+                    ):
+                        assert_prepared(self.env)
+            website.latest_version = get_manifest(website.name)["version"]
             owners["marketing_center_base"].latest_version = "16.0.999.0.0"
             with self.assertRaisesRegex(
                 ValidationError, "unsupported retained owner lineage"

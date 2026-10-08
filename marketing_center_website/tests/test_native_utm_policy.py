@@ -176,9 +176,18 @@ class TestNativeUtmPolicy(SavepointCase):
     def test_bar_disabled_keeps_native_utms_for_every_previous_choice(self):
         self.website.cookies_bar = False
         before = self.env["marketing.website.consent"].search_count([])
-        for preference in (None, '{"optional":false}', '{"optional":true}', "{invalid", "null"):
-            with self.subTest(preference=preference), self._request(cookies={}
-                    if preference is None else {"website_cookies_bar": preference}):
+        for preference in (
+            None,
+            '{"optional":false}',
+            '{"optional":true}',
+            "{invalid",
+            "null",
+        ):
+            with self.subTest(preference=preference), self._request(
+                cookies={}
+                if preference is None
+                else {"website_cookies_bar": preference}
+            ):
                 self.assertTrue(self.env["ir.http"]._is_allowed_cookie("optional"))
                 self._assert_native_values(self._write(), allowed=True)
         self.assertEqual(before, self.env["marketing.website.consent"].search_count([]))

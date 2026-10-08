@@ -5,9 +5,11 @@ from odoo.exceptions import UserError
 
 def normalize_measurement(env):
     canonical = env.ref("marketing_center_website.measurement_layout")
-    views = env["ir.ui.view"].with_context(
-        active_test=False, lang=None, no_cow=True, no_save_prev=True
-    ).search([("key", "=", canonical.key)])
+    views = (
+        env["ir.ui.view"]
+        .with_context(active_test=False, lang=None, no_cow=True, no_save_prev=True)
+        .search([("key", "=", canonical.key)])
+    )
     for view in views:
         arches = view._fields["arch_db"]._get_stored_translations(view) or {}
         if not arches or any(

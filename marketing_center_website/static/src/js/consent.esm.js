@@ -51,7 +51,10 @@ function clearNativeUtms() {
 
 function clearOptionalSession(confirmedIndividualWithdrawal = false) {
     // Unknown/unavailable configuration cannot justify erasing attribution.
-    if (!confirmedIndividualWithdrawal && (!choice || choice.available !== true || choice.informational_notice === true)) {
+    if (
+        !confirmedIndividualWithdrawal &&
+        (!choice || choice.available !== true || choice.informational_notice === true)
+    ) {
         return;
     }
     try {
@@ -157,7 +160,11 @@ export async function submitConsent(granted) {
     try {
         const config = choice || (await loadConsent(true));
         if (sequence !== serial) return false;
-        if (!granted && config.available === true && config.informational_notice !== true) {
+        if (
+            !granted &&
+            config.available === true &&
+            config.informational_notice !== true
+        ) {
             // Explicit individual refusal only; never a failed GET or a site
             // whose native cookie bar is disabled / policy is informational.
             clearNativeUtms();
@@ -217,7 +224,12 @@ export async function submitConsent(granted) {
             capture_allowed:
                 accepted && (result.capture_allowed === true || actualGrant),
         };
-        if (accepted && !granted && !actualGrant && result.informational_notice !== true) {
+        if (
+            accepted &&
+            !granted &&
+            !actualGrant &&
+            result.informational_notice !== true
+        ) {
             // The accepted POST is authoritative if its preceding config GET
             // failed or the cached policy changed in the meantime.
             if (!utmsCleared) clearNativeUtms();
