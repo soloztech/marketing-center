@@ -49,13 +49,10 @@ function clearNativeUtms() {
     }
 }
 
-function clearOptionalSession(clearUtms = true) {
-    // First-party attribution remains governed by the backend policy.
-    if (choice && choice.informational_notice === true) {
+function clearOptionalSession(confirmedIndividualWithdrawal = false) {
+    // Unknown/unavailable configuration cannot justify erasing attribution.
+    if (!confirmedIndividualWithdrawal && (!choice || choice.available !== true || choice.informational_notice === true)) {
         return;
-    }
-    if (clearUtms) {
-        clearNativeUtms();
     }
     try {
         for (const key of Object.keys(window.sessionStorage)) {
@@ -101,7 +98,7 @@ export function loadConsent(refresh = false) {
                     );
                 }
                 if (!choice.granted) {
-                    clearOptionalSession(!withdrawalPending);
+                    clearOptionalSession();
                 }
                 notify("consent-ready", choice);
                 return choice;
@@ -117,7 +114,7 @@ function receiveWithdrawal() {
     pending = null;
     if (choice) {
         choice = {...choice, granted: false};
-        clearOptionalSession(false);
+        clearOptionalSession();
     }
     notify("consent-changed", {...choice, granted: false, confirmed: false});
     loadConsent(true);
@@ -138,14 +135,14 @@ if (channel) {
 
 export async function submitConsent(granted) {
     const sequence = ++serial;
+    let utmsCleared = false;
     if (!granted) {
-        clearNativeUtms();
         broadcastWithdrawal();
         withdrawalPending = true;
         pending = null;
         if (choice) {
             choice = {...choice, granted: false};
-            clearOptionalSession(false);
+            clearOptionalSession();
         }
         // Unknown policy cannot justify erasing first-party storage.
         // Fail closed immediately in this document, even if the request fails.
@@ -160,6 +157,12 @@ export async function submitConsent(granted) {
     try {
         const config = choice || (await loadConsent(true));
         if (sequence !== serial) return false;
+        if (!granted && config.available === true && config.informational_notice !== true) {
+            // Explicit individual refusal only; never a failed GET or a site
+            // whose native cookie bar is disabled / policy is informational.
+            clearNativeUtms();
+            utmsCleared = true;
+        }
         if (granted && !config.available) {
             // Informational capture has no grant POST. Refresh here as well on
             // Blog/jobs and pages without a Google measurement consumer.
@@ -214,12 +217,11 @@ export async function submitConsent(granted) {
             capture_allowed:
                 accepted && (result.capture_allowed === true || actualGrant),
         };
-        if (
-            !actualGrant &&
-            config.informational_notice === true &&
-            !choice.informational_notice
-        ) {
-            clearOptionalSession();
+        if (accepted && !granted && !actualGrant && result.informational_notice !== true) {
+            // The accepted POST is authoritative if its preceding config GET
+            // failed or the cached policy changed in the meantime.
+            if (!utmsCleared) clearNativeUtms();
+            clearOptionalSession(true);
         }
         pending = Promise.resolve(choice);
         notify("consent-changed", {...choice, confirmed: accepted});

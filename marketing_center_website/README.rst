@@ -72,7 +72,9 @@ For public HTTPS GET requests to a published page with one active CRM form
 action, an active same-company binding and an eligible informational policy,
 the adapter lets Odoo's native ``ir.http._set_utm`` persist its three standard
 UTM cookies. Odoo retains the cookie values, lifetime and later CRM defaults.
-An existing native optional-cookie choice retains native behavior, including refusal;
+While the native bar is enabled, an existing optional-cookie choice retains
+native behavior, including refusal. With the bar disabled, Odoo ignores a stored
+refusal. In the bar-enabled exception described here,
 paused capture, individual consent, other pages and extended tracking fields
 receive no exception. The temporary permission ends with the native UTM writer:
 other optional cookies remain subject to Odoo's normal decision. The adapter
@@ -119,7 +121,8 @@ purge deadline.
 Frontend integration exports ``loadConsent()`` from
 ``@marketing_center_website/js/consent.esm`` and emits document events
 ``marketing_center:consent-ready`` after a server GET and
-``marketing_center:consent-changed`` after a decision. Consumers may grant only
+``marketing_center:consent-changed`` after a decision. First-party consumers of
+the individual-consent policy may grant only
 ``ready.granted === true`` or ``changed.granted === true`` with
 ``confirmed === true``. A false value must disable optional measurement at once.
 A control marked ``data-marketing-consent-revoke`` withdraws the decision and
@@ -131,7 +134,9 @@ exchange and callbacks before returning the exact native result; tracking errors
 cannot fail the form. Callbacks alone are capped at 750 ms. A thank-you page visit
 never emits a form success event.
 Only ``form_submission`` signifies a native form success; ``whatsapp_handoff`` is
-navigation, never a lead or sale. This addon sends no external analytics itself.
+navigation, never a lead or sale. The bundled Google event adapter does not
+consume these consent events: it forwards server-confirmed actions to the native
+Website Google queue, whose consent mode follows Website settings.
 
 When policy is disabled, the config response contains only ``enabled=false``;
 the browser does not prepare optional landing/action identifiers from that
@@ -139,6 +144,11 @@ configuration. The server independently enforces the gate on stale clients.
 Native Website forms continue their usual record creation without a marketing
 receipt or correlation. Ordinary links and the configured fallback navigation
 remain native browser behavior.
+Failed/unavailable configuration reads preserve native UTM cookies and stored
+campaign context. A non-granted individual-policy GET does not erase native UTM
+cookies; an explicit individual refusal does, including an authoritative accepted
+refusal POST after a failed GET. The server still blocks first-party capture
+without an individual grant. Informational policy keeps native attribution.
 
 Create each tracked form or WhatsApp handoff under *Marketing Center >
 Configuration > Website Actions*. An action stores an immutable technical
@@ -201,7 +211,20 @@ requires both server flags. Native GA4 follows Website settings independently.
 Upgrade / explicit migration contract
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This release preserves campaign configuration, revisions and all historical
+In 16.0.2.3.0, inventory measurement-layout copies before upgrading: reconcile
+Website-specific or edited copies in the reviewed offline operation, or prove
+there are none. Do not pre-edit live 2.2 views to methods absent from 2.2 source.
+After native data load, every stored language of every view with key
+``marketing_center_website.measurement_layout``, including inactive copies, must
+contain the final two native Google guards. Stale copies abort the upgrade. Their ``arch_prev`` is
+normalized to the final architecture so an editor soft reset remains safe.
+On failure inspect module versions and stored views before recovery; never reset
+module states blindly or replay a completed upgrade. An abort can leave old views
+and 2.2 database metadata with 2.3 source on disk: keep HTTP stopped until the
+exact old source is restored or the final registry/view state is proved.
+
+Historical 16.0.2.2.0 cleanup: that release preserved campaign configuration,
+revisions and all historical
 receipts. Before upgrading a Soloz 3.0 installation, run the reviewed native
 cleanup offline preparation to retire its cookie descendant and adapt native
 privacy expressions. Marketing pre-migration refuses unexpected children or CMS
@@ -275,7 +298,7 @@ or button label. Capture policy remains in the Marketing endpoint configuration.
 GA4 reads the native Website ``google_analytics_key``. A managed Website permits
 the stock scripts on public HTTPS frontend GET/HEAD pages without access
 credentials, including Blog, Jobs and thank-you pages. ERP/access routes and
-internal users are excluded. Unmanaged Websites retain native behavior. Pausing
+all authenticated users (internal and portal) are excluded. Unmanaged Websites retain native behavior. Pausing
 a Marketing binding affects first-party capture but does not pause native Google.
 Action configuration still requires an eligible Website/company and published
 unrestricted CMS page; DOM metadata is not an authorization capability.

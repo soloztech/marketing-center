@@ -85,9 +85,11 @@ const context = vm.createContext({
         /* Browser API stub; no side effect needed in this fixture. */
       },
     },
-    fetch: async () => ({
+    fetch: async (path) => ({
       ok: true,
-      json: async () => ({accepted: true, granted: false}),
+      json: async () => path.endsWith("/config")
+        ? {available: true, granted: false, config_revision: 1, policy_version: "test", notice_version: "test"}
+        : {accepted: true, granted: false},
     }),
   },
 });
@@ -101,6 +103,19 @@ assert.equal(assignments.length, 6);
 assert.equal(jar.get("session_id|host|/"), "required session");
 assert.equal(jar.get("website_cookies_bar|host|/"), "native choice");
 assert.equal(jar.get("odoo_utm_campaign|domain:other.example|/"), "unrelated domain");
+for (const name of names) {
+  jar.set(`${name}|host|/`, "retained");
+  jar.set(`${name}|domain:${hostname}|/`, "retained");
+}
+assignments.length = 0;
+const unavailable = vm.createContext({...context, window: {...context.window, fetch: async () => ({ok: false})}});
+vm.runInContext(source, unavailable);
+await unavailable.api.submitConsent(false);
+assert.equal(assignments.length, 0);
+for (const name of names) {
+  assert.equal(jar.get(`${name}|host|/`), "retained");
+  assert.equal(jar.get(`${name}|domain:${hostname}|/`), "retained");
+}
 console.log(
   "Consent cookie scopes: all three host/Domain UTMs erased; required cookies and other domains preserved."
 );
