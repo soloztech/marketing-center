@@ -1,11 +1,6 @@
 /** @odoo-module **/
 
-import cookieUtils from "web.utils.cookies";
-import {loadConsent} from "@marketing_center_website/js/consent.esm";
-import {
-    eligibleMeasurementConfig,
-    refreshMeasurementConsent,
-} from "@marketing_center_website/js/measurement_context.esm";
+import {eligibleMeasurementConfig} from "@marketing_center_website/js/measurement_context.esm";
 import {validOpaqueUuid} from "@marketing_center_website/js/action_capture.esm";
 
 // The Google adapter consumes confirmed Website events; it never reads form
@@ -21,12 +16,6 @@ const CAMPAIGN_KEYS = new Set([
     "wbraid",
     "fbclid",
 ]);
-const DENIED = {
-    analytics_storage: "denied",
-    ad_storage: "denied",
-    ad_user_data: "denied",
-    ad_personalization: "denied",
-};
 const started = new WeakSet();
 
 export function measurementUrl(href, expectedPath) {
@@ -54,42 +43,6 @@ export function referrerOrigin(value) {
     } catch (_error) {
         return "";
     }
-}
-
-export function nativeOptionalAllowed() {
-    try {
-        const bar = document.getElementById("website_cookies_bar");
-        if (bar) {
-            // An edited bar missing a choice anchor cannot imply permission.
-            if (!document.getElementById("cookies-consent-essential")) {
-                return false;
-            }
-            const value = JSON.parse(
-                cookieUtils.getCookie("website_cookies_bar") || "{}"
-            );
-            if (
-                !value ||
-                typeof value !== "object" ||
-                Array.isArray(value) ||
-                value.optional !== true
-            ) {
-                return false;
-            }
-        }
-        // Call the runtime object so Website's native patch is always used.
-        return cookieUtils.isAllowedCookie("optional") === true;
-    } catch (_error) {
-        return false;
-    }
-}
-
-export function measurementAllowed(value, confirmed = true) {
-    return (
-        nativeOptionalAllowed() &&
-        confirmed === true &&
-        (value?.granted === true ||
-            (value?.informational_notice === true && value?.capture_allowed === true))
-    );
 }
 
 export async function annotateWebsiteActions(config) {
@@ -181,12 +134,7 @@ export function startMeasurement(config) {
     if (!/^G-[A-Z0-9]{4,20}$/.test(id || "")) {
         return;
     }
-    let granted = false;
-    let initialized = false;
-    let pageViewSent = false;
     const events = new Set();
-    const disabledKey = `ga-disable-${id}`;
-    window[disabledKey] = true;
     const metadata = {
         page_location: measurementUrl(window.location.href, config.dataset.path),
         page_referrer: referrerOrigin(document.referrer),
@@ -194,99 +142,20 @@ export function startMeasurement(config) {
     };
 
     function tag(...args) {
-        window.dataLayer = window.dataLayer || [];
-        // gtag queues Arguments objects rather than arrays.
-        (function () {
-            window.dataLayer.push(arguments);
-        })(...args);
-    }
-
-    function removeAnalyticsCookies() {
-        const hostname = window.location.hostname;
-        const domains = [""];
-        if (/^[a-z0-9.-]+$/i.test(hostname)) {
-            const labels = hostname.split(".");
-            // GA may choose a parent-domain cookie. Enumerate only ancestors of
-            // the current host; the browser rejects public-suffix scopes.
-            for (let index = 0; index < labels.length - 1; index += 1) {
-                const domain = labels.slice(index).join(".");
-                domains.push(domain, "." + domain);
-            }
-            if (labels.length === 1) {
-                domains.push(hostname);
-            }
-        }
-        for (const cookie of document.cookie.split(";")) {
-            const name = cookie.split("=", 1)[0].trim();
-            if (!/^_ga(?:_|$)/.test(name)) {
-                continue;
-            }
-            for (const domain of domains) {
-                document.cookie = `${name}=; Max-Age=0; Path=/; Secure; SameSite=Lax${
-                    domain ? `; Domain=${domain}` : ""
-                }`;
-            }
-        }
-    }
-
-    function applyAuthorization(value, confirmed = true) {
-        granted =
-            eligibleMeasurementConfig(config) && measurementAllowed(value, confirmed);
-        window[disabledKey] = !granted;
-        if (!granted) {
-            if (initialized) {
-                tag("consent", "update", {...DENIED});
-            }
-            removeAnalyticsCookies();
-            return;
-        }
-        if (!initialized) {
-            initialized = true;
-            tag("consent", "default", {...DENIED});
-            tag("consent", "update", {...DENIED, analytics_storage: "granted"});
-            tag("js", new Date());
-            tag("config", id, {
-                send_page_view: false,
-                allow_google_signals: false,
-                allow_ad_personalization_signals: false,
-                cookie_flags: "SameSite=Lax;Secure",
-                ...metadata,
-            });
-            const script = document.createElement("script");
-            script.id = "marketing_ga4_script";
-            script.async = true;
-            script.src =
-                "https://www.googletagmanager.com/gtag/js?id=" + encodeURIComponent(id);
-            document.head.appendChild(script);
+        // Website owns loading, configuration, pageviews and Google consent.
+        // Preserve the native queue when a browser blocks Google's network.
+        if (typeof window.gtag === "function") {
+            window.gtag(...args);
         } else {
-            tag("consent", "update", {...DENIED, analytics_storage: "granted"});
-        }
-        if (!pageViewSent) {
-            tag("event", "page_view", {...metadata, send_to: id});
-            pageViewSent = true;
+            window.dataLayer = window.dataLayer || [];
+            (function () {
+                window.dataLayer.push(arguments);
+            })(...args);
         }
     }
-
-    document.addEventListener("marketing_center:consent-ready", (event) =>
-        applyAuthorization(event.detail)
-    );
-    document.addEventListener("marketing_center:consent-changed", (event) => {
-        applyAuthorization(event.detail, event.detail?.confirmed === true);
-    });
-    document.addEventListener("marketing_center:native-cookie-choice", (event) => {
-        // UI persistence belongs to Odoo. Refresh the independent server policy.
-        applyAuthorization(null);
-        Promise.resolve(event.detail?.settled)
-            .catch(() => null)
-            .then(() => refreshMeasurementConsent())
-            .then((value) => applyAuthorization(value))
-            .catch(() => applyAuthorization(null));
-    });
     document.addEventListener("marketing_center:action-confirmed", (event) => {
         const detail = event.detail || {};
         if (
-            !granted ||
-            !nativeOptionalAllowed() ||
             !eligibleMeasurementConfig(config) ||
             !validOpaqueUuid(detail.event_id || "") ||
             events.has(detail.event_id)
@@ -330,23 +199,6 @@ export function startMeasurement(config) {
             tag("event", eventName, payload);
         }
     });
-    const refreshOnReturn = () => {
-        granted = false;
-        window[disabledKey] = true;
-        refreshMeasurementConsent()
-            .then((value) => applyAuthorization(value))
-            .catch(() => applyAuthorization(null));
-    };
-    window.addEventListener("focus", refreshOnReturn);
-    window.addEventListener("pageshow", (event) => {
-        if (event.persisted) refreshOnReturn();
-    });
-    document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "visible") refreshOnReturn();
-    });
-    loadConsent()
-        .then((value) => applyAuthorization(value))
-        .catch(() => applyAuthorization(null));
 }
 
 function boot() {

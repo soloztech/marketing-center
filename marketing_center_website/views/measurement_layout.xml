@@ -9,12 +9,12 @@
         <xpath expr="//script[@id='tracking_code']" position="attributes">
             <attribute
                 name="t-if"
-            >not website._marketing_measurement_managed()</attribute>
+            >website._marketing_native_google_allowed()</attribute>
         </xpath>
         <xpath expr="//script[@id='tracking_code_config']" position="attributes">
             <attribute
                 name="t-if"
-            >not website._marketing_measurement_managed()</attribute>
+            >website._marketing_native_google_allowed()</attribute>
         </xpath>
         <xpath expr="//div[@id='wrapwrap']" position="before">
             <t

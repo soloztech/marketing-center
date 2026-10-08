@@ -177,15 +177,17 @@ record the responsible administrator and timestamp. Purpose, policy and notice
 versions, justification, retention, capture enablement, host/company, anonymous
 session, HTTPS, technical-page and confirmed-event guards still apply.
 
-Since 16.0.2.2.0 the cookie bar is entirely standard Odoo, with Accept and
-Essential-only choices. There is no Marketing notice, dismissal localStorage,
-notice settings or compatibility markup. GA4 requires native optional permission
-in addition to server authorization, even under informational capture. No native
-choice, refusal or malformed preference denies GA4. Native choice persistence
-belongs to Odoo; the integration refreshes policy after the backend decision.
-First-party informational attribution remains governed by its existing server
-policy independently; explicit refusal prevents native UTM cookies. Forms and
-ordinary WhatsApp navigation remain usable under either choice.
+Since 16.0.2.3.0 Odoo Website owns the Google loader, configuration, pageviews
+and consent commands. Marketing Center forwards only confirmed form and WhatsApp
+handoff events. It has no second Google loader or Google consent state. With
+``website.cookies_bar=False``, native Odoo allows optional cookies regardless of
+an old absent, refused or malformed choice and grants analytics storage,
+advertising storage, advertising user data and personalization. Native Google
+pageviews may include the full public URL and referrer. Conversion event metadata
+uses the narrower campaign allowlist and referrer origin; form values are not
+copied into those events. Native UTM cookies also follow the Odoo setting.
+First-party informational attribution retains its independent server policy and
+historical receipts. Forms and ordinary WhatsApp navigation remain available.
 
 New evidence records ``consent_state=unknown``,
 ``decision_source=operator.website_notice`` and
@@ -194,7 +196,7 @@ clears an old consent legal-basis label rather than claiming a different legal
 basis. Historical receipts and evidence are not modified or reclassified.
 Public configuration exposes ``informational_notice`` and ``capture_allowed``
 separately from the actual ``granted`` decision. Capturing under this policy
-requires both server flags. GA4 additionally requires native optional acceptance.
+requires both server flags. Native GA4 follows Website settings independently.
 
 Upgrade / explicit migration contract
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -265,24 +267,23 @@ the optional GA4 consumer of confirmed Marketing events. Native CRM submission
 correlation is included in this adapter since 16.0.2.0.0, using ``website_crm``.
 No company-specific Website addon or separate Marketing CRM bridge is required.
 
-Website settings enable Odoo's stock cookie bar. Edit privacy/cookie-policy
-content through the native CMS. This module owns no notice text or button label.
-Capture policy remains in the audited Marketing endpoint configuration.
+Website settings control Odoo's stock cookie bar. Soloz Website 1 selects the
+native setting with the bar disabled for automatic collection. Edit privacy and
+cookie-policy content through the native CMS. This module owns no notice text
+or button label. Capture policy remains in the Marketing endpoint configuration.
 
-GA4 reads the native Website ``google_analytics_key``. A configured Marketing
-binding suppresses both native Google scripts, even when paused, so pausing
-capture cannot accidentally revive another loader. Unmanaged Websites retain
-their native behavior. The public configuration is rendered outside QWeb's
-shared cache and is restricted to the active Website/company, HTTPS host,
-anonymous user and published unrestricted page. Server consent/capture checks
-remain authoritative; DOM metadata is not an authorization capability.
+GA4 reads the native Website ``google_analytics_key``. A managed Website permits
+the stock scripts on public HTTPS frontend GET/HEAD pages without access
+credentials, including Blog, Jobs and thank-you pages. ERP/access routes and
+internal users are excluded. Unmanaged Websites retain native behavior. Pausing
+a Marketing binding affects first-party capture but does not pause native Google.
+Action configuration still requires an eligible Website/company and published
+unrestricted CMS page; DOM metadata is not an authorization capability.
 
-The optional consumer sends one page view, ``generate_lead`` after a confirmed
-form receipt and ``whatsapp_handoff`` after a confirmed handoff. It does not
-read form values or treat a thank-you page as proof. Google query/referrer data
-is filtered more narrowly than the first-party ingress, and advertising
-storage/user data/personalization remain denied. Keep automatic Google form
-tracking and duplicate Google/GTM loaders disabled for this event contract.
+The event adapter sends ``generate_lead`` after a confirmed form receipt and
+``whatsapp_handoff`` after a confirmed handoff. It emits no pageview or Google
+consent commands. A thank-you page is not proof of a lead. Keep automatic Google
+form tracking and duplicate Google/GTM loaders disabled for this event contract.
 
 Existing explicit action markers are preserved. Automatic form annotation
 requires exactly one eligible native CRM form and one configured action.
