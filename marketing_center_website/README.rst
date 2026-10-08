@@ -119,7 +119,8 @@ purge deadline.
 Frontend integration exports ``loadConsent()`` from
 ``@marketing_center_website/js/consent.esm`` and emits document events
 ``marketing_center:consent-ready`` after a server GET and
-``marketing_center:consent-changed`` after a decision. Consumers may grant only
+``marketing_center:consent-changed`` after a decision. First-party consumers of
+the individual-consent policy may grant only
 ``ready.granted === true`` or ``changed.granted === true`` with
 ``confirmed === true``. A false value must disable optional measurement at once.
 A control marked ``data-marketing-consent-revoke`` withdraws the decision and
@@ -131,7 +132,9 @@ exchange and callbacks before returning the exact native result; tracking errors
 cannot fail the form. Callbacks alone are capped at 750 ms. A thank-you page visit
 never emits a form success event.
 Only ``form_submission`` signifies a native form success; ``whatsapp_handoff`` is
-navigation, never a lead or sale. This addon sends no external analytics itself.
+navigation, never a lead or sale. The bundled Google event adapter does not
+consume these consent events: it forwards server-confirmed actions to the native
+Website Google queue, whose consent mode follows Website settings.
 
 When policy is disabled, the config response contains only ``enabled=false``;
 the browser does not prepare optional landing/action identifiers from that
@@ -201,7 +204,16 @@ requires both server flags. Native GA4 follows Website settings independently.
 Upgrade / explicit migration contract
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This release preserves campaign configuration, revisions and all historical
+In 16.0.2.3.0, inventory measurement-layout copies before upgrading. Every stored
+language of every view with key ``marketing_center_website.measurement_layout``,
+including inactive and Website-specific copies, must contain the final two native
+Google guards. Stale/edited copies abort the upgrade. Their ``arch_prev`` is
+normalized to the final architecture so an editor soft reset remains safe.
+On failure inspect module versions and stored views before recovery; never reset
+module states blindly or replay a completed upgrade.
+
+Historical 16.0.2.2.0 cleanup: that release preserved campaign configuration,
+revisions and all historical
 receipts. Before upgrading a Soloz 3.0 installation, run the reviewed native
 cleanup offline preparation to retire its cookie descendant and adapt native
 privacy expressions. Marketing pre-migration refuses unexpected children or CMS
