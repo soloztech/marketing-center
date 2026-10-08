@@ -423,7 +423,9 @@ class TestNativeWebsiteWhatsAppHttp(HttpCase):
             },
         )
 
-    def test_published_thank_you_has_whatsapp_and_native_ga_without_form_measurement(self):
+    def test_published_thank_you_has_whatsapp_and_native_ga_without_form_measurement(
+        self,
+    ):
         default = self._global_default()
         self.website.google_analytics_key = "G-TEST1234"
         page = self.env["website.page"].search(

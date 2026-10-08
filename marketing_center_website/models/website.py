@@ -50,8 +50,13 @@ class Website(models.Model):
             ):
                 return False
             sensitive = {
-                "token", "access_token", "signup_token", "reset_password",
-                "password", "db", "redirect",
+                "token",
+                "access_token",
+                "signup_token",
+                "reset_password",
+                "password",
+                "db",
+                "redirect",
             }
             keys = set(getattr(request.httprequest, "args", {})) | set(
                 getattr(request, "params", {})
@@ -60,8 +65,19 @@ class Website(models.Model):
                 return False
             path = unquote(request.httprequest.path).casefold()
             prefixes = (
-                "/auth", "/web", "/my", "/portal", "/website", "/marketing",
-                "/payment", "/rate", "/survey", "/calendar", "/mail", "/sign", "/report",
+                "/auth",
+                "/web",
+                "/my",
+                "/portal",
+                "/website",
+                "/marketing",
+                "/payment",
+                "/rate",
+                "/survey",
+                "/calendar",
+                "/mail",
+                "/sign",
+                "/report",
             )
             return not any(
                 path == prefix or path.startswith(prefix + "/") for prefix in prefixes
