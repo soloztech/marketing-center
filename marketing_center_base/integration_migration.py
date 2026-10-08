@@ -44,9 +44,9 @@ VERSIONS = {
 # Checkpoints above identify the original ownership migration. Supported later
 # releases must be accepted both during prepared upgrades and on fresh graphs.
 SUCCESSOR_VERSIONS = {
-    "marketing_center_base": ("16.0.2.1.1", "16.0.2.1.2"),
+    "marketing_center_base": ("16.0.2.1.1", "16.0.2.1.2", "16.0.2.1.3"),
     "marketing_center_contact_center": ("16.0.2.0.1",),
-    "marketing_center_website": ("16.0.2.1.0", "16.0.2.1.1"),
+    "marketing_center_website": ("16.0.2.1.0", "16.0.2.1.1", "16.0.2.2.0"),
     "marketing_center_website_whatsapp": ("16.0.1.3.1", "16.0.1.4.0", "16.0.1.5.0"),
 }
 DEPENDENCIES = {

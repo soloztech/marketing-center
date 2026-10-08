@@ -1,7 +1,7 @@
 {
     "name": "Marketing Center",
     "summary": "Acquisition evidence, CRM attribution and management overview",
-    "version": "16.0.2.1.2",
+    "version": "16.0.2.1.3",
     "category": "Marketing",
     "author": "Soloz Technologies",
     "website": "https://github.com/soloztech/marketing-center",
