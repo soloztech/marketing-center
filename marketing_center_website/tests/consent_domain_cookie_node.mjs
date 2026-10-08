@@ -87,9 +87,16 @@ const context = vm.createContext({
     },
     fetch: async (path) => ({
       ok: true,
-      json: async () => path.endsWith("/config")
-        ? {available: true, granted: false, config_revision: 1, policy_version: "test", notice_version: "test"}
-        : {accepted: true, granted: false},
+      json: async () =>
+        path.endsWith("/config")
+          ? {
+              available: true,
+              granted: false,
+              config_revision: 1,
+              policy_version: "test",
+              notice_version: "test",
+            }
+          : {accepted: true, granted: false},
     }),
   },
 });
@@ -108,7 +115,10 @@ for (const name of names) {
   jar.set(`${name}|domain:${hostname}|/`, "retained");
 }
 assignments.length = 0;
-const unavailable = vm.createContext({...context, window: {...context.window, fetch: async () => ({ok: false})}});
+const unavailable = vm.createContext({
+  ...context,
+  window: {...context.window, fetch: async () => ({ok: false})},
+});
 vm.runInContext(source, unavailable);
 await unavailable.api.submitConsent(false);
 assert.equal(assignments.length, 0);
