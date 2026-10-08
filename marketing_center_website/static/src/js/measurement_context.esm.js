@@ -1,18 +1,6 @@
 /** @odoo-module **/
 
-import {loadConsent} from "@marketing_center_website/js/consent.esm";
 import {eligibleLandingPath} from "@marketing_center_website/js/landing_capture.esm";
-
-let refreshPending = null;
-
-export function refreshMeasurementConsent() {
-    if (!refreshPending) {
-        refreshPending = loadConsent(true).finally(() => {
-            refreshPending = null;
-        });
-    }
-    return refreshPending;
-}
 
 export function eligibleMeasurementConfig(config) {
     return Boolean(

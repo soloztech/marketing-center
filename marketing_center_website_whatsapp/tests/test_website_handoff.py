@@ -423,7 +423,7 @@ class TestNativeWebsiteWhatsAppHttp(HttpCase):
             },
         )
 
-    def test_published_thank_you_has_whatsapp_without_ga_or_form_measurement(self):
+    def test_published_thank_you_has_whatsapp_and_native_ga_without_form_measurement(self):
         default = self._global_default()
         self.website.google_analytics_key = "G-TEST1234"
         page = self.env["website.page"].search(
@@ -455,11 +455,8 @@ class TestNativeWebsiteWhatsAppHttp(HttpCase):
         self.assertEqual(configs[0].get("data-action"), default.public_ref)
         self.assertEqual(configs[0].get("data-path"), page.url)
         self.assertFalse(document.xpath("//*[@id='marketing_measurement_config']"))
-        self.assertFalse(
-            document.xpath(
-                "//script[@id='tracking_code' or @id='tracking_code_config']"
-            )
-        )
+        self.assertEqual(len(document.xpath("//script[@id='tracking_code']")), 1)
+        self.assertEqual(len(document.xpath("//script[@id='tracking_code_config']")), 1)
         response = self._post_page(page.url, default)
         self.assertEqual(response.status_code, 202, response.text)
         self.env.invalidate_all()

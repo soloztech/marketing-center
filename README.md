@@ -27,6 +27,26 @@ fields, see [Campanhas externas e atribuição nativa](docs/native-campaign-attr
 These addons contain no campaign, attribution, conversation, lead, Website, Sale or
 Accounting business rules.
 
+## Website measurement from 16.0.2.3.0
+
+Odoo Website owns the Google script, consent commands, configuration and pageviews.
+Marketing Center only forwards confirmed form and WhatsApp handoff events to that
+native queue. It does not load Google, delete GA cookies or maintain a second Google
+consent state. A handoff is not a conversation; a pageview is not a confirmed lead.
+
+On Soloz Website 1, the owner selected automatic collection with the native cookie
+bar disabled. Odoo then allows optional cookies regardless of an old stored choice
+and grants the native Google storage and advertising consent signals. Native Google
+pageviews may include the full public URL and referrer. Our conversion event metadata
+continues to allow only campaign parameters and the referrer origin; form contents
+are not copied into events. Managed websites exclude authenticated users, ERP/access
+routes and credential-bearing URLs from native Google rendering.
+
+First-party ingress policy, campaign capture, origin validation, deduplication and
+the WhatsApp consent bus API are unchanged. Enabling `individual_consent` or using
+`_activate_informational_notice` still requires enabling the native bar first; this
+release does not change those generic administrative workflows for other sites.
+
 ## Marketing Center addons
 
 - `marketing_center_base` — canonical sources, catalog, metrics, touchpoints,

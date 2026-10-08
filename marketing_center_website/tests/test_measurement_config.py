@@ -5,7 +5,9 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from lxml import etree
+from psycopg2 import Error as PsycopgError
 
+from odoo.exceptions import UserError
 from odoo.tests.common import SavepointCase
 
 from ..models import website as website_module
@@ -108,13 +110,83 @@ class TestMarketingWebsiteMeasurementConfig(SavepointCase):
         self.page.write({"is_published": True, "visibility": "password"})
         self.assertEqual(self._configuration(), {})
 
-    def test_paused_binding_does_not_restore_native_google_loader(self):
-        self.assertTrue(self.website._marketing_measurement_managed())
+    def _google(self, *, path="/blog", args=None, params=None, internal=False, method="GET", scheme="https", frontend=True, website=None):
+        mocked = SimpleNamespace(
+            env=self.env if internal else self.website.with_user(self.website.user_id).env,
+            website=website or self.website, is_frontend=frontend, params=params or {},
+            httprequest=SimpleNamespace(
+                scheme=scheme, method=method, path=path, args=args or {},
+                cookies={"website_cookies_bar": '{"optional":false}'},
+            ),
+        )
+        with patch.object(website_module, "request", mocked):
+            return self.website._marketing_native_google_allowed()
+
+    def test_native_google_public_coverage_independent_of_capture_choice(self):
+        self.website.cookies_bar = False
+        self.assertTrue(self.website._allConsentsGranted())
+        for path in ("/", "/blog", "/blog/cases-4/post-26", "/jobs", "/contactus",
+                     "/contactus-thank-you", "/reports-2026", "/signature-products",
+                     "/mailbox", "/authors", "/webinar"):
+            with self.subTest(path=path):
+                self.assertTrue(self._google(path=path))
+        self.assertTrue(self._google(method="HEAD"))
         self.binding.active = False
-        self.assertTrue(self.website._marketing_measurement_managed())
         self.assertEqual(self._configuration(), {})
+        self.assertTrue(self._google(), "native Google remains separate from first-party pause")
+
+    def test_native_google_excludes_access_credentials_and_internal_users(self):
+        for prefix in ("/auth", "/web", "/my", "/portal", "/website", "/marketing", "/payment", "/rate", "/survey", "/calendar", "/mail", "/sign", "/report"):
+            self.assertFalse(self._google(path=prefix))
+            self.assertFalse(self._google(path=prefix + "/synthetic"))
+        for path in ("/web", "/web/reset_password", "/my", "/my/orders/1", "/payment",
+                     "/payment/pay", "/rate/synthetic/5", "/survey/fill/synthetic",
+                     "/PAYMENT/pay", "/p%61yment/pay"):
+            with self.subTest(path=path):
+                self.assertFalse(self._google(path=path))
+        for key in ("token", "ACCESS_TOKEN", "signup_token", "reset_password", "password", "db", "redirect"):
+            self.assertFalse(self._google(args={key: "synthetic"}))
+            self.assertFalse(self._google(params={key: "synthetic"}))
+        self.assertFalse(self._google(internal=True))
+        self.assertFalse(self._google(method="POST"))
+        self.assertFalse(self._google(scheme="http"))
+        self.assertFalse(self._google(frontend=False))
+        self.assertFalse(self._google(website=self.env.ref("website.default_website")))
+
+    def test_native_google_guard_failure_does_not_break_pages(self):
+        with patch.object(website_module, "request", None):
+            self.assertFalse(self.website._marketing_native_google_allowed())
+        with patch.object(type(self.website), "_marketing_measurement_binding", side_effect=RuntimeError("synthetic")):
+            self.assertFalse(self._google())
+        with patch.object(type(self.website), "_marketing_measurement_binding", side_effect=PsycopgError("synthetic")):
+            with self.assertRaises(PsycopgError):
+                self._google()
         other = self.env["website"].create({"name": "Native Google site"})
-        self.assertFalse(other._marketing_measurement_managed())
+        with patch.object(website_module, "request", SimpleNamespace()):
+            self.assertTrue(other._marketing_native_google_allowed())
+
+    def test_measurement_reset_keeps_native_google_guard(self):
+        import runpy
+        from pathlib import Path
+        normalize = runpy.run_path(str(Path(__file__).resolve().parents[1] /
+            "migrations/16.0.2.3.0/post-migration.py"))["normalize_measurement"]
+        view = self.env.ref("marketing_center_website.measurement_layout")
+        view.with_context(no_save_prev=True).write({
+            "arch_prev": '<data><t t-if="website._marketing_measurement_managed()"/></data>'})
+        normalize(self.env)
+        view.reset_arch(mode="soft")
+        self.assertNotIn("_marketing_measurement_managed", view.arch_db)
+        self.assertEqual(view.arch_db.count("_marketing_native_google_allowed"), 2)
+        copied = view.with_context(no_cow=True).copy({"website_id": self.website.id, "key": view.key})
+        copied.with_context(no_cow=True, no_save_prev=True).write({
+            "arch_prev": '<data><t t-if="website._marketing_measurement_managed()"/></data>'})
+        normalize(self.env)
+        copied.reset_arch(mode="soft")
+        self.assertNotIn("_marketing_measurement_managed", copied.arch_db)
+        copied.with_context(no_cow=True).write({
+            "arch_db": '<data><t t-if="website._marketing_measurement_managed()"/></data>'})
+        with self.assertRaises(UserError):
+            normalize(self.env)
 
     def test_whatsapp_matching_does_not_publish_admin_destination(self):
         action = self.env["marketing.website.action"].create(

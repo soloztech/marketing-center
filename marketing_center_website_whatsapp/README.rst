@@ -28,8 +28,9 @@ Only published public ``website.page`` records in native mode are eligible;
 technical routes, private pages and authenticated/editor sessions are excluded.
 The real clicked page is recorded even when it uses the common default action,
 and an event UUID cannot be replayed on another page. A published thank-you page
-can use this WhatsApp setting without enabling GA4 or native form measurement on
-that page: the addon renders its own minimal configuration.
+can use this WhatsApp setting without adding native form measurement: the addon
+renders its own minimal configuration. Native Google pageviews follow Website
+settings independently, including on thank-you pages.
 
 Links must point to the configured destination number; their original messages
 are preserved, including document requests and floating buttons. The browser

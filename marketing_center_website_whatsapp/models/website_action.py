@@ -217,7 +217,7 @@ class Website(models.Model):
         )
 
     def _whatsapp_handoff_config(self):
-        """Own public configuration: thank-you pages do not enable GA or forms."""
+        """Own public configuration: thank-you pages do not enable form actions."""
         self.ensure_one()
         if (
             not request

@@ -1,6 +1,8 @@
 import hashlib
 import re
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
+
+from psycopg2 import Error as PsycopgError
 
 from odoo import _, models
 from odoo.exceptions import ValidationError
@@ -31,9 +33,44 @@ class Website(models.Model):
             .search(domain, limit=1)
         )
 
-    def _marketing_measurement_managed(self):
-        """Do not revive OCB's Google loader when a configured binding is paused."""
-        return bool(self._marketing_measurement_binding(active=False))
+    def _marketing_native_google_allowed(self):
+        """Keep stock Google on public pages without exposing ERP access URLs."""
+        self.ensure_one()
+        try:
+            if not request:
+                return False
+            if not self._marketing_measurement_binding(active=False):
+                return True
+            if (
+                not request.env.user._is_public()
+                or request.website.id != self.id
+                or request.httprequest.scheme != "https"
+                or request.httprequest.method not in ("GET", "HEAD")
+                or not getattr(request, "is_frontend", False)
+            ):
+                return False
+            sensitive = {
+                "token", "access_token", "signup_token", "reset_password",
+                "password", "db", "redirect",
+            }
+            keys = set(getattr(request.httprequest, "args", {})) | set(
+                getattr(request, "params", {})
+            )
+            if any(str(key).casefold() in sensitive for key in keys):
+                return False
+            path = unquote(request.httprequest.path).casefold()
+            prefixes = (
+                "/auth", "/web", "/my", "/portal", "/website", "/marketing",
+                "/payment", "/rate", "/survey", "/calendar", "/mail", "/sign", "/report",
+            )
+            return not any(
+                path == prefix or path.startswith(prefix + "/") for prefix in prefixes
+            )
+        except PsycopgError:
+            raise
+        except Exception:
+            # A broken optional measurement integration must not break the site.
+            return False
 
     def _marketing_measurement_config(self):
         """Request-scoped public configuration; authorization stays in the ingress."""
