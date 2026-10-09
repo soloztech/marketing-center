@@ -89,15 +89,33 @@ class Company(models.Model):
         readonly=True, copy=False, groups="base.group_system"
     )
     crm_cross_source_monitor_json = fields.Json(
-        readonly=True, copy=False, groups="base.group_system"
+        compute="_compute_crm_cross_source_monitor", groups="base.group_system"
     )
+
+    def _compute_crm_cross_source_monitor(self):
+        rows = (
+            self.env["marketing.crm.admission.monitor"]
+            .sudo()
+            .search([("company_id", "in", self.ids)])
+        )
+        by_company = {row.company_id.id: row.data_json for row in rows}
+        for company in self:
+            company.crm_cross_source_monitor_json = by_company.get(company.id, {})
 
     @api.model_create_multi
     def create(self, vals_list):
         self._crm_dedup_audit_guard(vals_list)
-        if any(POLICY_FIELDS.intersection(values) for values in vals_list) or any(
-            "default_" + key in self.env.context for key in POLICY_FIELDS
-        ):
+        defaults = {
+            "crm_cross_source_dedup_enabled": False,
+            "crm_cross_source_window_hours": 24,
+            "crm_cross_source_reviewer_id": False,
+        }
+        configured = any(
+            values.get(key, self.env.context.get("default_" + key, default)) != default
+            for values in vals_list
+            for key, default in defaults.items()
+        )
+        if configured:
             require_policy_admin(self.env)
         if any(
             values.get("crm_cross_source_dedup_enabled") for values in vals_list

@@ -134,11 +134,10 @@ class AdmissionSignals(models.AbstractModel):
 
     @api.model
     def _crm_admission_monitor_company(self, company, Projection, now):
-        self.env.cr.execute(
-            "SELECT id FROM res_company WHERE id=%s FOR UPDATE NOWAIT", [company.id]
-        )
-        company.invalidate_recordset(["crm_cross_source_monitor_json"])
-        data = dict(company.crm_cross_source_monitor_json or {})
+        monitor = self.env["marketing.crm.admission.monitor"]._locked_company(company)
+        if not monitor:
+            return False
+        data = dict(monitor.data_json or {})
         data["reviewer_unavailable"] = not bool(self._crm_admission_reviewer(company))
         counts = self._crm_cross_source_intake_counts(company)
         metrics = {"intake_review": counts}
@@ -203,7 +202,8 @@ class AdmissionSignals(models.AbstractModel):
                 "alert_key": alerted,
                 "count": count,
                 "oldest": fields.Datetime.to_string(oldest) if oldest else False,
-                "checked_at": fields.Datetime.to_string(now),
             }
-        company._crm_dedup_write_audit({"crm_cross_source_monitor_json": data})
+        if data != (monitor.data_json or {}):
+            monitor.write({"data_json": data})
+            company.invalidate_recordset(["crm_cross_source_monitor_json"])
         return True

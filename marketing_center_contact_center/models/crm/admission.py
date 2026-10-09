@@ -95,12 +95,13 @@ class Admission(models.AbstractModel):
                 domain += [(prefix + "exact", "=", keys["exact"])]
             if exclude and exclude._name == model:
                 domain += [("id", "!=", exclude.id)]
-            for row in (
+            rows = (
                 self.env[model]
                 .sudo()
                 .with_context(active_test=False)
-                .search(domain, order="id", limit=4)
-            ):
+                .search(domain, order="id", limit=5)
+            )
+            for row in rows:
                 # Any undecided/decided matching demand is significant. Dismissal
                 # never becomes authorization to recreate it through another path.
                 result.append(
@@ -110,6 +111,7 @@ class Admission(models.AbstractModel):
                         "state": row[state_field],
                         "at": row[at_field],
                         "weak": row[prefix + "exact"] != keys["exact"],
+                        "overflow": len(rows) > 4,
                     }
                 )
         return result
@@ -212,7 +214,11 @@ class Admission(models.AbstractModel):
             return review("business_scope_review")
         if targets - set(candidates.ids):
             return review("receipt_without_target")
-        if len(candidates) > 1 or len(targets) > 1:
+        if (
+            len(candidates) > 1
+            or len(targets) > 1
+            or any(item["overflow"] for item in receipts)
+        ):
             return review("ambiguous")
         if not candidates:
             return decision
@@ -249,6 +255,28 @@ class Admission(models.AbstractModel):
             not cutoff
             or occurred_at < cutoff
             or any(item["at"] < cutoff for item in receipts)
+        ):
+            return False
+
+        def created_in_cohort(item):
+            source = item["record"]
+            if source._name == "contact.center.channel.binding":
+                return (
+                    source.crm_intake_state == "created"
+                    and source.id > company.crm_cross_source_binding_watermark
+                    and source.crm_intake_admitted_at >= cutoff
+                )
+            return (
+                source.admission_decision == "created"
+                and source.id > company.crm_cross_source_projection_watermark
+                and source.submission_id.id
+                > company.crm_cross_source_submission_watermark
+            )
+
+        if (
+            not lead.create_date
+            or lead.create_date < cutoff
+            or not any(created_in_cohort(item) for item in receipts)
         ):
             return False
         links = (
@@ -308,6 +336,7 @@ class Admission(models.AbstractModel):
         if (
             projection.comparison_erased_at
             or projection.submission_id.touchpoint_id.privacy_erased_at
+            or not projection.submission_id.provider_created_at
         ):
             return {
                 "decision": "review",
@@ -404,6 +433,7 @@ class Admission(models.AbstractModel):
             values.get("phone"),
             projection.company_id.country_id.code or "BR",
             review_only=True,
+            review_actor=self.env,
         )
         return (exact | weak).filtered(
             lambda lead: lead.company_id == projection.company_id
@@ -502,8 +532,36 @@ class Binding(models.Model):
             "+" + next(iter(numbers)),
             self.company_id.country_id.code or "BR",
             review_only=True,
+            review_actor=actor,
         )
         native = super()._crm_intake_review_candidates(actor)
         return (exact | weak | exact.browse(native.ids)).filtered(
             lambda lead: lead.company_id == self.company_id
+        )
+
+    def _crm_intake_review_match(self, lead, actor):
+        if not lead or not self.sudo().crm_comparison_policy_revision:
+            return super()._crm_intake_review_match(lead, actor)
+        numbers = actor["contact.center.ui.api"]._crm_phone_numbers(
+            actor["mail.channel"].browse(self.channel_id.id)
+        )
+        if len(numbers) != 1:
+            return "business"
+        gate = (
+            self.env["contact.center.crm.intake.gate"]
+            .sudo()
+            .search([("company_id", "=", self.company_id.id)], limit=1)
+        )
+        exact, weak = gate._phone_candidates(
+            "+" + next(iter(numbers)),
+            self.company_id.country_id.code or "BR",
+            review_only=True,
+            review_actor=actor,
+        )
+        return (
+            "br_pair"
+            if lead.id in weak.ids
+            else "exact_phone"
+            if lead.id in exact.ids
+            else "business"
         )

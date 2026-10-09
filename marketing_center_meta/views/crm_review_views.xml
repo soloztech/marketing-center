@@ -96,6 +96,12 @@
                             <field name="route_label" /><field name="reason" /><field
                                 name="technical"
                             />
+                            <button
+                                name="action_open"
+                                string="Revisar"
+                                type="object"
+                                icon="fa-pencil"
+                            />
                         </tree>
                     </field>
                 </sheet>

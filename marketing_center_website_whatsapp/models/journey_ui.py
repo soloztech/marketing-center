@@ -118,7 +118,7 @@ class JourneyApi(models.AbstractModel):
                     else privacy
                     if privacy != "ready"
                     else "claim_unavailable"
-                    if not match._journey_claim_valid()
+                    if not match.message_at or not match._journey_claim_valid()
                     else "business_context"
                     if not match._journey_business_company_valid(link)
                     else "pending"
@@ -656,9 +656,27 @@ class CrmLead(models.Model):
             for match in matches[:20].sudo():
                 handoff = match.handoff_id
                 point = handoff.journey_touchpoint_id
-                if not point:
-                    continue
-                item = self._journey_minimal_origin(point, link, match.message_at)
+                scope, privacy, _collision = self.env[
+                    "marketing.website.whatsapp.journey.api"
+                ]._handoff_scope(handoff, match, link)
+                # Validate the claim/time before the shared origin predicate.
+                available = bool(
+                    point and match.message_at and match._journey_claim_valid()
+                )
+                if available:
+                    item = self._journey_minimal_origin(point, link, match.message_at)
+                else:
+                    item = {
+                        "type": "website",
+                        "at": stamp(handoff.clicked_at),
+                        "scope": "pending",
+                        "can_review": False,
+                        "evidence_key": False,
+                        "campaign_name": False,
+                        "ad_name": False,
+                        "source_name": False,
+                        "medium_name": False,
+                    }
                 item.update(
                     type="website",
                     visit_at=stamp(handoff.visit_at),
@@ -669,13 +687,35 @@ class CrmLead(models.Model):
                     ),
                     clicked_at=stamp(handoff.clicked_at),
                     message_at=stamp(match.message_at),
+                    scope="eligible"
+                    if scope == "eligible"
+                    else "pending"
+                    if scope
+                    in {
+                        "pending",
+                        "support_review",
+                        "scope_review",
+                        "business_context",
+                        "legacy",
+                        "legacy_collision",
+                        "unlinked",
+                        "suggested",
+                    }
+                    else "ineligible",
                 )
                 if (
-                    handoff._journey_privacy_status() != "ready"
-                    or not match._journey_claim_valid()
+                    not available
+                    or privacy != "ready"
+                    or scope
+                    not in {
+                        "eligible",
+                        "outside_period",
+                        "scope_review",
+                        "support_review",
+                        "pending",
+                    }
                 ):
                     item.update(
-                        scope="ineligible",
                         campaign_name=False,
                         ad_name=False,
                         source_name=False,

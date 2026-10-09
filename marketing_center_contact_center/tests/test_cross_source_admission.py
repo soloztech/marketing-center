@@ -88,8 +88,12 @@ class TestCrossSourceAdmission(CrmIntakeCase):
             self._message(binding, date=self.at)
         return binding
 
+    def _run(self, binding):
+        with patch.object(type(self.env.cr), "now", return_value=self.at):
+            return super()._run(binding)
+
     def _project(self, projection):
-        with trap_jobs():
+        with trap_jobs(), patch.object(type(self.env.cr), "now", return_value=self.at):
             self._run_projection_job(projection)
         projection.invalidate_recordset()
         return projection.lead_id
@@ -278,7 +282,12 @@ class TestCrossSourceAdmission(CrmIntakeCase):
         self.assertEqual(lead._conversation_links().scope_state, "context")
         self.assertNotEqual(lead, legacy)
         projection = self._meta()
-        self.assertEqual(self._project(projection), lead)
+        before = self.env["crm.lead"].search_count([])
+        self.assertFalse(self._project(projection))
+        self.assertEqual(projection.state, "review")
+        self.assertEqual(projection.review_reason, "business_scope_review")
+        self.assertFalse(projection.assertion_id)
+        self.assertEqual(self.env["crm.lead"].search_count([]), before)
         self.assertEqual(lead._conversation_links().scope_state, "context")
 
     def test_policy_edits_preserve_activation_cohort_and_pending_counts(self):
@@ -841,3 +850,98 @@ class TestCrossSourceAdmission(CrmIntakeCase):
         self.assertTrue(lead)
         self.assertNotEqual(lead, previous)
         self.assertEqual(projection.state, "done")
+
+    def test_history_cannot_hide_open_exact_or_variant_candidates(self):
+        for number, incoming in [
+            ("+5511997776666", "+5511997776666"),
+            ("+551197776666", "+5511997776666"),
+        ]:
+            with self.subTest(phone=number):
+                historical = self.env["crm.lead"].create(
+                    [
+                        {
+                            "name": "Old history %s" % i,
+                            "company_id": self.company.id,
+                            "phone": number,
+                            "active": False,
+                        }
+                        for i in range(5)
+                    ]
+                )
+                lead = self.env["crm.lead"].create(
+                    {
+                        "name": "Current demand",
+                        "company_id": self.company.id,
+                        "phone": number,
+                    }
+                )
+                projection = self._meta(phone=incoming)
+                before = self.env["crm.lead"].search_count([])
+                self.assertFalse(self._project(projection))
+                self.assertEqual(projection.state, "review")
+                self.assertIn(lead, projection.review_candidate_ids)
+                self.assertEqual(self.env["crm.lead"].search_count([]), before)
+                # Independent demand pair, without leaving the first subtest's
+                # receipt in the second one's occurrence window.
+                self.at += datetime.timedelta(hours=25)
+                (historical | lead).write({"phone": False})
+
+    def test_legacy_meta_first_then_whatsapp_keeps_review_without_authority(self):
+        lead = self.env["crm.lead"].create(
+            {
+                "name": "Existing open business",
+                "company_id": self.company.id,
+                "phone": "+5511998765432",
+            }
+        )
+        projection = self._meta()
+        self.assertFalse(self._project(projection))
+        self.assertEqual(projection.state, "review")
+        binding = self._whatsapp()
+        self.assertFalse(self._run(binding))
+        self.assertEqual(binding.crm_intake_state, "review")
+        self.assertFalse(projection.assertion_id)
+        self.assertFalse(lead.source_id or lead.campaign_id)
+
+    def test_healthy_monitor_repeat_does_not_write_company_or_incident(self):
+        service = self.env["marketing.crm.service"]
+        with trap_jobs():
+            service._crm_admission_monitor()
+        monitor = self.env["marketing.crm.admission.monitor"]
+        with patch.object(
+            type(self.company),
+            "write",
+            side_effect=AssertionError("company cache invalidation"),
+        ), patch.object(
+            type(monitor),
+            "write",
+            side_effect=AssertionError("unchanged incident write"),
+        ):
+            service._crm_admission_monitor()
+
+    def test_unexpected_adapter_failure_becomes_visible_technical_hold(self):
+        projection = self._meta()
+        service = self.env["marketing.crm.service"]
+        with patch.object(
+            type(service),
+            "_crm_cross_source_admit_meta",
+            side_effect=TypeError("synthetic adapter failure"),
+        ):
+            self.assertFalse(self._project(projection))
+        self.assertEqual(projection.state, "pending")
+        self.assertEqual(projection.technical_hold_reason, "bridge_error")
+        self.assertEqual(projection.attempts, 0)
+        self.assertTrue(projection.signal_message_id)
+        self.assertFalse(projection.assertion_id)
+
+    def test_missing_provider_occurrence_is_business_review_without_hmac(self):
+        with trap_jobs():
+            submission = self._new_submission(
+                fields={"phone_number": ("+5511998765432",)}
+            )
+            self._authenticate(submission, provider_created_at=False)
+        projection = self._projection_for(submission)
+        self.assertFalse(self._project(projection))
+        self.assertEqual(projection.state, "review")
+        self.assertEqual(projection.review_reason, "business_scope_review")
+        self.assertFalse(projection.comparison_exact or projection.assertion_id)

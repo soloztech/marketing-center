@@ -472,20 +472,7 @@ class MarketingCenterMetaCrmProjection(models.Model):
                     self.env.flush_all()
                     return result
         except CrmDedupUnavailable as error:
-            projection.invalidate_recordset()
-            projection._internal_write(
-                {
-                    "state": "pending",
-                    "queue_job_uuid": False,
-                    "technical_hold_reason": error.reason,
-                    "technical_hold_since": projection.technical_hold_since
-                    or fields.Datetime.now(),
-                    "next_technical_retry_at": fields.Datetime.now()
-                    + datetime.timedelta(minutes=5),
-                }
-            )
-            projection._admission_signal()
-            return False
+            return projection._set_technical_hold(error.reason)
         except (DeadlockDetected, LockNotAvailable, SerializationFailure):
             raise RetryableJobError(
                 "Meta CRM projection contention",
@@ -530,6 +517,32 @@ class MarketingCenterMetaCrmProjection(models.Model):
                 }
             )
             return False
+
+        except RetryableJobError:
+            raise
+        except Exception:
+            if (
+                projection.company_id.sudo().crm_cross_source_dedup_enabled
+                or projection.technical_hold_reason
+            ):
+                return projection._set_technical_hold("bridge_error")
+            raise
+
+    def _set_technical_hold(self, reason):
+        self.invalidate_recordset()
+        self._internal_write(
+            {
+                "state": "pending",
+                "queue_job_uuid": False,
+                "technical_hold_reason": reason,
+                "technical_hold_since": self.technical_hold_since
+                or fields.Datetime.now(),
+                "next_technical_retry_at": fields.Datetime.now()
+                + datetime.timedelta(minutes=5),
+            }
+        )
+        self._admission_signal()
+        return False
 
     @api.model
     def _cron_resume_technical_holds(self, limit=100):

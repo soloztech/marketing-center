@@ -138,7 +138,7 @@ class TestAutomaticOriginReview(MarketingContactCenterCrmFixture):
             successor._crm_origin_evidence_scope(
                 second.occurred_at, second.canonical_key
             ),
-            "pending",
+            "ineligible",
         )
 
     def test_closed_return_requires_reopen_and_accepts_only_decided_evidence(self):
@@ -270,3 +270,119 @@ class TestAutomaticOriginReview(MarketingContactCenterCrmFixture):
             )
         self.assertEqual(classifier._classify(lead, apply=True)["state"], "manual")
         self.assertEqual(lead.campaign_id, manual)
+
+    def test_split_records_the_review_on_successor_and_stops_future_holds(self):
+        lead, channel, binding, old = self._automatic("origin-split")
+        point = self._point(
+            binding, "origin-split-reviewed", datetime.datetime(2026, 9, 3)
+        )
+        wizard = (
+            self.env["contact.center.crm.origin.review"]
+            .with_user(self.user)
+            .create(
+                {
+                    "lead_id": lead.id,
+                    "channel_id": channel.id,
+                    "evidence_key": point.canonical_key,
+                    "scope_start": old.scope_start,
+                }
+            )
+        )
+        action = wizard.action_split_period()
+        with trap_jobs():
+            scope = (
+                self.env["contact.center.crm.scope"]
+                .with_user(self.user)
+                .with_context(**action["context"])
+                .create({})
+            )
+            scope.action_confirm()
+        current = lead._conversation_links()
+        self.assertNotEqual(current, old)
+        self.assertEqual(current.scope_decision_mode, "human")
+        decision = (
+            self.env["contact.center.crm.review.decision"]
+            .sudo()
+            .search(
+                [
+                    ("link_ref", "=", current.id),
+                    ("evidence_key", "=", point.canonical_key),
+                ]
+            )
+        )
+        self.assertEqual(decision.decision, "exclude")
+        self.assertEqual(decision.actor_ref, self.user.id)
+        self.assertEqual(
+            current._crm_origin_evidence_scope(point.occurred_at, point.canonical_key),
+            "ineligible",
+        )
+        later = self._point(
+            binding, "origin-other-business", datetime.datetime(2026, 9, 4)
+        )
+        self.assertEqual(
+            current._crm_origin_evidence_scope(later.occurred_at, later.canonical_key),
+            "ineligible",
+        )
+        with trap_jobs():
+            next_lead = self._lead("Subsequent business")
+            next_link = (
+                self.env["contact.center.crm.conversation.link"]
+                .with_user(self.user)
+                ._link(
+                    channel.with_user(self.user),
+                    next_lead.with_user(self.user),
+                    writer="manual",
+                    origin="linked",
+                )
+                ._confirm_scope(point.occurred_at)
+            )
+        self.assertEqual(
+            next_link._crm_origin_evidence_scope(
+                later.occurred_at, later.canonical_key
+            ),
+            "eligible",
+        )
+
+    def test_origin_wizard_is_private_to_creator_in_same_or_other_company(self):
+        lead, channel, binding, row = self._automatic("private-origin-review")
+        point = self._point(binding, "private-point", datetime.datetime(2026, 9, 3))
+        wizard = (
+            self.env["contact.center.crm.origin.review"]
+            .with_user(self.user)
+            .create(
+                {
+                    "lead_id": lead.id,
+                    "channel_id": channel.id,
+                    "evidence_key": point.canonical_key,
+                    "scope_start": row.scope_start,
+                }
+            )
+        )
+        company = self.env["res.company"].create(
+            {"name": "Origin wizard foreign company"}
+        )
+        for allowed in [self.env.company, company]:
+            other = (
+                self.env["res.users"]
+                .with_context(no_reset_password=True)
+                .create(
+                    {
+                        "name": "Other origin agent",
+                        "login": "other-origin-%s-%s" % (wizard.id, allowed.id),
+                        "company_id": allowed.id,
+                        "company_ids": [(6, 0, allowed.ids)],
+                        "groups_id": [(6, 0, (self.cc_agent | self.crm_user).ids)],
+                    }
+                )
+            )
+            target = wizard.with_user(other).with_context(
+                allowed_company_ids=allowed.ids
+            )
+            self.assertFalse(target.search([("id", "=", wizard.id)]))
+            for operation in [
+                lambda: target.read(),
+                lambda: target.write({"decision": "include"}),
+                lambda: target.unlink(),
+            ]:
+                with self.assertRaises(AccessError):
+                    operation()

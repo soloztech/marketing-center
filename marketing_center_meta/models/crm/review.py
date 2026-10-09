@@ -419,6 +419,29 @@ class ReviewLine(models.TransientModel):
             self._validate_selected_lead(values["lead_id"])
         return super().write(values)
 
+    def action_open(self):
+        self.ensure_one()
+        manager(self.env)
+        self.check_access_rights("read")
+        self.check_access_rule("read")
+        self._projection()
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Revisar entrada"),
+            "res_model": self._name,
+            "res_id": self.id,
+            "views": [
+                (
+                    self.env.ref(
+                        "marketing_center_meta.view_meta_crm_review_line_form"
+                    ).id,
+                    "form",
+                )
+            ],
+            "target": "new",
+            "context": dict(self.env.context, form_view_initial_mode="edit"),
+        }
+
     def action_link(self):
         self._projection()._resolve_review("link", self.lead_id.id, self.confirmed)
         return self.queue_id.action_refresh()

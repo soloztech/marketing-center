@@ -1329,6 +1329,11 @@ class TestWebsiteWhatsappJourney(TestWebsiteWhatsappCorrelation):
             )["scope"],
             "business_context",
         )
+        minimal = lead.with_user(self.agent).get_contact_center_journey()
+        origins = minimal["items"][0]["origins"]["items"]
+        self.assertTrue(origins)
+        self.assertTrue(all(origin["scope"] == "pending" for origin in origins))
+        self.assertTrue(all(not origin.get("campaign_name") for origin in origins))
         lead.company_id = self.env.company
         self._run(match, row)
         self.assertTrue(self._effective(lead)._scope_partition()["eligible"])
@@ -1361,6 +1366,11 @@ class TestWebsiteWhatsappJourney(TestWebsiteWhatsappCorrelation):
         )
         self.assertEqual(item["scope"], "support_review")
         self.assertFalse(self._effective(lead))
+        minimal = lead.with_user(self.agent).get_contact_center_journey()
+        origins = minimal["items"][0]["origins"]["items"]
+        self.assertTrue(origins)
+        self.assertTrue(all(origin["scope"] == "pending" for origin in origins))
+        self.assertTrue(all(not origin.get("campaign_name") for origin in origins))
 
     def test_journey_visits_use_allowed_origins_and_label_unconfigured_host(self):
         visitor = self.env["website.visitor"].create(
