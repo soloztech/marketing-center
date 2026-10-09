@@ -456,7 +456,7 @@ class MarketingCenterMetaCrmProjection(models.Model):
                     guarded_projection._internal_write(
                         {
                             "state": "processing",
-                            "attempts": attempt,
+                            "attempts": max(attempt, projection.attempts),
                             "technical_hold_reason": False,
                             "next_technical_retry_at": False,
                             "technical_hold_since": False,
@@ -504,6 +504,7 @@ class MarketingCenterMetaCrmProjection(models.Model):
             projection._internal_write(
                 {
                     "state": "failed",
+                    "attempts": max(attempt, projection.attempts),
                     "queue_job_uuid": False,
                     "processed_at": fields.Datetime.now(),
                     "technical_hold_reason": False,

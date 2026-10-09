@@ -231,6 +231,91 @@ class TestCrossSourceAdmission(CrmIntakeCase):
             before + 1,
         )
 
+    def test_mixed_native_access_keeps_review_candidates_and_actions(self):
+        viewer = self._user(
+            "Restricted admission reviewer",
+            self.env.ref("contact_center_base.group_contact_center_agent")
+            | self.env.ref("sales_team.group_sale_salesman"),
+        )
+        self.account.write({"access_user_ids": [Command.link(viewer.id)]})
+        for resolution in ["confirm", "dismiss"]:
+            phone = "5511988887777" if resolution == "confirm" else "5511988886666"
+            visible = self.env["crm.lead"].create(
+                {
+                    "name": "Own candidate",
+                    "company_id": self.company.id,
+                    "user_id": viewer.id,
+                    "phone": "+" + phone,
+                }
+            )
+            hidden = self.env["crm.lead"].create(
+                [
+                    {
+                        "name": "Hidden native %s" % i,
+                        "company_id": self.company.id,
+                        "user_id": self.other.id,
+                        "phone": "+" + phone,
+                    }
+                    for i in range(3)
+                ]
+            )
+            self.env.flush_all()
+            self.assertFalse(
+                hidden.with_user(viewer).search([("id", "in", hidden.ids)])
+            )
+            binding = self._whatsapp(phone)
+            self.assertFalse(self._run(binding))
+            self.assertTrue(binding.crm_comparison_policy_revision)
+            api = self.env["contact.center.ui.api"].with_user(viewer)
+            page = api.get_customer_records(binding.channel_id.id)["intake"]
+            self.assertEqual([x["id"] for x in page["review_candidates"]], visible.ids)
+            self.assertTrue(page["can_dismiss"])
+            with trap_jobs():
+                api.resolve_crm_intake_review(
+                    binding.channel_id.id,
+                    binding.crm_intake_revision,
+                    visible.id if resolution == "confirm" else False,
+                    resolution == "confirm",
+                )
+            self.assertEqual(binding.crm_intake_state, "resolved")
+            self.assertEqual(
+                binding.crm_intake_lead_snapshot,
+                visible.id if resolution == "confirm" else False,
+            )
+
+    def test_existing_link_wins_over_other_exact_and_br_phone_matches(self):
+        binding = self._whatsapp()
+        linked = self.env["crm.lead"].create(
+            {
+                "name": "Explicit business",
+                "company_id": self.company.id,
+                "user_id": False,
+                "phone": "+5511998765432",
+            }
+        )
+        self.env["crm.lead"].create(
+            [
+                {
+                    "name": "Other exact business",
+                    "company_id": self.company.id,
+                    "user_id": False,
+                    "phone": "+5511998765432",
+                },
+                {
+                    "name": "Other BR variant business",
+                    "company_id": self.company.id,
+                    "user_id": False,
+                    "phone": "+551198765432",
+                },
+            ]
+        )
+        with trap_jobs():
+            self.env["contact.center.crm.conversation.link"]._link(
+                binding.channel_id, linked, writer="manual", origin="linked"
+            )
+        self.assertEqual(self._run(binding), linked)
+        self.assertEqual(binding.crm_intake_state, "reused")
+
     def test_native_partner_and_existing_link_are_preserved_with_protection(self):
         for linked, phone in ((False, "551188887777"), (True, "551177776666")):
             with self.subTest(linked=linked):

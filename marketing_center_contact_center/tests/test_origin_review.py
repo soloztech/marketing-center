@@ -386,3 +386,51 @@ class TestAutomaticOriginReview(MarketingContactCenterCrmFixture):
             ]:
                 with self.assertRaises(AccessError):
                     operation()
+
+    def test_review_marker_keeps_other_pending_then_clears_after_all_decisions(self):
+        lead, channel, binding, row = self._automatic(
+            "marker-cohort", "2026-09-02 00:00:00"
+        )
+        first = self._point(binding, "marker-first", datetime.datetime(2026, 9, 3))
+        second = self._point(binding, "marker-second", datetime.datetime(2026, 9, 4))
+        self.env.company._job_marketing_contact_center_crm_conversation_link(row.id)
+        self.assertEqual(row.origin_review_reason, "outside_window")
+        row = self._review(lead, channel, first, "exclude")
+        self.assertEqual(row.origin_review_reason, "outside_window")
+        row = self._review(lead, channel, second, "exclude")
+        self.assertFalse(row.origin_review_reason)
+        self.env.company._job_marketing_contact_center_crm_conversation_link(row.id)
+        self.assertFalse(row.origin_review_reason)
+
+    def test_split_defaults_before_anchor_open_valid_period(self):
+        lead, channel, binding, old = self._automatic("split-before-anchor")
+        point = self._point(binding, "split-before", datetime.datetime(2026, 8, 31))
+        wizard = (
+            self.env["contact.center.crm.origin.review"]
+            .with_user(self.user)
+            .create(
+                {
+                    "lead_id": lead.id,
+                    "channel_id": channel.id,
+                    "evidence_key": point.canonical_key,
+                    "scope_start": old.scope_start,
+                }
+            )
+        )
+        action = wizard.action_split_period()
+        self.assertEqual(action["context"]["default_scope_start"], point.occurred_at)
+        self.assertFalse(action["context"]["default_scope_end"])
+        with trap_jobs():
+            scope = (
+                self.env["contact.center.crm.scope"]
+                .with_user(self.user)
+                .with_context(**action["context"])
+                .create({})
+            )
+            scope.action_confirm()
+        current = lead._conversation_links()
+        self.assertEqual(current.scope_decision_mode, "human")
+        self.assertEqual(
+            current._crm_origin_evidence_scope(point.occurred_at, point.canonical_key),
+            "eligible",
+        )

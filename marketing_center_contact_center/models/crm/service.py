@@ -248,27 +248,6 @@ class MarketingContactCenterCrmService(models.AbstractModel):
                     and not conversation_link.automatic_lineage
                 ):
                     continue
-                if (
-                    conversation_link.automatic_lineage
-                    and conversation_link.scope_state == "confirmed"
-                ):
-                    pending = (
-                        conversation_link._crm_origin_evidence_scope(
-                            touchpoint.occurred_at, touchpoint.canonical_key
-                        )
-                        == "pending"
-                    )
-                    reason = (
-                        conversation_link._crm_origin_pending_reason(
-                            touchpoint.occurred_at
-                        )
-                        if pending
-                        else False
-                    )
-                    if reason and conversation_link.origin_review_reason != reason:
-                        conversation_link._service().write(
-                            {"origin_review_reason": reason}
-                        )
                 assertion_ref = self._assertion_reference(conversation_link, touchpoint)
                 pair = (CONTACT_CENTER_CONVERSATION_AUTHORITY, assertion_ref)
                 if pair in seen:
@@ -282,6 +261,7 @@ class MarketingContactCenterCrmService(models.AbstractModel):
                     authority_ref=str(conversation_link.channel_id.id),
                     assertion_ref=assertion_ref,
                 )
+        conversation_links._crm_origin_refresh_review_reason()
         return result
 
     @api.model

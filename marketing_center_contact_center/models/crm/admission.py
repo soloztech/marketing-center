@@ -201,7 +201,14 @@ class Admission(models.AbstractModel):
         )
         if native_candidates is not None:
             candidates |= exact.browse(native_candidates.ids).exists()
-        weak = weak.filtered(lead_is_open)
+        linked = self._admission_native_link(company, receipt, native_candidates)
+        if linked:
+            # An explicit current link wins over unrelated phone matches.
+            # Conflicting admission receipts still require business review.
+            candidates = linked | exact.browse(sorted(targets)).exists()
+            weak = exact.browse()
+        else:
+            weak = weak.filtered(lead_is_open)
         decision["candidate_ids"] = (candidates | weak).ids
 
         def review(reason):
@@ -245,6 +252,28 @@ class Admission(models.AbstractModel):
             return review("business_scope_review")
         decision.update(decision="reuse", lead_id=lead.id, identity="exact_phone")
         return decision
+
+    @api.model
+    def _admission_native_link(self, company, receipt, native_candidates):
+        if (
+            native_candidates is None
+            or receipt._name != "contact.center.channel.binding"
+        ):
+            return self.env["crm.lead"].sudo().browse()
+        return (
+            self.env["contact.center.crm.conversation.link"]
+            .sudo()
+            .search(
+                [
+                    ("channel_id", "=", receipt.channel_id.id),
+                    ("company_id", "=", company.id),
+                    ("state", "=", "active"),
+                    ("lead_id", "in", native_candidates.ids),
+                ]
+            )
+            .mapped("lead_id")
+            .filtered(lead_is_open)
+        )
 
     @api.model
     def _admission_can_credit_meta(self, company, occurred_at, receipt, receipts, lead):
@@ -535,8 +564,15 @@ class Binding(models.Model):
             review_actor=actor,
         )
         native = super()._crm_intake_review_candidates(actor)
-        return (exact | weak | exact.browse(native.ids)).filtered(
-            lambda lead: lead.company_id == self.company_id
+        return (
+            actor["crm.lead"]
+            .with_context(active_test=False)
+            .search(
+                [
+                    ("id", "in", (exact | weak | exact.browse(native.ids)).ids),
+                    ("company_id", "=", self.company_id.id),
+                ]
+            )
         )
 
     def _crm_intake_review_match(self, lead, actor):

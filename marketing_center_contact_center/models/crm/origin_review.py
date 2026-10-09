@@ -168,8 +168,84 @@ class Lead(models.Model):
 class ConversationLink(models.Model):
     _inherit = "contact.center.crm.conversation.link"
 
+    def _crm_origin_refresh_review_reason(self):
+        """Recompute the hint from all evidence, never from one worker page."""
+        for link in self.sudo().filtered(
+            lambda row: row.state == "active"
+            and row.automatic_lineage
+            and row.scope_state == "confirmed"
+        ):
+            mappings = self.env[
+                "marketing.contact.center.crm.service"
+            ]._attribution_links_for_channel(link.channel_id)
+            points = mappings.mapped("marketing_touchpoint_id")
+            pending = False
+            reason = False
+            for point in points.sorted("id"):
+                if point.privacy_erased_at or point.consent_state == "denied":
+                    continue
+                if (
+                    link._crm_origin_evidence_scope(
+                        point.occurred_at, point.canonical_key
+                    )
+                    == "pending"
+                ):
+                    pending = True
+                    reason = reason or link._crm_origin_pending_reason(
+                        point.occurred_at
+                    )
+            if "marketing.website.whatsapp.match" in self.env.registry:
+                matches = (
+                    self.env["marketing.website.whatsapp.match"]
+                    .sudo()
+                    .search(
+                        [
+                            ("company_id", "=", link.company_id.id),
+                            ("channel_id", "=", link.channel_id.id),
+                            ("state", "in", ["reference", "confirmed"]),
+                        ]
+                    )
+                )
+                for match in matches:
+                    if not match._journey_claim_valid():
+                        continue
+                    point = match.handoff_id.journey_touchpoint_id
+                    if not point:
+                        pending = True
+                        continue
+                    if match.handoff_id._journey_privacy_status() != "ready":
+                        continue
+                    if (
+                        link._crm_origin_evidence_scope(
+                            match.message_at, point.canonical_key
+                        )
+                        == "pending"
+                    ):
+                        pending = True
+                        reason = reason or link._crm_origin_pending_reason(
+                            match.message_at
+                        )
+            # An unprojected source is uncertainty, not proof of resolution.
+            pending = pending or bool(
+                self.env["contact.center.attribution.touchpoint"]
+                .sudo()
+                .search_count(
+                    [
+                        ("company_id", "=", link.company_id.id),
+                        ("channel_binding_id.channel_id", "=", link.channel_id.id),
+                        ("id", "not in", mappings.source_touchpoint_id.ids),
+                    ]
+                )
+            )
+            if pending and not reason:
+                reason = link.origin_review_reason
+            if link.origin_review_reason != reason:
+                link._service().write({"origin_review_reason": reason})
+        return True
+
     def _crm_origin_decision_changed(self, decision):
         result = super()._crm_origin_decision_changed(decision)
+        self._crm_origin_refresh_review_reason()
         self.env[
             "marketing.contact.center.crm.service"
         ].sudo()._enqueue_conversation_links(self)

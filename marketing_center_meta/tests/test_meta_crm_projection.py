@@ -440,6 +440,7 @@ class TestMarketingCenterMetaCrmProjection(SavepointCase):
         with patch(target, side_effect=ValidationError("assertion rejected")):
             self.assertFalse(self._run_projection_job(projection))
         self.assertEqual(projection.state, "failed")
+        self.assertEqual(projection.attempts, 1)
         self.assertFalse(projection.lead_id)
         self.assertFalse(projection.assertion_id)
         self.assertEqual(self.env["crm.lead"].search_count([]), lead_count)

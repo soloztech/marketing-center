@@ -9,3 +9,4 @@ access_marketing_attribution_crm_revocation_system,marketing.attribution.crm.rev
 access_marketing_attribution_crm_effective_link_system,marketing.attribution.crm.effective.link system administrator,model_marketing_attribution_crm_effective_link,base.group_system,1,0,0,0
 access_marketing_business_event_crm_link_system,marketing.business.event.crm.link system administrator,model_marketing_business_event_crm_link,base.group_system,1,0,0,0
 access_marketing_crm_lead_equivalence_system,marketing.crm.lead.equivalence system administrator,model_marketing_crm_lead_equivalence,base.group_system,1,0,0,0
+access_marketing_crm_admission_monitor_private,Private CRM admission incidents,model_marketing_crm_admission_monitor,base.group_user,0,0,0,0
