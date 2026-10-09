@@ -147,8 +147,6 @@ class AdmissionSignals(models.AbstractModel):
                     "meta_review",
                     [
                         ("state", "=", "review"),
-                        ("id", ">", company.crm_cross_source_projection_watermark),
-                        ("create_date", ">=", company.crm_cross_source_enabled_at),
                     ],
                 ),
                 (

@@ -551,7 +551,7 @@ class Binding(models.Model):
             actor["mail.channel"].browse(self.channel_id.id)
         )
         if len(numbers) != 1:
-            return actor["crm.lead"].browse()
+            return super()._crm_intake_review_candidates(actor)
         gate = (
             self.env["contact.center.crm.intake.gate"]
             .sudo()

@@ -1030,3 +1030,58 @@ class TestCrossSourceAdmission(CrmIntakeCase):
         self.assertEqual(projection.state, "review")
         self.assertEqual(projection.review_reason, "business_scope_review")
         self.assertFalse(projection.comparison_exact or projection.assertion_id)
+
+    def test_meta_review_monitor_survives_policy_reactivation(self):
+        self.env["crm.lead"].create(
+            [
+                {"name": name, "company_id": self.company.id, "phone": "+5511998765432"}
+                for name in ("First ambiguous demand", "Second ambiguous demand")
+            ]
+        )
+        projection = self._meta()
+        self.assertFalse(self._project(projection))
+        self.assertEqual(projection.state, "review")
+        with trap_jobs():
+            self.company.write({"crm_cross_source_dedup_enabled": False})
+            self.company.write({"crm_cross_source_dedup_enabled": True})
+        self.assertLessEqual(
+            projection.id, self.company.crm_cross_source_projection_watermark
+        )
+        self.env["marketing.crm.service"]._crm_admission_monitor()
+        self.assertEqual(
+            self.company.crm_cross_source_monitor_json["meta_review"]["count"], 1
+        )
+
+    def test_alias_change_keeps_native_partner_review_candidates(self):
+        partner = self.env["res.partner"].create({"name": "Stable native partner"})
+        leads = self.env["crm.lead"].create(
+            [
+                {"name": name, "company_id": self.company.id, "partner_id": partner.id}
+                for name in ("Native demand one", "Native demand two")
+            ]
+        )
+        binding = self._whatsapp()
+        binding.identity_id.action_link_partner(partner.id)
+        self.assertFalse(self._run(binding))
+        self.assertEqual(binding.crm_intake_state, "review")
+        self.assertTrue(binding.crm_comparison_policy_revision)
+        self.env["contact.center.identity.alias"].create(
+            {
+                "account_id": self.account.id,
+                "identity_id": binding.identity_id.id,
+                "namespace": "whatsapp.pn",
+                "value_raw": "5511991112222@s.whatsapp.net",
+                "value_normalized": "5511991112222@s.whatsapp.net",
+                "confidence": "protocol",
+            }
+        )
+        candidates = binding._crm_intake_review_candidates(self.env(user=self.agent))
+        self.assertEqual(set(candidates.ids), set(leads.ids))
+        with trap_jobs():
+            self.env["contact.center.ui.api"].with_user(
+                self.agent
+            ).resolve_crm_intake_review(
+                binding.channel_id.id, binding.crm_intake_revision, leads[0].id, True
+            )
+        self.assertEqual(binding.crm_intake_state, "resolved")
+        self.assertEqual(binding.crm_intake_lead_snapshot, leads[0].id)

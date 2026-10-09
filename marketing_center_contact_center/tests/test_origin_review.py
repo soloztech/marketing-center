@@ -434,3 +434,39 @@ class TestAutomaticOriginReview(MarketingContactCenterCrmFixture):
             current._crm_origin_evidence_scope(point.occurred_at, point.canonical_key),
             "eligible",
         )
+
+    def test_closed_lead_accepts_pre_anchor_origin_through_period_wizard(self):
+        lead, channel, binding, old = self._automatic("closed-preanchor-split")
+        point = self._point(
+            binding, "preanchor-split", datetime.datetime(2026, 9, 1, 10)
+        )
+        with trap_jobs():
+            lead.write({"probability": 100})
+        wizard = (
+            self.env["contact.center.crm.origin.review"]
+            .with_user(self.user)
+            .create(
+                {
+                    "lead_id": lead.id,
+                    "channel_id": channel.id,
+                    "evidence_key": point.canonical_key,
+                    "scope_start": old.scope_start,
+                }
+            )
+        )
+        action = wizard.action_split_period()
+        with trap_jobs():
+            scope = (
+                self.env["contact.center.crm.scope"]
+                .with_user(self.user)
+                .with_context(**action["context"])
+                .create({})
+            )
+            scope.action_confirm()
+        current = lead._conversation_links()
+        self.assertEqual(current.scope_start, point.occurred_at)
+        self.assertEqual(
+            current._crm_origin_evidence_scope(point.occurred_at, point.canonical_key),
+            "eligible",
+        )
+        self.assertEqual(lead.probability, 100)

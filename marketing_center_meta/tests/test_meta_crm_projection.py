@@ -848,3 +848,22 @@ class TestMarketingCenterMetaCrmProjection(SavepointCase):
             args=(first.id, 1),
             kwargs={"route_ids": (self.route.id,)},
         )
+
+    def test_preclaim_terminal_database_retry_preserves_previous_attempts(self):
+        self._enable_route()
+        with trap_jobs():
+            submission = self._new_submission(authenticate=True)
+        projection = self._projection_for(submission).ensure_one()
+        projection._internal_write({"attempts": 8})
+        job = self._running_projection_job(projection, completed_tries=7)
+        with patch.object(
+            type(self.env["marketing.crm.service"]),
+            "_crm_cross_source_gate",
+            side_effect=OperationalError("synthetic preclaim failure"),
+        ):
+            self.assertFalse(job.perform())
+        projection.invalidate_recordset()
+        self.assertEqual(projection.state, "failed")
+        self.assertEqual(projection.attempts, 8)
+        self.assertFalse(projection.lead_id)
+        self.assertFalse(projection.queue_job_uuid)
