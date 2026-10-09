@@ -199,6 +199,46 @@ for (const pathname of ["/blog", "/jobs", "/contactus-thank-you"]) {
     "unavailable configuration creates no capture storage"
   );
 }
+// An unfenced Accept while the first shared GET is pending must preserve all
+// readers, including the informational consent result and the landing POST.
+for (const informational of [false, true]) {
+  const calls = [];
+  let resolve;
+  const independent = {
+    ...envelope,
+    consent: {
+      available: false,
+      granted: false,
+      informational_notice: informational,
+      capture_allowed: informational,
+      config_revision: 41,
+    },
+  };
+  const p = page((path) => {
+    calls.push(path);
+    return path === "/marketing/website/bootstrap-config"
+      ? new Promise((done) => {
+          resolve = done;
+        })
+      : Promise.resolve(reply(independent));
+  }, "legacy");
+  const oldConsent = p.loadConsent();
+  const config = p.loadConfig();
+  const capture = p.captureLandingEntry();
+  const grant = p.submitConsent(true);
+  await Promise.resolve();
+  await Promise.resolve();
+  resolve(reply(independent));
+  assert.equal(await grant, false);
+  assert.equal((await config).enabled, true);
+  assert.equal(await capture, true);
+  assert.equal((await oldConsent).informational_notice, informational);
+  assert.equal(
+    calls.filter((path) => path === "/marketing/website/bootstrap-config").length,
+    1
+  );
+  assert.equal(calls.filter((path) => path === envelope.ingress.ingest_path).length, 1);
+}
 console.log(
   "Shared bootstrap: one fetch; stale/refused generation denied; tri-state native skip; no-hint blog/jobs/thank-you compatibility; unavailable fail-closed."
 );

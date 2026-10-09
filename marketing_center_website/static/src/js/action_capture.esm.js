@@ -337,7 +337,7 @@ export function createModeFormPostBridge(
 ) {
     let legacyPost = null;
     return function modeFormPost(...args) {
-        if (mode() === "native") return nativePost.apply(this, args);
+        if (mode() !== "legacy") return nativePost.apply(this, args);
         if (mode() === "legacy" && legacyEnabled()) {
             if (!legacyPost) legacyPost = buildLegacy(originalPost);
             return legacyPost.apply(this, args);

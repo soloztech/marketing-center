@@ -86,6 +86,12 @@ export function loadConsent(refresh = false) {
                     generation !== serial ||
                     configGeneration !== bootstrapGeneration()
                 ) {
+                    if (configGeneration === bootstrapGeneration()) {
+                        // An unfenced native-cookie grant keeps this shared GET
+                        // valid. Follow its current consent reader rather than
+                        // overwriting a ready reader with a denied placeholder.
+                        return loadConsent();
+                    }
                     return {available: false, granted: false, capture_allowed: false};
                 }
                 choice =
@@ -167,7 +173,7 @@ export async function submitConsent(granted) {
     const sequence = ++serial;
     // Native cookie choices cannot revoke an independently configured legal
     // basis. Fence a grant only when an individual-consent policy is known.
-    invalidateBootstrap(!granted || choice?.available === true);
+    if (!granted || choice?.available === true) invalidateBootstrap(true);
     pending = null;
     let utmsCleared = false;
     if (granted && choice?.available === true) {

@@ -182,7 +182,7 @@ async function claimWhatsApp(actionRef, fallbackPath) {
 }
 
 function onActivation(event) {
-    if (captureMode === "native") {
+    if (captureMode !== "legacy") {
         const path =
             typeof event.composedPath === "function" ? event.composedPath() : [];
         const form = path.find(
@@ -220,7 +220,7 @@ const nativePost = createNativeFormPostBridge(
     window.location.origin,
     nativeEventClaim,
     notifyAction,
-    () => captureMode === "native"
+    () => captureMode !== "legacy"
 );
 ajax.post = createModeFormPostBridge(
     originalPost,

@@ -67,6 +67,20 @@ QUnit.test(
                 "a GET before the POST cannot lift withdrawal"
             );
             assert.strictEqual(fenced.consent.granted, false);
+            window.fetch = async () => ({
+                ok: true,
+                json: async () => ({
+                    schema_version: 1,
+                    ingress: {enabled: true},
+                    consent: {available: false, granted: false},
+                }),
+            });
+            const independent = await loadBootstrap(true);
+            assert.strictEqual(
+                independent.ingress.enabled,
+                true,
+                "a native cookie choice cannot revoke an independent legal basis"
+            );
         } finally {
             window.fetch = original;
             document.dispatchEvent(
@@ -156,8 +170,8 @@ QUnit.test(
         assert.strictEqual(await post("/website/form/crm.lead", {}), "original result");
         assert.strictEqual(
             nativeCalls,
-            2,
-            "unknown mode preserves the original form POST"
+            3,
+            "unknown mode preserves native idempotency without a legacy bridge"
         );
         assert.strictEqual(legacyCalls, 2);
     }

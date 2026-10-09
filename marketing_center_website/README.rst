@@ -322,6 +322,10 @@ Administrative destinations/messages are not advertised in configuration.
 The ingress implementation lives in dedicated internal packages. Its public
 routes, models and historical XML identifiers remain compatible. Retired addon
 Python import aliases are removed; integrations import the owning addon directly.
-The native Website form adapter loads only when an eligible form is present;
-Odoo owns form submission and the adapter handles only confirmed receipts. See
+The native adapter is installed on frontend pages and acts only on the native
+``/website/form/crm.lead`` POST: it attaches a stable idempotency token and
+confirms the created lead. Odoo owns the submitted form values. The legacy
+receipt bridge is constructed only when a valid legacy configuration requires
+it. Legacy intent recovery, history, compatibility GETs and public API remain
+because current bindings do not prove the absence of external consumers. See
 ``docs/web-ingress.rst`` and the repository ``docs/web-ingress-fusion.md``.
