@@ -337,11 +337,13 @@ class TestNativeWebsiteWhatsAppHttp(AcquisitionMatrixMixin, HttpCase):
     def test_old_tab_archived_rule_rejects_different_prefill_page_and_disabled_capture(
         self,
     ):
-        default = self._global_default()
+        default = self._page_action("/", "WEB", whatsapp_message="Different prefill")
+        self.website.handoff_default_action_id = default
         self.action.active = False
-        default.whatsapp_message = "Different prefill"
         self.assertEqual(self._post().status_code, 400)
-        default.whatsapp_message = self.action.whatsapp_message
+        # Prefill is immutable: replace the synthetic action, as an operator must.
+        default.active = False
+        default = self._global_default()
         other = self._public_page("/old-tab-other-page")
         self.assertEqual(self._post_page(other.url, self.action).status_code, 400)
         default.handoff_enabled = False
@@ -350,6 +352,12 @@ class TestNativeWebsiteWhatsAppHttp(AcquisitionMatrixMixin, HttpCase):
         self.endpoint.capture_enabled = False
         self.assertEqual(self._post().status_code, 400)
         self.assertFalse(self._clicks())
+        self.assertFalse(
+            self.env["marketing.website.whatsapp.handoff"].search(
+                [("event_id", "=", self.event_id)]
+            ),
+            "Rejected old-tab claims must not create receipts on the default action",
+        )
 
     def test_old_tab_does_not_bypass_active_specific_capture_off(self):
         self._global_default()

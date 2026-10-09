@@ -160,6 +160,46 @@ class AcquisitionMatrixMixin:
         self.assertIsNone(result["acquisition_at"])
         self.assertEqual(result["visit_at"], utc_iso(anchor.visit_datetime))
 
+    def test_acquisition_missing_shared_and_same_website_page_scopes(self):
+        now = fields.Datetime.now()
+        for website_id in (None, False, self.website.id):
+            with self.subTest(website_id=website_id):
+                self.env["website.track"].search(
+                    [("visitor_id", "=", self.visitor.id)]
+                ).unlink()
+                page = self.env["website.page"]
+                if website_id is not None:
+                    key = "marketing_center_website.scope_" + uuid.uuid4().hex
+                    view = self.env["ir.ui.view"].create(
+                        {
+                            "name": "Acquisition page scope",
+                            "type": "qweb",
+                            "key": key,
+                            "arch_db": '<t t-name="%s"><div>Scope</div></t>' % key,
+                        }
+                    )
+                    page = self.env["website.page"].create(
+                        {
+                            "name": "Acquisition page scope",
+                            "url": self.matrix_path,
+                            "view_id": view.id,
+                            "website_id": website_id,
+                            "is_published": True,
+                        }
+                    )
+                entry_at = now - datetime.timedelta(minutes=2)
+                entry = self._matrix_track(
+                    "/scope-entry?gclid=page-scope", entry_at, page_id=page.id
+                )
+                anchor = self._matrix_track(self.matrix_path, now, page_id=page.id)
+                result = self._matrix_snapshot(self.origin + self.matrix_path, now, {})
+                self.assertEqual(result["track"], entry)
+                self.assertEqual(result["provenance"], "track")
+                self.assertEqual(result["values"], {"gclid": "page-scope"})
+                self.assertEqual(result["acquisition_at"], utc_iso(entry_at))
+                self.assertEqual(result["visit_at"], utc_iso(anchor.visit_datetime))
+                self.assertEqual(result["landing_url"], self.origin + "/scope-entry")
+
     def test_acquisition_same_origin_other_website_tracks_do_not_displace_anchor(self):
         now = fields.Datetime.now()
         other = self.env["website"].create(

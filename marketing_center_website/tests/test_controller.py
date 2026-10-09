@@ -162,23 +162,38 @@ class TestMarketingWebsiteIngressController(HttpCase):
 
     def test_bootstrap_get_parity_native_legacy_and_http_conditional_policy(self):
         before = self.env["marketing.website.consent"].search_count([])
-        for mode in ("native", "legacy"):
-            self.binding.capture_mode = mode
-            for scheme in ("https", "http"):
-                with self.subTest(mode=mode, scheme=scheme):
-                    value = self._assert_bootstrap_parity(scheme=scheme)
-                    self.assertTrue(
-                        value["ingress"]["enabled"],
-                        "Non-consent legal basis retains HTTP eligibility",
-                    )
-                    self.assertEqual(value["ingress"]["capture_mode"], mode)
-                    if mode == "native":
-                        self.assertNotIn("public_key", value["ingress"])
-                    if scheme == "http":
-                        self.assertFalse(value["consent"]["available"])
-                        self.assertFalse(value["consent"]["capture_allowed"])
+        allowed_origins = self.endpoint.allowed_origins
+        # HTTP eligibility still requires an explicitly allowed exact origin.
+        self.endpoint.allowed_origins = allowed_origins + "\nhttp://www.example.test"
+        try:
+            for mode in ("native", "legacy"):
+                self.binding.capture_mode = mode
+                for scheme in ("https", "http"):
+                    with self.subTest(mode=mode, scheme=scheme):
+                        value = self._assert_bootstrap_parity(scheme=scheme)
+                        self.assertTrue(
+                            value["ingress"]["enabled"],
+                            "Non-consent legal basis retains HTTP eligibility",
+                        )
+                        self.assertEqual(value["ingress"]["capture_mode"], mode)
+                        if mode == "native":
+                            self.assertNotIn("public_key", value["ingress"])
+                        if scheme == "http":
+                            self.assertFalse(value["consent"]["available"])
+                            self.assertFalse(value["consent"]["capture_allowed"])
+        finally:
+            self.endpoint.allowed_origins = allowed_origins
         self.env.invalidate_all()
         self.assertEqual(self.env["marketing.website.consent"].search_count([]), before)
+
+    def test_bootstrap_unlisted_http_origin_remains_disabled(self):
+        for mode in ("native", "legacy"):
+            with self.subTest(mode=mode):
+                self.binding.capture_mode = mode
+                value = self._assert_bootstrap_parity(scheme="http")
+                self.assertEqual(value["ingress"], {"enabled": False})
+                self.assertFalse(value["consent"]["capture_allowed"])
+                self.assertNotIn(self.endpoint.public_key, str(value))
 
     def test_bootstrap_get_parity_kill_host_authentication_and_native_nonpage_route(
         self,

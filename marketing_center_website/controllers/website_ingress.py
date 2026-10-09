@@ -41,14 +41,15 @@ def _config_response(payload):
     )
 
 
-def _public_binding():
-    if not request.env.user._is_public():
-        return request.env["marketing.website.ingress.binding"]
+def _public_binding(req=None):
+    req = request if req is None else req
+    if not req.env.user._is_public():
+        return req.env["marketing.website.ingress.binding"]
     return (
-        request.env["marketing.website.ingress.binding"]
+        req.env["marketing.website.ingress.binding"]
         .sudo()
         .search(
-            [("website_id", "=", request.website.id), ("active", "=", True)],
+            [("website_id", "=", req.website.id), ("active", "=", True)],
             limit=1,
         )
     )

@@ -14,7 +14,7 @@ def _binding(binding=None):
     if not request.env.user._is_public() or request.httprequest.scheme != "https":
         return request.env["marketing.website.ingress.binding"]
     if binding is None:
-        binding = _public_binding()
+        binding = _public_binding(req=request)
     if (
         binding
         and binding.company_id == request.website.company_id

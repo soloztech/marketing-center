@@ -102,7 +102,11 @@ def resolve_acquisition(
                     ("visit_datetime", "<=", now),
                     ("visit_datetime", ">=", now - datetime.timedelta(hours=24)),
                     ("url", "=like", origin + "/%"),
+                    # Related-field domains alone omit tracks without a page.
+                    # Keep all eligible page scopes inside the bounded search.
                     "|",
+                    "|",
+                    ("page_id", "=", False),
                     ("page_id.website_id", "=", False),
                     ("page_id.website_id", "=", website.id),
                 ],
