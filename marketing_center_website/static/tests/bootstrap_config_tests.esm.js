@@ -48,7 +48,7 @@ QUnit.test(
                 json: async () => ({
                     schema_version: 1,
                     ingress: {enabled: true},
-                    consent: {granted: true},
+                    consent: {available: true, granted: true},
                 }),
             });
             assert.strictEqual(await first, null, "stale envelope is denied");
@@ -57,7 +57,7 @@ QUnit.test(
                 json: async () => ({
                     schema_version: 1,
                     ingress: {enabled: true},
-                    consent: {granted: true, capture_allowed: true},
+                    consent: {available: true, granted: true, capture_allowed: true},
                 }),
             });
             const fenced = await loadBootstrap();
