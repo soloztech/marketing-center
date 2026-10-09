@@ -4,6 +4,8 @@ from odoo import fields, models
 from odoo.exceptions import AccessError, ValidationError
 
 
+# Keep this feature extension separate from the admission/lifecycle contract.
+# pylint: disable=consider-merging-classes-inherited
 class Lead(models.Model):
     _inherit = "crm.lead"
 

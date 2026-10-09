@@ -76,6 +76,8 @@ class ContactCenterMessageBinding(models.Model):
         )
 
 
+# Keep this feature extension separate from the admission/lifecycle contract.
+# pylint: disable=consider-merging-classes-inherited
 class ContactCenterChannelBinding(models.Model):
     _inherit = "contact.center.channel.binding"
 
