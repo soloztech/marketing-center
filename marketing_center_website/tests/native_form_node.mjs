@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
+import {installBootstrap} from "./bootstrap_fixture_node.mjs";
 
 const read = (name) =>
   fs
@@ -48,7 +49,9 @@ const context = vm.createContext({
       this.detail = options.detail;
     }
   },
-  loadConfig: async () => ({enabled: true, capture_mode: "native"}),
+  loadConfig: async () => {
+    throw Error("bootstrap unavailable: native form must still succeed");
+  },
   validConfig: () => false,
   newActionEventId: uuid,
   websiteSessionRef() {
@@ -70,7 +73,12 @@ const context = vm.createContext({
     },
   },
 });
-vm.runInContext(read("action_capture") + "\n" + read("action_bootstrap"), context);
+installBootstrap(context);
+vm.runInContext(read("action_capture"), context);
+context.createFormPostBridge = () => {
+  throw Error("Native must never construct or call the legacy bridge");
+};
+vm.runInContext(read("action_bootstrap"), context);
 await Promise.resolve();
 const form = {tagName: "FORM", getAttribute: () => "crm.lead"};
 const activate = () => listeners.get("submit")({composedPath: () => [form]});
@@ -130,6 +138,7 @@ const landing = vm.createContext({
     },
   },
   document: {
+    getElementById: () => ({dataset: {captureMode: "native"}}),
     addEventListener() {
       /* No browser events in this fixture. */
     },
@@ -142,9 +151,14 @@ const landing = vm.createContext({
     throw Error("No session/event UUID for page visits");
   },
 });
+installBootstrap(landing, "ingress");
 vm.runInContext(read("landing_bootstrap"), landing);
 for (let i = 0; i < 10; i++) await Promise.resolve();
-assert.deepEqual(landingRequests, [["/marketing/website-ingress/config", "GET"]]);
+assert.deepEqual(
+  landingRequests,
+  [],
+  "explicit native hint skips bootstrap before capture"
+);
 console.log(
   "Native Website JS: no landing/session/exchange; stable retry token; confirmed form event; native body/result/failure preserved."
 );

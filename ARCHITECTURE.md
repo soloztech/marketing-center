@@ -5,8 +5,11 @@
 `marketing_center_base` reúne aquisição, CRM nativo, UTM e visão gerencial. `crm` e
 `queue_job` são pré-requisitos. Meta, Contact Center e Website incluem suas próprias
 integrações de CRM; os cinco addons antigos e o Suite foram retirados. Os namespaces
-históricos permanecem como aliases de metadados e Python, sem manifests nem pacotes
-instalados. O repositório contém 13 addons.
+históricos permanecem como aliases de metadados e, nos demais adapters, Python, sem
+manifests nem pacotes instalados. Website usa somente os namespaces Python atuais
+`marketing_center_website.models.crm` e `marketing_center_website.services.ingress`; os
+IDs XML e os helpers de aliases de Base permanecem preservados. O repositório contém 13
+addons.
 
 O [guia de fusão](docs/crm-integration-fusion.md) define responsabilidades, instalação,
 atualização e recuperação. O Content Center permanece independente.

@@ -128,7 +128,9 @@ class WebsiteWhatsappHandoff(models.Model):
                     },
                     retain_until=endpoint._retention_deadline(when),
                     retention_manual=endpoint.retention_mode == "manual",
-                    visit_at=track.visit_datetime if track else False,
+                    visit_at=values["visit_at"]
+                    if "visit_at" in values
+                    else (track.visit_datetime if track else False),
                     acquisition_provenance=acquisition.get(
                         "acquisition_provenance", "legacy"
                     ),

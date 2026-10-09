@@ -328,6 +328,24 @@ export function nativeEventFromFormResult(result) {
     }
 }
 
+export function createModeFormPostBridge(
+    originalPost,
+    nativePost,
+    mode,
+    legacyEnabled,
+    buildLegacy
+) {
+    let legacyPost = null;
+    return function modeFormPost(...args) {
+        if (mode() === "native") return nativePost.apply(this, args);
+        if (mode() === "legacy" && legacyEnabled()) {
+            if (!legacyPost) legacyPost = buildLegacy(originalPost);
+            return legacyPost.apply(this, args);
+        }
+        return originalPost.apply(this, args);
+    };
+}
+
 export function createNativeFormPostBridge(
     originalPost,
     origin,

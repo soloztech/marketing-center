@@ -4,19 +4,19 @@ import re
 from urllib.parse import urlsplit
 
 from odoo import _, api, fields, models
-from odoo.exceptions import ValidationError
+from odoo.exceptions import AccessError, ValidationError
 from odoo.http import request
 
-from odoo.addons.marketing_center_web_ingress.services.contracts import (
-    WebIngressContractError,
-    normalize_allowed_hosts,
-    normalize_allowed_origins,
-    normalize_origin,
-)
 from odoo.addons.marketing_center_website.models.crm.native_submission import safe_page
 from odoo.addons.marketing_center_website.services.contracts import (
     WebsiteActionContractError,
     safe_relative_path,
+)
+from odoo.addons.marketing_center_website.services.ingress.contracts import (
+    WebIngressContractError,
+    normalize_allowed_hosts,
+    normalize_allowed_origins,
+    normalize_origin,
 )
 
 
@@ -215,6 +215,61 @@ class Website(models.Model):
             if website._handoff_action_available(candidate, binding)
             else actions.browse()
         )
+
+    def _whatsapp_handoff_claim_action(self, action_ref, referrer, origin):
+        """An old tab may use an archived page rule only with strict equivalence.
+
+        History lookup is unchanged. New receipts/codes belong to the current
+        effective rule, whose policy is checked again by HTTP admission.
+        """
+        self.ensure_one()
+        page_url = safe_page(referrer, origin)
+        if not page_url:
+            raise AccessError(_("A página não corresponde à ação WhatsApp."))
+        path = urlsplit(page_url).path
+        website = self.sudo()
+        website.invalidate_recordset(["handoff_default_action_id"])
+        effective = website._whatsapp_handoff_action(path)
+        claimed = (
+            self.env["marketing.website.action"]
+            .sudo()
+            .with_context(
+                active_test=False,
+            )
+            .search(
+                [
+                    ("public_ref", "=", action_ref),
+                    ("website_id", "=", self.id),
+                    ("company_id", "=", self.company_id.id),
+                    ("kind", "=", "whatsapp_handoff"),
+                ],
+                limit=1,
+            )
+        )
+        if not claimed or not effective:
+            raise AccessError(_("Ação WhatsApp indisponível."))
+        compared = [
+            "website_id",
+            "company_id",
+            "binding_id",
+            "kind",
+            "whatsapp_destination",
+            "whatsapp_message",
+            "handoff_account_id",
+            "handoff_enabled",
+        ]
+        (claimed | effective).invalidate_recordset(compared + ["active", "source_path"])
+        if claimed == effective and claimed.active:
+            return effective
+        if (
+            claimed.active
+            or claimed.source_path != path
+            or not claimed.handoff_enabled
+            or not claimed._handoff_account_matches()
+            or any(claimed[name] != effective[name] for name in compared)
+        ):
+            raise AccessError(_("A configuração WhatsApp desta página mudou."))
+        return effective
 
     def _whatsapp_handoff_config(self):
         """Own public configuration: thank-you pages do not enable form actions."""

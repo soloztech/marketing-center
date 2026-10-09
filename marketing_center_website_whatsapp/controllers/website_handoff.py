@@ -12,9 +12,6 @@ from odoo.exceptions import AccessError, ValidationError
 from odoo.http import request
 from odoo.tools import hmac
 
-from odoo.addons.marketing_center_web_ingress.services.contracts import (
-    normalize_allowed_hosts,
-)
 from odoo.addons.marketing_center_website.controllers.website_action import (
     _bounded_strict_json,
     _human_post_headers,
@@ -22,9 +19,13 @@ from odoo.addons.marketing_center_website.controllers.website_action import (
     _same_origin,
     _security_headers,
 )
+from odoo.addons.marketing_center_website.services.acquisition import safe_page
 from odoo.addons.marketing_center_website.services.contracts import (
     WebsiteActionContractError,
     opaque_uuid,
+)
+from odoo.addons.marketing_center_website.services.ingress.contracts import (
+    normalize_allowed_hosts,
 )
 
 from ..services.references import reference_message
@@ -77,24 +78,23 @@ class WebsiteWhatsAppHandoff(http.Controller):
                 raise ValidationError(_("Envelope WhatsApp inválido."))
             action_ref = opaque_uuid(payload["action_ref"], "action_ref")
             event_id = opaque_uuid(payload["event_id"], "event_id")
-            action = (
-                env["marketing.website.action"]
-                .sudo()
-                .search(
-                    [
-                        ("public_ref", "=", action_ref),
-                        ("website_id", "=", website.id),
-                        ("company_id", "=", company.id),
-                        ("kind", "=", "whatsapp_handoff"),
-                        ("active", "=", True),
-                        ("binding_id.active", "=", True),
-                    ],
-                    limit=1,
-                )
+            action = website.with_env(env)._whatsapp_handoff_claim_action(
+                action_ref,
+                request.httprequest.referrer or "",
+                origin,
             )
-            if not action:
-                raise AccessError(_("Ação WhatsApp indisponível."))
             endpoint = service._lock_effective_configuration(action)
+            # Configuration writes share the endpoint fence. Re-resolve under
+            # that lock before accepting an archived reference from an old tab.
+            if (
+                website.with_env(env)._whatsapp_handoff_claim_action(
+                    action_ref,
+                    request.httprequest.referrer or "",
+                    origin,
+                )
+                != action
+            ):
+                raise AccessError(_("A configuração WhatsApp desta página mudou."))
             action.invalidate_recordset(
                 ["handoff_enabled", "handoff_account_id", "handoff_reference_prefix"]
             )
@@ -124,30 +124,31 @@ class WebsiteWhatsAppHandoff(http.Controller):
             ):
                 raise AccessError(_("Origem WhatsApp indisponível."))
             with env.cr.savepoint():
-                # The snapshot resolves the actual Referer page with the same
-                # default/override rule used to render its public configuration.
-                visitor = env["website.visitor"]._get_visitor_from_request(
-                    force_create=True
-                )
-                snapshot = env["marketing.website.whatsapp.capture"]._snapshot(
-                    action,
-                    origin,
-                    request.httprequest.referrer or "",
-                    visitor=visitor,
-                    cookies=request.httprequest.cookies,
-                    now=_request_occurred_at(),
-                )
-                # Hash the server's existing native session; never accept a visitor
-                # or session identity in the public request body.
+                # Hash only the existing native session. Retry admission checks
+                # current policy above, but never selects acquisition again.
                 session_key = hmac(
                     service.env,
                     "marketing.website.whatsapp.session.v1",
                     "%s:%s" % (website.id, request.session.sid),
                 )
-                handoff = (
-                    env["marketing.website.whatsapp.handoff"]
-                    .sudo()
-                    ._record_click(
+                handoffs = env["marketing.website.whatsapp.handoff"].sudo()
+                page_url = safe_page(request.httprequest.referrer or "", origin)
+                handoff = handoffs._existing_click(
+                    action, event_id, session_key, page_url
+                )
+                if not handoff:
+                    visitor = env["website.visitor"]._get_visitor_from_request(
+                        force_create=True
+                    )
+                    snapshot = env["marketing.website.whatsapp.capture"]._snapshot(
+                        action,
+                        origin,
+                        request.httprequest.referrer or "",
+                        visitor=visitor,
+                        cookies=request.httprequest.cookies,
+                        now=_request_occurred_at(),
+                    )
+                    handoff = handoffs._record_click(
                         action,
                         visitor,
                         event_id,
@@ -156,8 +157,8 @@ class WebsiteWhatsAppHandoff(http.Controller):
                         snapshot["landing_url"],
                         snapshot["acquisition"],
                         track=snapshot["track"],
+                        visit_at=snapshot["visit_at"],
                     )
-                )
                 message = reference_message(
                     action.whatsapp_message or "", handoff.reference
                 )

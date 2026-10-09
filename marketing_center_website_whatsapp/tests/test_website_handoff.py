@@ -15,11 +15,48 @@ from odoo.tests import tagged
 from odoo.tests.common import HttpCase
 from odoo.tools import config
 
+from odoo.addons.marketing_center_website.services.acquisition import (
+    QUERY_FIELDS,
+    utc_iso,
+)
+from odoo.addons.marketing_center_website.tests.acquisition_cases import (
+    AcquisitionMatrixMixin,
+)
+
 from ..models.website_action import account_whatsapp_digits
 
 
 @tagged("-at_install", "post_install")
-class TestNativeWebsiteWhatsAppHttp(HttpCase):
+class TestNativeWebsiteWhatsAppHttp(AcquisitionMatrixMixin, HttpCase):
+    matrix_purpose = "whatsapp"
+
+    @property
+    def matrix_path(self):
+        return self.page_path
+
+    def _matrix_snapshot(self, referrer, now, cookies):
+        snapshot = self.env["marketing.website.whatsapp.capture"]._snapshot(
+            self.action,
+            self.origin,
+            referrer,
+            visitor=self.visitor,
+            cookies=cookies,
+            now=now,
+        )
+        acquisition = snapshot["acquisition"]
+        return {
+            "values": {
+                name: acquisition[name] for name in QUERY_FIELDS if name in acquisition
+            },
+            "provenance": acquisition["acquisition_provenance"],
+            "track": snapshot["track"],
+            "acquisition_at": acquisition.get("acquisition_at"),
+            "visit_at": utc_iso(snapshot["visit_at"])
+            if snapshot.get("visit_at")
+            else None,
+            "landing_url": snapshot["landing_url"],
+        }
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -114,6 +151,10 @@ class TestNativeWebsiteWhatsAppHttp(HttpCase):
         proxy.start()
         self.addCleanup(proxy.stop)
         self.event_id = str(uuid.uuid4())
+        if self._testMethodName.startswith("test_acquisition_"):
+            self.visitor = self.env["website.visitor"].create(
+                {"access_token": uuid.uuid4().hex}
+            )
 
     def _proxy_cookie_headers(self):
         # The test connects over local HTTP while modelling the HTTPS proxy.
@@ -265,6 +306,57 @@ class TestNativeWebsiteWhatsAppHttp(HttpCase):
             ),
             "A newly published page must not create an action rule",
         )
+
+    def test_old_tab_archived_equivalent_rule_uses_current_action_and_one_handoff(self):
+        default = self._global_default()
+        self.action.active = False
+        # The old tab sends its existing public_ref and the actual Referer.
+        self.assertEqual(self.website._whatsapp_handoff_action(self.page_path), default)
+        first = self._post()
+        self.assertEqual(first.status_code, 202, first.text)
+        with patch(
+            "odoo.addons.marketing_center_website_whatsapp.models."
+            "website_capture.resolve_acquisition",
+            side_effect=AssertionError("Retry must not select a later campaign"),
+        ):
+            self.assertEqual(
+                self._post(query="gclid=later-campaign").json(), first.json()
+            )
+        self.env.invalidate_all()
+        clicks = self.env["marketing.website.whatsapp.handoff"].search(
+            [
+                ("event_id", "=", self.event_id),
+                ("website_id", "=", self.website.id),
+            ]
+        )
+        self.assertEqual(len(clicks), 1)
+        self.assertEqual(clicks.action_id, default)
+        self.assertRegex(clicks.reference, r"^[A-Z0-9]{4}$")
+        self.assertFalse(self._clicks(), "The archived action gains no new receipt")
+
+    def test_old_tab_archived_rule_rejects_different_prefill_page_and_disabled_capture(
+        self,
+    ):
+        default = self._global_default()
+        self.action.active = False
+        default.whatsapp_message = "Different prefill"
+        self.assertEqual(self._post().status_code, 400)
+        default.whatsapp_message = self.action.whatsapp_message
+        other = self._public_page("/old-tab-other-page")
+        self.assertEqual(self._post_page(other.url, self.action).status_code, 400)
+        default.handoff_enabled = False
+        self.assertEqual(self._post().status_code, 400)
+        default.handoff_enabled = True
+        self.endpoint.capture_enabled = False
+        self.assertEqual(self._post().status_code, 400)
+        self.assertFalse(self._clicks())
+
+    def test_old_tab_does_not_bypass_active_specific_capture_off(self):
+        self._global_default()
+        self.action.active = False
+        self._page_action(self.page_path, handoff_enabled=False)
+        self.assertEqual(self._post().status_code, 400)
+        self.assertFalse(self._clicks())
 
     def test_page_overrides_keep_routing_and_reject_global_action_claim(self):
         default = self._global_default()
@@ -988,6 +1080,52 @@ class TestNativeWebsiteWhatsAppHttp(HttpCase):
         self.assertEqual(snapshot["acquisition"]["gclid"], "first")
         self.assertNotIn("utm_campaign", snapshot["acquisition"])
         self.assertEqual(snapshot["track"], original)
+
+    def test_visit_at_freezes_clicked_page_anchor_separately_from_acquisition_track(
+        self,
+    ):
+        visitor = self.env["website.visitor"].create({"access_token": uuid.uuid4().hex})
+        now = fields.Datetime.now()
+        acquisition_at = now - datetime.timedelta(minutes=5)
+        visit_at = now - datetime.timedelta(minutes=1)
+        entry = self.env["website.track"].create(
+            {
+                "visitor_id": visitor.id,
+                "url": self.origin + "/entry?gclid=first",
+                "visit_datetime": acquisition_at,
+            }
+        )
+        self.env["website.track"].create(
+            {
+                "visitor_id": visitor.id,
+                "url": self.origin + self.page_path,
+                "visit_datetime": visit_at,
+            }
+        )
+        snapshot = self.env["marketing.website.whatsapp.capture"]._snapshot(
+            self.action,
+            self.origin,
+            self.origin + self.page_path,
+            visitor=visitor,
+            now=now,
+        )
+        handoff = self.env["marketing.website.whatsapp.handoff"]._record_click(
+            self.action,
+            visitor,
+            str(uuid.uuid4()),
+            "b" * 64,
+            snapshot["page_url"],
+            snapshot["landing_url"],
+            snapshot["acquisition"],
+            track=snapshot["track"],
+            visit_at=snapshot["visit_at"],
+        )
+        self.assertEqual(handoff.track_id, entry)
+        self.assertEqual(handoff.visit_at, visit_at)
+        self.assertEqual(
+            handoff.acquisition_json["acquisition_at"], utc_iso(acquisition_at)
+        )
+        self.assertNotEqual(handoff.visit_at, handoff.clicked_at)
 
     def test_configuration_rejects_wrong_account_and_prefix(self):
         self.assertEqual(account_whatsapp_digits(self.account), "5519999999999")

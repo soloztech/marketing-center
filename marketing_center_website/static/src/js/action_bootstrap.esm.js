@@ -3,6 +3,7 @@
 import {
     boundedActionResponse,
     createFormPostBridge,
+    createModeFormPostBridge,
     createNativeFormPostBridge,
     technicalActionRef,
     trustedHumanActivation,
@@ -18,6 +19,10 @@ import {
     websiteSessionRef,
 } from "@marketing_center_website/js/landing_bootstrap.esm";
 import ajax from "web.ajax";
+import {
+    bootstrapGeneration,
+    captureModeHint,
+} from "@marketing_center_website/js/bootstrap_config.esm";
 
 const FORM_EXCHANGE_PATH = "/marketing/website-action/form/exchange";
 const WHATSAPP_CLAIM_PATH = "/marketing/website-action/whatsapp/claim";
@@ -27,9 +32,7 @@ const RETRY_DELAYS_MS = Object.freeze([0, 250, 750]);
 let enabled = false;
 let consentRef = "";
 let formClaim = null;
-const measurementConfig = document.getElementById("marketing_measurement_config");
-let captureMode =
-    (measurementConfig && measurementConfig.dataset.captureMode) || "native";
+let captureMode = captureModeHint();
 let nativeForm = null;
 const nativeEvents = new WeakMap();
 
@@ -212,30 +215,42 @@ function onActivation(event) {
 }
 
 const originalPost = ajax.post;
-const legacyPost = createFormPostBridge(
+const nativePost = createNativeFormPostBridge(
     originalPost,
-    window.location.origin,
-    takeFormClaim,
-    exchangeForm
-);
-ajax.post = createNativeFormPostBridge(
-    legacyPost,
     window.location.origin,
     nativeEventClaim,
     notifyAction,
     () => captureMode === "native"
 );
+ajax.post = createModeFormPostBridge(
+    originalPost,
+    nativePost,
+    () => captureMode,
+    () => enabled,
+    (post) =>
+        createFormPostBridge(post, window.location.origin, takeFormClaim, exchangeForm)
+);
 document.addEventListener("click", onActivation, true);
 document.addEventListener("submit", onActivation, true);
-loadConfig()
-    .then((config) => {
-        captureMode = (config && config.capture_mode) || captureMode;
-        enabled = validConfig(config) && captureMode === "legacy";
-        consentRef = enabled ? config.consent_ref || "" : "";
-    })
-    .catch(() => {
-        enabled = false;
-    });
+function configureActions() {
+    const generation = bootstrapGeneration();
+    return loadConfig()
+        .then((config) => {
+            if (generation !== bootstrapGeneration()) return;
+            if (
+                config?.enabled === true &&
+                ["native", "legacy"].includes(config.capture_mode)
+            ) {
+                captureMode = config.capture_mode;
+            }
+            enabled = validConfig(config) && captureMode === "legacy";
+            consentRef = enabled ? config.consent_ref || "" : "";
+        })
+        .catch(() => {
+            enabled = false;
+        });
+}
+configureActions();
 
 document.addEventListener("marketing_center:consent-changed", (event) => {
     enabled = false;
@@ -246,14 +261,6 @@ document.addEventListener("marketing_center:consent-changed", (event) => {
         (event.detail.informational_notice === true ||
             (event.detail.granted === true && event.detail.confirmed === true))
     ) {
-        loadConfig(true)
-            .then((config) => {
-                captureMode = (config && config.capture_mode) || captureMode;
-                enabled = validConfig(config) && captureMode === "legacy";
-                consentRef = enabled ? config.consent_ref || "" : "";
-            })
-            .catch(() => {
-                enabled = false;
-            });
+        configureActions();
     }
 });

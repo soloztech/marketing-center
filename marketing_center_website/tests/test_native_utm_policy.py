@@ -192,6 +192,46 @@ class TestNativeUtmPolicy(SavepointCase):
                 self._assert_native_values(self._write(), allowed=True)
         self.assertEqual(before, self.env["marketing.website.consent"].search_count([]))
 
+    def test_bar_disabled_delegates_before_any_marketing_lookup_for_all_responses(self):
+        self.website.cookies_bar = False
+        http_model = type(self.env["ir.http"])
+        for kwargs in (
+            {},
+            {"internal": True},
+            {"scheme": "http"},
+            {"method": "POST"},
+            {"frontend": False},
+        ):
+            with self.subTest(kwargs=kwargs), self._request(**kwargs), patch.object(
+                http_model,
+                "_marketing_allows_native_utm",
+                side_effect=AssertionError("No marketing exception is needed"),
+            ), patch.object(NativeUtmHttp, "_set_utm", return_value="native") as native:
+                for status, mimetype in (
+                    (200, "text/html"),
+                    (404, "text/html"),
+                    (200, "application/json"),
+                ):
+                    response = http.Response(
+                        "Test", status=status, content_type=mimetype
+                    )
+                    self.assertEqual(self.env["ir.http"]._set_utm(response), "native")
+                    self.assertIs(native.call_args.args[0], response)
+
+    def test_bar_disabled_extended_tracking_fields_are_owned_by_native_writer(self):
+        self.website.cookies_bar = False
+        with self._request(
+            params={**self.params, "utm_extra": "Native extra"}
+        ), patch.object(
+            type(self.env["utm.mixin"]),
+            "tracking_fields",
+            return_value=list(policy._NATIVE_UTM_FIELDS)
+            + [("utm_extra", "extra_id", "odoo_utm_extra")],
+        ):
+            cookies = self._write()
+            self.assertEqual(cookies["odoo_utm_extra"].value, "Native extra")
+            self.assertEqual(cookies["odoo_utm_extra"]["max-age"], str(31 * 24 * 3600))
+
     def test_existing_preferences_use_native_behavior(self):
         for preference, allowed in (
             ("false", False),

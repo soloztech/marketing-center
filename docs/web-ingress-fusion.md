@@ -6,9 +6,10 @@ integrates native Contact Center CRM.
 
 The provider-neutral parser, ledger, vault, admission/rate limits and generic
 `/marketing/web-ingress/<public_ref>` route remain intact in `models/ingress`,
-`services/ingress` and `controllers/ingress`. Website overlays load after the core.
-Historical Python module paths point to these same loaded objects. A generic ingress
-client now requires Website to be installed.
+`services/ingress` and `controllers/ingress`. Website overlays load after the core. E3
+removes Website's retired Python aliases; imports use the current owner packages above.
+Historical XML IDs and migration metadata remain intact. Other Base/provider Python
+aliases are unchanged. A generic ingress client requires Website to be installed.
 
 Supported upgrade predecessor: ingress 16.0.1.5.0 and Website16.0.2.0.0, already
 installed. Standalone-ingress databases must install the predecessor Website before

@@ -13,6 +13,7 @@ class TestMarketingWebsiteJS(HttpCase):
     _qunit_modules = (
         "marketing_center_website > landing capture",
         "marketing_center_website > technical actions",
+        "marketing_center_website > shared bootstrap",
     )
 
     @no_retry

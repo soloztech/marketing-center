@@ -88,6 +88,14 @@ class IrHttp(models.AbstractModel):
 
     @classmethod
     def _set_utm(cls, response):
+        # OCB already allows its native writer when the Website bar is off.
+        # Do not consult marketing configuration to grant that native behavior.
+        if (
+            request
+            and getattr(request, "website", None)
+            and not request.website.cookies_bar
+        ):
+            return super()._set_utm(response)
         try:
             allowed = cls._marketing_allows_native_utm(response)
         except PsycopgError:

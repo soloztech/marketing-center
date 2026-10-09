@@ -133,6 +133,35 @@ class WebsiteWhatsappHandoff(models.Model):
                 raise ValidationError(_("A visita deve pertencer ao visitante."))
 
     @api.model
+    def _existing_click(self, action, event_id, session_key, page_url):
+        """Check a retry before selecting acquisition from later navigation.
+
+        Callers must still validate the effective action and current policy.
+        The event fence also covers insertion by _record_click.
+        """
+        acquire_advisory_xact_lock(
+            self.env.cr,
+            "website_whatsapp_event:%s:%s" % (action.website_id.id, event_id),
+        )
+        existing = self._service().search(
+            [
+                ("website_id", "=", action.website_id.id),
+                "|",
+                ("event_id", "=", event_id),
+                ("event_refs", "like", "|%s|" % event_id),
+            ],
+            limit=1,
+        )
+        if existing and (
+            existing.action_id != action
+            or existing.session_key != session_key
+            or existing.account_id != action.handoff_account_id
+            or existing.page_url != page_url
+        ):
+            raise ValidationError(_("Este identificador pertence a outro clique."))
+        return existing
+
+    @api.model
     def _record_click(
         self,
         action,
@@ -143,6 +172,7 @@ class WebsiteWhatsappHandoff(models.Model):
         landing_url,
         acquisition,
         track=None,
+        visit_at=None,
     ):
         """Private admission; HTTP performs origin/policy and action validation."""
         action.ensure_one()
@@ -179,23 +209,8 @@ class WebsiteWhatsappHandoff(models.Model):
         acquire_advisory_xact_lock(
             self.env.cr, "website_whatsapp_session:%s:%s" % (action.id, session_key)
         )
-        existing = service.search(
-            [
-                ("website_id", "=", website.id),
-                "|",
-                ("event_id", "=", event_id),
-                ("event_refs", "like", "|%s|" % event_id),
-            ],
-            limit=1,
-        )
+        existing = self._existing_click(action, event_id, session_key, page_url)
         if existing:
-            if (
-                existing.action_id != action
-                or existing.session_key != session_key
-                or existing.account_id != action.handoff_account_id
-                or existing.page_url != page_url
-            ):
-                raise ValidationError(_("Este identificador pertence a outro clique."))
             return existing
         now = fields.Datetime.now()
         recent = service.search(
@@ -231,6 +246,9 @@ class WebsiteWhatsappHandoff(models.Model):
             "event_refs": "|%s|" % event_id,
             "session_key": session_key,
         }
+        if visit_at is not None:
+            # Acquisition's track may precede the actual clicked-page anchor.
+            values["visit_at"] = visit_at
         # Short codes can collide. The database arbitrates concurrent inserts;
         # a savepoint lets us retry without losing the original click transaction.
         for _attempt in range(20):

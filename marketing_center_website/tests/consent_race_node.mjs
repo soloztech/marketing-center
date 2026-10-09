@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
+import {installBootstrap} from "./bootstrap_fixture_node.mjs";
 
 const source =
   fs
@@ -97,6 +98,7 @@ function tab(fetch, bus = [], cookies = {optional: true}, noticeBar = null) {
       },
     },
   });
+  installBootstrap(context, "consent");
   vm.runInContext(source, context);
   return {
     api: context.api,
@@ -123,7 +125,7 @@ function tab(fetch, bus = [], cookies = {optional: true}, noticeBar = null) {
   let resolveGet;
   let reads = 0;
   const page = tab((path) =>
-    path.endsWith("/config")
+    path.endsWith("bootstrap-config")
       ? ++reads === 1
         ? new Promise((resolve) => {
             resolveGet = resolve;
@@ -152,7 +154,7 @@ function tab(fetch, bus = [], cookies = {optional: true}, noticeBar = null) {
   const calls = [];
   let serverGranted = false;
   const page = tab((path, options) => {
-    if (path.endsWith("/config"))
+    if (path.endsWith("bootstrap-config"))
       return Promise.resolve(answer({...ready, granted: false}));
     const choice = JSON.parse(options.body).granted;
     calls.push(choice);
@@ -191,7 +193,7 @@ function tab(fetch, bus = [], cookies = {optional: true}, noticeBar = null) {
   const fetch = (path) =>
     Promise.resolve(
       answer(
-        path.endsWith("/config")
+        path.endsWith("bootstrap-config")
           ? {...ready, granted: cookies.optional}
           : {accepted: true, granted: false}
       )
@@ -216,7 +218,7 @@ function tab(fetch, bus = [], cookies = {optional: true}, noticeBar = null) {
   const page = tab((path) =>
     Promise.resolve(
       answer(
-        path.endsWith("/config")
+        path.endsWith("bootstrap-config")
           ? {...ready, granted: false}
           : {accepted: true, granted: true}
       )
@@ -296,7 +298,7 @@ function tab(fetch, bus = [], cookies = {optional: true}, noticeBar = null) {
   const page = tab(
     (path) =>
       Promise.resolve(
-        answer(path.endsWith("/config") ? mode() : {...mode(), accepted: true})
+        answer(path.endsWith("bootstrap-config") ? mode() : {...mode(), accepted: true})
       ),
     [],
     {optional: false}
@@ -342,7 +344,7 @@ function tab(fetch, bus = [], cookies = {optional: true}, noticeBar = null) {
         granted: false,
         informational_notice: true,
         capture_allowed: true,
-        ...(!path.endsWith("/config") ? {accepted: true} : {}),
+        ...(!path.endsWith("bootstrap-config") ? {accepted: true} : {}),
       })
     );
   const first = tab(fetch, bus, cookies),
@@ -372,7 +374,7 @@ for (const failure of ["http", "network", "not-accepted"]) {
     capture_allowed: true,
   };
   const page = tab((path) => {
-    if (path.endsWith("/config")) return Promise.resolve(answer(mode));
+    if (path.endsWith("bootstrap-config")) return Promise.resolve(answer(mode));
     if (failure === "not-accepted") return Promise.resolve(answer({accepted: false}));
     return failure === "http"
       ? Promise.resolve({ok: false})
@@ -411,7 +413,7 @@ for (const informational of [true, false]) {
       };
       const page = tab(
         (path) => {
-          if (path.endsWith("/config")) {
+          if (path.endsWith("bootstrap-config")) {
             if (++reads === 1)
               return new Promise((resolve) => {
                 oldResolve = resolve;
@@ -471,7 +473,9 @@ for (const informational of [true, false]) {
   const first = tab(
     (path) =>
       Promise.resolve(
-        answer(path.endsWith("/config") ? info : {accepted: true, granted: false})
+        answer(
+          path.endsWith("bootstrap-config") ? info : {accepted: true, granted: false}
+        )
       ),
     bus
   );
@@ -551,7 +555,7 @@ for (const response of [
 // A confirmed individual refusal is authoritative after a failed config GET.
 {
   const page = tab((path) =>
-    path.endsWith("/config")
+    path.endsWith("bootstrap-config")
       ? Promise.reject(new Error("temporary config failure"))
       : Promise.resolve(
           answer({accepted: true, granted: false, informational_notice: false})
@@ -566,7 +570,7 @@ for (const response of [
   const page = tab((path) =>
     Promise.resolve(
       answer(
-        path.endsWith("/config")
+        path.endsWith("bootstrap-config")
           ? {
               available: false,
               granted: false,

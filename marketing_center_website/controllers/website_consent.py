@@ -7,27 +7,20 @@ from odoo.http import request
 
 from ..models.consent import CONSENT_CONTEXT_TOKEN, CONSENT_COOKIE
 from .website_action import _bounded_strict_json, _human_post_headers, _same_origin
-from .website_ingress import _config_response, _endpoint_origin_allowed
+from .website_ingress import _config_response, _endpoint_origin_allowed, _public_binding
 
 
-def _binding():
+def _binding(binding=None):
     if not request.env.user._is_public() or request.httprequest.scheme != "https":
         return request.env["marketing.website.ingress.binding"]
-    binding = (
-        request.env["marketing.website.ingress.binding"]
-        .sudo()
-        .search(
-            [
-                ("website_id", "=", request.website.id),
-                ("active", "=", True),
-                ("endpoint_id.active", "=", True),
-                ("company_id", "=", request.website.company_id.id),
-            ],
-            limit=1,
-        )
-    )
-    if binding and _endpoint_origin_allowed(
-        binding.endpoint_id, request.httprequest.host_url
+    if binding is None:
+        binding = _public_binding()
+    if (
+        binding
+        and binding.company_id == request.website.company_id
+        and binding.endpoint_id.active
+        and binding.endpoint_id.company_id == request.website.company_id
+        and _endpoint_origin_allowed(binding.endpoint_id, request.httprequest.host_url)
     ):
         return binding
     return request.env["marketing.website.ingress.binding"]

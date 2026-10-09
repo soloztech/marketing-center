@@ -1,7 +1,7 @@
 {
     "name": "Marketing Center - Website",
     "summary": "First-party Odoo Website adapter for the marketing ingress",
-    "version": "16.0.2.3.0",
+    "version": "16.0.2.4.0",
     "category": "Marketing",
     "author": "Soloz Technologies",
     "website": "https://github.com/soloztech/marketing-center",
@@ -33,6 +33,7 @@
     ],
     "assets": {
         "web.assets_frontend": [
+            "marketing_center_website/static/src/js/bootstrap_config.esm.js",
             "marketing_center_website/static/src/js/landing_capture.esm.js",
             "marketing_center_website/static/src/js/consent.esm.js",
             "marketing_center_website/static/src/js/landing_bootstrap.esm.js",
@@ -42,8 +43,10 @@
             "marketing_center_website/static/src/js/measurement.esm.js",
         ],
         "web.qunit_suite_tests": [
+            "marketing_center_website/static/src/js/bootstrap_config.esm.js",
             "marketing_center_website/static/src/js/landing_capture.esm.js",
             "marketing_center_website/static/src/js/action_capture.esm.js",
+            "marketing_center_website/static/tests/bootstrap_config_tests.esm.js",
             "marketing_center_website/static/tests/landing_capture_tests.esm.js",
             "marketing_center_website/static/tests/action_capture_tests.esm.js",
         ],

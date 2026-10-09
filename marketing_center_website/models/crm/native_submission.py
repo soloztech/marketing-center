@@ -1,8 +1,7 @@
 """One acquisition snapshot on the native lead; no parallel session ledger."""
 import datetime
 import logging
-import re
-from urllib.parse import parse_qs, unquote, urlsplit, urlunsplit
+from urllib.parse import urlsplit
 
 from psycopg2.errors import DeadlockDetected, SerializationFailure
 
@@ -13,76 +12,20 @@ from odoo.addons.marketing_center_base.services.serialization import (
     acquire_advisory_xact_lock,
 )
 
+# Compatibility exports for journey_ui and downstream current-namespace imports.
+from ...services.acquisition import (
+    CLICK_FIELDS,
+    acquisition_values as acquisition_values,
+    resolve_acquisition,
+    safe_page,
+    utc_iso,
+)
 from ..consent import CONSENT_CONTEXT_TOKEN
 from .tokens import WEBSITE_NATIVE_SUBMISSION_TOKEN as _TOKEN
 
-_QUERY_FIELDS = (
-    "utm_source",
-    "utm_medium",
-    "utm_campaign",
-    "utm_term",
-    "utm_content",
-    "gclid",
-    "gbraid",
-    "wbraid",
-    "fbclid",
-    "gad_campaignid",
-    "gad_source",
-)
-_CLICK_FIELDS = {"gclid", "gbraid", "wbraid", "fbclid"}
-_TECHNICAL = ("/web", "/website", "/marketing", "/my", "/portal", "/auth")
+__all__ = ["acquisition_values", "safe_page", "utc_iso"]
+
 _logger = logging.getLogger(__name__)
-
-
-def safe_page(value, origin):
-    """Keep only an exact same-origin public URL, without its query or fragment."""
-    try:
-        parsed = urlsplit(value)
-        if (
-            parsed.scheme != "https"
-            or parsed.username
-            or parsed.password
-            or urlunsplit((parsed.scheme, parsed.netloc, "", "", "")) != origin
-            or len(value) > 8192
-        ):
-            return ""
-        path = unquote(parsed.path or "/").lower()
-        if any(
-            path == prefix or path.startswith(prefix + "/") for prefix in _TECHNICAL
-        ):
-            return ""
-        return urlunsplit((parsed.scheme, parsed.netloc, parsed.path or "/", "", ""))
-    except (TypeError, ValueError):
-        return ""
-
-
-def acquisition_values(url):
-    try:
-        query = parse_qs(urlsplit(url).query, max_num_fields=100)
-    except (TypeError, ValueError):
-        return {}
-    values = {}
-    for key in _QUERY_FIELDS:
-        candidates = query.get(key, [])
-        if len(candidates) != 1:
-            continue
-        value = candidates[0].strip()
-        if not value or len(value) > 512 or re.search(r"[\x00-\x1f\x7f]", value):
-            continue
-        if key in _CLICK_FIELDS and not re.fullmatch(
-            r"[A-Za-z0-9][A-Za-z0-9._:~-]{0,511}", value
-        ):
-            continue
-        if key in {"gad_campaignid", "gad_source"} and not re.fullmatch(
-            r"[0-9]{1,32}", value
-        ):
-            continue
-        values[key] = value
-    return values
-
-
-def utc_iso(value):
-    return value.replace(tzinfo=datetime.timezone.utc, microsecond=0).isoformat()
 
 
 class CrmLead(models.Model):
@@ -280,88 +223,29 @@ class MarketingWebsiteCrmService(models.AbstractModel):
         if len(actions) != 1:
             return {}
         action = actions
-        chosen_url = form_url
-        values = acquisition_values(referrer)
-        track_id = False
-        acquired_at = None
-        # Bound historical inference to the preceding 24h and to the actual form
-        # page. A visitor may span many days or tabs and is not a session token.
-        if visitor and visitor.exists():
-            tracks = (
-                self.env["website.track"]
-                .sudo()
-                .search(
-                    [
-                        ("visitor_id", "=", visitor.id),
-                        ("visit_datetime", "<=", submitted_at),
-                        (
-                            "visit_datetime",
-                            ">=",
-                            submitted_at - datetime.timedelta(hours=24),
-                        ),
-                    ],
-                    order="visit_datetime desc, id desc",
-                    limit=200,
-                )
-            )
-            tracks = tracks.filtered(
-                lambda t: safe_page(t.url, origin)
-                and (
-                    not t.page_id
-                    or not t.page_id.website_id
-                    or t.page_id.website_id == website
-                )
-            )
-            anchor = next(
-                (
-                    t
-                    for t in tracks
-                    if safe_page(t.url, origin) == form_url
-                    and (not values or acquisition_values(t.url) == values)
-                ),
-                None,
-            )
-            if anchor:
-                # Use the page's recorded time even if its Referer carries the
-                # click. Otherwise a next-day form invents a next-day click.
-                acquired_at = anchor.visit_datetime
-                track_id = anchor.id
-                if not values:
-                    candidates = tracks.filtered(
-                        lambda t: (t.visit_datetime, t.id)
-                        <= (anchor.visit_datetime, anchor.id)
-                    )
-                    chosen = next(
-                        (t for t in candidates if acquisition_values(t.url)), None
-                    )
-                    if chosen:
-                        values = acquisition_values(chosen.url)
-                        chosen_url = safe_page(chosen.url, origin)
-                        acquired_at, track_id = chosen.visit_datetime, chosen.id
-        # Native cookie UTMs remain a fallback; never mix their campaign with a
-        # different track's click. Cookie-only acquisition has no known click date.
-        if not values:
-            for name in ("source", "medium", "campaign"):
-                value = unquote((cookies or {}).get("odoo_utm_" + name, ""))
-                if (
-                    value
-                    and len(value) <= 512
-                    and not re.search(r"[\x00-\x1f\x7f]", value)
-                ):
-                    values["utm_" + name] = value
+        acquisition = resolve_acquisition(
+            self.env,
+            website,
+            origin,
+            referrer,
+            submitted_at,
+            visitor=visitor,
+            cookies=cookies,
+            purpose="form",
+        )
         payload = {
             "event_id": event_id,
             "event_type": "form_submission",
             "occurred_at": utc_iso(submitted_at),
-            "landing_url": chosen_url,
+            "landing_url": acquisition["landing_url"],
             "consent_state": "unknown",
             "action_ref": action.public_ref,
             "route_ref": action.route_ref,
             "model_ref": "crm.lead",
-            **values,
+            **acquisition["values"],
         }
-        if acquired_at:
-            payload["acquisition_at"] = utc_iso(acquired_at)
+        if acquisition["acquired_at"]:
+            payload["acquisition_at"] = utc_iso(acquisition["acquired_at"])
         consent = (
             self.env["marketing.website.consent"]._current(binding.endpoint_id)
             if binding.endpoint_id._requires_individual_consent()
@@ -372,7 +256,11 @@ class MarketingWebsiteCrmService(models.AbstractModel):
             "action_id": action.id,
             "endpoint_id": binding.endpoint_id.id,
             "origin": origin,
-            "track_id": track_id,
+            "provenance": acquisition["provenance"],
+            "track_id": acquisition["track"].id or False,
+            "visit_at": utc_iso(acquisition["visit_at"])
+            if acquisition["visit_at"]
+            else False,
             "form_url": form_url,
             "consent_id": consent.id if consent else False,
         }
@@ -446,7 +334,7 @@ class MarketingWebsiteCrmService(models.AbstractModel):
             snapshot,
             event_ref=event.public_ref,
             payload={
-                key: value for key, value in payload.items() if key not in _CLICK_FIELDS
+                key: value for key, value in payload.items() if key not in CLICK_FIELDS
             },
         )
         lead.with_context(marketing_native_submission_token=_TOKEN).write(

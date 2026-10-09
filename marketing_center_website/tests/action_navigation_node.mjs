@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
+import {installBootstrap} from "./bootstrap_fixture_node.mjs";
 
 const read = (name) =>
   fs
@@ -66,6 +67,7 @@ const context = vm.createContext({
   loadConfig: async () => ({capture_mode: "legacy"}),
   validConfig: () => true,
 });
+installBootstrap(context);
 vm.runInContext(
   read("action_capture") +
     "\n" +

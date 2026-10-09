@@ -9,9 +9,28 @@ from odoo.tests.common import SavepointCase
 
 from ..controllers import website_form
 from ..models.crm.native_submission import acquisition_values
+from ..services.acquisition import QUERY_FIELDS
+from .acquisition_cases import AcquisitionMatrixMixin
 
 
-class TestNativeWebsiteSubmission(SavepointCase):
+class TestNativeWebsiteSubmission(AcquisitionMatrixMixin, SavepointCase):
+    matrix_path = "/contactus"
+    matrix_purpose = "form"
+
+    def _matrix_snapshot(self, referrer, now, cookies):
+        snapshot = self._snapshot(referrer=referrer, now=now, cookies=cookies)
+        payload = snapshot["payload"]
+        return {
+            "values": {name: payload[name] for name in QUERY_FIELDS if name in payload},
+            "provenance": snapshot["provenance"],
+            "track": self.env["website.track"].browse(snapshot["track_id"])
+            if snapshot["track_id"]
+            else self.env["website.track"],
+            "acquisition_at": payload.get("acquisition_at"),
+            "visit_at": snapshot.get("visit_at") or None,
+            "landing_url": payload["landing_url"],
+        }
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -265,7 +284,11 @@ class TestNativeWebsiteSubmission(SavepointCase):
         now = fields.Datetime.now()
         entry = self._track("/lp?gclid=original", now - datetime.timedelta(minutes=3))
         self._track("/contactus", now - datetime.timedelta(minutes=1))
-        lead = self._lead(self._snapshot(now=now))
+        frozen = self._snapshot(now=now)
+        # A pending E1 snapshot has no E3 provenance/visit metadata.
+        frozen.pop("provenance", None)
+        frozen.pop("visit_at", None)
+        lead = self._lead(frozen)
         controller = website_form.MarketingWebsiteCrmFormController()
         fake = SimpleNamespace(env=self.env)
         with patch.object(website_form, "request", fake), patch.object(
@@ -277,7 +300,14 @@ class TestNativeWebsiteSubmission(SavepointCase):
         self.assertTrue(lead.exists())
         self.assertEqual(lead.marketing_native_capture_state, "error")
         self._track("/contactus?gclid=later", now + datetime.timedelta(seconds=1))
-        self.service._cron_recover_native_submissions(now=now)
+        with patch(
+            "odoo.addons.marketing_center_website.models.crm."
+            "native_submission.resolve_acquisition",
+            side_effect=AssertionError(
+                "Retry must use the frozen pre-upgrade snapshot"
+            ),
+        ):
+            self.service._cron_recover_native_submissions(now=now)
         self.assertEqual(lead.marketing_native_capture_state, "done")
         self.assertEqual(lead.marketing_native_snapshot["track_id"], entry.id)
         links = self.env["marketing.website.crm.correlation"].search(

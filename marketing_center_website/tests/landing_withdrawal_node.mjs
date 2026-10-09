@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
+import {installBootstrap} from "./bootstrap_fixture_node.mjs";
 const source =
   fs
     .readFileSync(
@@ -36,17 +37,24 @@ function run(fetch) {
     },
     document: {
       referrer: "",
+      getElementById: () => null,
       addEventListener(_type, callback) {
         listener = callback;
       },
     },
   });
+  installBootstrap(context, "ingress");
   vm.runInContext(source, context);
   return {
     api: context.api,
     saved,
     withdraw() {
-      listener({detail: {granted: false}});
+      const event = {
+        type: "marketing_center:consent-changed",
+        detail: {granted: false},
+      };
+      context.document.dispatchEvent(event);
+      listener(event);
       saved.length = 0;
     },
   };
@@ -67,7 +75,7 @@ function run(fetch) {
 {
   let complete;
   const page = run((path) =>
-    path.endsWith("/config")
+    path.endsWith("bootstrap-config")
       ? Promise.resolve({ok: true, json: async () => config})
       : new Promise((done) => {
           complete = done;

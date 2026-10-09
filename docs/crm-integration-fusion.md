@@ -22,9 +22,10 @@ owner's `models/crm` package; it is no longer a separately installed addon.
 
 Model names, SQL tables, field names, existing record IDs, opaque capabilities, queue
 method names, identity keys and serialized arguments remain unchanged. Historical XML
-IDs continue to resolve to their original targets. Known legacy Python imports resolve
-to the actual loaded owner modules through virtual aliases; these aliases do not provide
-an installable addon.
+IDs continue to resolve to their original targets. Base and the other providers retain
+virtual Python aliases. E3 retires only Website's Python aliases: use
+`marketing_center_website.models.crm` and `marketing_center_website.services.ingress`.
+The retired modules remain uninstallable and XML metadata aliases remain preserved.
 
 Conversations and their messages continue to belong to Contact Center channels. Native
 conversation links associate channels with CRM leads. Attribution touchpoints and

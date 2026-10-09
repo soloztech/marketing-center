@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
+import {installBootstrap} from "./bootstrap_fixture_node.mjs";
 
 const source =
   fs
@@ -88,7 +89,7 @@ const context = vm.createContext({
     fetch: async (path) => ({
       ok: true,
       json: async () =>
-        path.endsWith("/config")
+        path.endsWith("bootstrap-config")
           ? {
               available: true,
               granted: false,
@@ -100,6 +101,7 @@ const context = vm.createContext({
     }),
   },
 });
+installBootstrap(context, "consent");
 vm.runInContext(source, context);
 await context.api.submitConsent(false);
 for (const name of names) {
@@ -119,6 +121,7 @@ const unavailable = vm.createContext({
   ...context,
   window: {...context.window, fetch: async () => ({ok: false})},
 });
+installBootstrap(unavailable, "consent");
 vm.runInContext(source, unavailable);
 await unavailable.api.submitConsent(false);
 assert.equal(assignments.length, 0);

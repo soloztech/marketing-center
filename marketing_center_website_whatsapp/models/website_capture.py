@@ -1,14 +1,12 @@
 """Freeze acquisition at a meaningful native Website WhatsApp click."""
 
-import datetime
-import re
-from urllib.parse import unquote, urlsplit
+from urllib.parse import urlsplit
 
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError
 
-from odoo.addons.marketing_center_website.models.crm.native_submission import (
-    acquisition_values,
+from odoo.addons.marketing_center_website.services.acquisition import (
+    resolve_acquisition,
     safe_page,
     utc_iso,
 )
@@ -30,83 +28,24 @@ class MarketingWebsiteWhatsAppCapture(models.AbstractModel):
         ):
             raise AccessError(_("A página não corresponde à ação WhatsApp."))
 
-        landing_url = page_url
-        acquisition = acquisition_values(referrer)
-        provenance = "referrer" if acquisition else "none"
-        chosen_track = self.env["website.track"]
-        acquired_at = None
-        if visitor and visitor.exists():
-            tracks = (
-                self.env["website.track"]
-                .sudo()
-                .search(
-                    [
-                        ("visitor_id", "=", visitor.id),
-                        ("visit_datetime", "<=", now),
-                        ("visit_datetime", ">=", now - datetime.timedelta(hours=24)),
-                    ],
-                    order="visit_datetime desc, id desc",
-                    limit=200,
-                )
-                .filtered(
-                    lambda track: safe_page(track.url, origin)
-                    and (
-                        not track.page_id
-                        or not track.page_id.website_id
-                        or track.page_id.website_id == website
-                    )
-                )
-            )
-            anchor = next(
-                (
-                    track
-                    for track in tracks
-                    if safe_page(track.url, origin) == page_url
-                    and (
-                        not acquisition or acquisition_values(track.url) == acquisition
-                    )
-                ),
-                None,
-            )
-            if anchor:
-                acquired_at = anchor.visit_datetime
-                chosen_track = anchor
-                if not acquisition:
-                    preceding = tracks.filtered(
-                        lambda track: (track.visit_datetime, track.id)
-                        <= (anchor.visit_datetime, anchor.id)
-                    )
-                    chosen = next(
-                        (track for track in preceding if acquisition_values(track.url)),
-                        None,
-                    )
-                    if chosen:
-                        acquisition = acquisition_values(chosen.url)
-                        landing_url = safe_page(chosen.url, origin)
-                        acquired_at = chosen.visit_datetime
-                        chosen_track = chosen
-                        provenance = "track"
-        # A partial click tuple owns its origin; old UTM cookies never fill it.
-        if not acquisition:
-            # A cookie says what, not when. The click-page track is not an
-            # acquisition timestamp for an older cookie campaign.
-            acquired_at = None
-            for suffix in ("source", "medium", "campaign"):
-                value = unquote((cookies or {}).get("odoo_utm_" + suffix, ""))
-                if (
-                    value
-                    and len(value) <= 512
-                    and not re.search(r"[\x00-\x1f\x7f]", value)
-                ):
-                    acquisition["utm_" + suffix] = value
-            if acquisition:
-                provenance = "cookie"
-        if acquired_at:
-            acquisition["acquisition_at"] = utc_iso(acquired_at)
-        acquisition["acquisition_provenance"] = provenance
+        selected = resolve_acquisition(
+            self.env,
+            website,
+            origin,
+            referrer,
+            now,
+            visitor=visitor,
+            cookies=cookies,
+            purpose="whatsapp",
+        )
+        acquisition = dict(selected["values"])
+        if selected["acquired_at"]:
+            acquisition["acquisition_at"] = utc_iso(selected["acquired_at"])
+        acquisition["acquisition_provenance"] = selected["provenance"]
         return {
-            "page_url": page_url,
-            "landing_url": landing_url,
+            "page_url": selected["page_url"],
+            "landing_url": selected["landing_url"],
             "acquisition": acquisition,
-            "track": chosen_track,
+            "track": selected["track"],
+            "visit_at": selected["visit_at"] or False,
         }

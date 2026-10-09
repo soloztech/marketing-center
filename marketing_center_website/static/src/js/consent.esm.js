@@ -5,10 +5,15 @@ import "website.s_popup";
 import {deleteCookie, setCookie} from "web.utils.cookies";
 import {eligibleLandingPath} from "@marketing_center_website/js/landing_capture.esm";
 
-const CONFIG = "/marketing/website-consent/config";
+import {
+    bootstrapGeneration,
+    invalidateBootstrap,
+    loadBootstrap,
+} from "@marketing_center_website/js/bootstrap_config.esm";
 const DECISION = "/marketing/website-consent/decision";
 const STORAGE_PREFIX = "marketing_center.website.v1";
 let pending = null;
+let pendingGeneration = -1;
 let choice = null;
 let serial = 0;
 let decisionQueue = Promise.resolve();
@@ -69,18 +74,19 @@ function clearOptionalSession(confirmedIndividualWithdrawal = false) {
 }
 
 export function loadConsent(refresh = false) {
-    if (!pending || refresh) {
+    if (!pending || refresh || pendingGeneration !== bootstrapGeneration()) {
+        if (refresh) invalidateBootstrap();
         const generation = serial;
-        pending = window
-            .fetch(CONFIG, {
-                credentials: "same-origin",
-                cache: "no-store",
-                headers: {Accept: "application/json"},
-            })
-            .then((response) => (response.ok ? response.json() : null))
+        const configGeneration = bootstrapGeneration();
+        pendingGeneration = configGeneration;
+        pending = loadBootstrap()
+            .then((envelope) => envelope && envelope.consent)
             .then((value) => {
-                if (generation !== serial) {
-                    return choice || {available: false, granted: false};
+                if (
+                    generation !== serial ||
+                    configGeneration !== bootstrapGeneration()
+                ) {
+                    return {available: false, granted: false, capture_allowed: false};
                 }
                 choice =
                     value &&
@@ -100,7 +106,7 @@ export function loadConsent(refresh = false) {
                         choice.informational_notice && choice.capture_allowed
                     );
                 }
-                if (!choice.granted) {
+                if (value && !choice.granted) {
                     clearOptionalSession();
                 }
                 notify("consent-ready", choice);
@@ -111,16 +117,37 @@ export function loadConsent(refresh = false) {
     return pending;
 }
 
+document.addEventListener("marketing_center:consent-changed", (event) => {
+    pending = null;
+    if (
+        choice &&
+        !(event.detail?.confirmed === true && event.detail.granted === true)
+    ) {
+        choice = {
+            ...choice,
+            granted: false,
+            capture_allowed:
+                choice.informational_notice === true && choice.capture_allowed === true,
+        };
+    }
+});
+
 function receiveWithdrawal() {
     ++serial;
+    invalidateBootstrap(true);
     withdrawalPending = true;
     pending = null;
     if (choice) {
-        choice = {...choice, granted: false};
+        choice = {
+            ...choice,
+            granted: false,
+            capture_allowed:
+                choice.informational_notice === true && choice.capture_allowed === true,
+        };
         clearOptionalSession();
     }
     notify("consent-changed", {...choice, granted: false, confirmed: false});
-    loadConsent(true);
+    loadConsent();
 }
 if (channel) {
     channel.addEventListener("message", (event) => {
@@ -138,13 +165,32 @@ if (channel) {
 
 export async function submitConsent(granted) {
     const sequence = ++serial;
+    invalidateBootstrap(true);
+    pending = null;
     let utmsCleared = false;
+    if (granted) {
+        if (choice)
+            choice = {
+                ...choice,
+                granted: false,
+                capture_allowed:
+                    choice.informational_notice === true &&
+                    choice.capture_allowed === true,
+            };
+        notify("consent-changed", {...choice, granted: false, confirmed: false});
+    }
     if (!granted) {
         broadcastWithdrawal();
         withdrawalPending = true;
         pending = null;
         if (choice) {
-            choice = {...choice, granted: false};
+            choice = {
+                ...choice,
+                granted: false,
+                capture_allowed:
+                    choice.informational_notice === true &&
+                    choice.capture_allowed === true,
+            };
             clearOptionalSession();
         }
         // Unknown policy cannot justify erasing first-party storage.
@@ -158,7 +204,7 @@ export async function submitConsent(granted) {
     });
     await previous;
     try {
-        const config = choice || (await loadConsent(true));
+        const config = choice || (await loadConsent());
         if (sequence !== serial) return false;
         if (
             !granted &&
@@ -173,7 +219,7 @@ export async function submitConsent(granted) {
         if (granted && !config.available) {
             // Informational capture has no grant POST. Refresh here as well on
             // Blog/jobs and pages without a Google measurement consumer.
-            await loadConsent(true);
+            await loadConsent();
             return false;
         }
         const response = await window
@@ -209,7 +255,7 @@ export async function submitConsent(granted) {
             choice = {...config, granted: false};
             pending = Promise.resolve(choice);
             notify("consent-changed", {...choice, confirmed: false});
-            await loadConsent(true);
+            await loadConsent();
             return false;
         }
         const accepted = Boolean(result && result.accepted === true);

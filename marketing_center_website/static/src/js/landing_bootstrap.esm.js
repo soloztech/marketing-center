@@ -6,7 +6,11 @@ import {
     opaqueUuid,
 } from "@marketing_center_website/js/landing_capture.esm";
 
-const CONFIG_PATH = "/marketing/website-ingress/config";
+import {
+    bootstrapGeneration,
+    captureModeHint,
+    loadBootstrap,
+} from "@marketing_center_website/js/bootstrap_config.esm";
 const PUBLIC_KEY_HEADER = "X-Marketing-Ingress-Key";
 const CONFIG_REVISION_HEADER = "X-Marketing-Ingress-Revision";
 const STORAGE_PREFIX = "marketing_center.website.v1";
@@ -17,8 +21,6 @@ const INGEST_PATH_PATTERN = new RegExp(
     `^/marketing/web-ingress/${UUID_PATTERN.source.slice(1, -1)}$`,
     "i"
 );
-let configPromise = null;
-let configGeneration = 0;
 
 function storageGet(key) {
     try {
@@ -69,30 +71,21 @@ export function newActionEventId() {
 }
 
 export async function loadConfig(refresh = false) {
-    if (!configPromise || refresh) {
-        const generation = configGeneration;
-        configPromise = window
-            .fetch(CONFIG_PATH, {
-                method: "GET",
-                credentials: "same-origin",
-                cache: "no-store",
-                headers: {Accept: "application/json"},
-            })
-            .then((response) => (response.ok ? response.json() : null))
-            .then((config) => (generation === configGeneration ? config : null))
-            .catch(() => null);
-    }
-    return configPromise;
+    const envelope = await loadBootstrap(refresh);
+    return envelope && envelope.ingress;
 }
 
 export async function captureLandingEntry() {
-    if (!eligibleLandingPath(window.location.pathname)) {
+    if (
+        captureModeHint() === "native" ||
+        !eligibleLandingPath(window.location.pathname)
+    ) {
         return false;
     }
-    const generation = configGeneration;
+    const generation = bootstrapGeneration();
     const config = await loadConfig();
     if (
-        generation !== configGeneration ||
+        generation !== bootstrapGeneration() ||
         !validConfig(config) ||
         config.capture_mode !== "legacy"
     ) {
@@ -136,7 +129,7 @@ export async function captureLandingEntry() {
         },
         body,
     });
-    if (generation !== configGeneration) {
+    if (generation !== bootstrapGeneration()) {
         return false;
     }
     if (response.ok) {
@@ -153,8 +146,6 @@ export async function captureLandingEntry() {
 captureLandingEntry().catch(() => false);
 
 document.addEventListener("marketing_center:consent-changed", (event) => {
-    configGeneration += 1;
-    configPromise = null;
     if (
         event.detail &&
         (event.detail.informational_notice === true ||
