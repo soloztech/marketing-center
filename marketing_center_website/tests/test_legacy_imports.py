@@ -1,102 +1,48 @@
+"""Current namespace imports exercised with both complete addon registrations."""
 import importlib
+import sys
 
 from odoo.tests.common import SavepointCase
 
 
-class TestMarketingCenterWebsiteLegacyImports(SavepointCase):
-    def test_legacy_model_paths_share_loaded_implementation(self):
-        self.assertIs(
-            importlib.import_module(
-                "odoo.addons.marketing_center_website_crm.models.correlation"
-            ),
-            importlib.import_module(
-                "odoo.addons.marketing_center_website.models.crm.correlation"
-            ),
-        )
-        self.assertIs(
-            importlib.import_module(
-                "odoo.addons.marketing_center_website_crm.models.ingress_event"
-            ),
-            importlib.import_module(
-                "odoo.addons.marketing_center_website.models.crm.ingress_event"
-            ),
-        )
-        self.assertIs(
-            importlib.import_module(
-                "odoo.addons.marketing_center_website_crm.models.intent"
-            ),
-            importlib.import_module(
-                "odoo.addons.marketing_center_website.models.crm.intent"
-            ),
-        )
-        self.assertIs(
-            importlib.import_module(
-                "odoo.addons.marketing_center_website_crm.models.ip_observation"
-            ),
-            importlib.import_module(
-                "odoo.addons.marketing_center_website.models.crm.ip_observation"
-            ),
-        )
-        self.assertIs(
-            importlib.import_module(
-                "odoo.addons.marketing_center_website_crm.models.native_submission"
-            ),
-            importlib.import_module(
-                "odoo.addons.marketing_center_website.models.crm.native_submission"
-            ),
-        )
-        self.assertIs(
-            importlib.import_module(
-                "odoo.addons.marketing_center_website_crm.models.service"
-            ),
-            importlib.import_module(
-                "odoo.addons.marketing_center_website.models.crm.service"
-            ),
-        )
-        self.assertIs(
-            importlib.import_module(
-                "odoo.addons.marketing_center_website_crm.models.tokens"
-            ),
-            importlib.import_module(
-                "odoo.addons.marketing_center_website.models.crm.tokens"
-            ),
-        )
-
-    def test_legacy_ingress_packages_and_modules_share_loaded_implementation(self):
+class TestMarketingCenterWebsiteCurrentImports(SavepointCase):
+    def test_current_addon_namespaces_and_retired_registration(self):
+        addon = importlib.import_module("odoo.addons.marketing_center_website")
+        self.assertTrue(addon.models)
         for package, leaves in {
-            "models": ("admission", "endpoint", "event", "service"),
-            "services": ("contracts", "errors", "tokens"),
-            "controllers": ("ingress",),
+            "models.crm": (
+                "correlation",
+                "ingress_event",
+                "intent",
+                "ip_observation",
+                "native_submission",
+                "service",
+                "tokens",
+            ),
+            "models.ingress": ("admission", "endpoint", "event", "service"),
+            "services.ingress": ("contracts", "errors", "tokens"),
+            "controllers.ingress": ("ingress",),
         }.items():
-            current = "odoo.addons.marketing_center_website." + package + ".ingress"
-            legacy = "odoo.addons.marketing_center_web_ingress." + package
-            for suffix in ("",) + tuple("." + leaf for leaf in leaves):
-                self.assertIs(
-                    importlib.import_module(legacy + suffix),
-                    importlib.import_module(current + suffix),
+            for leaf in leaves:
+                name = "odoo.addons.marketing_center_website." + package + "." + leaf
+                self.assertEqual(importlib.import_module(name).__name__, name)
+        for retired in (
+            "odoo.addons.marketing_center_web_ingress",
+            "odoo.addons.marketing_center_website_crm",
+        ):
+            self.assertFalse(
+                any(
+                    name == retired or name.startswith(retired + ".")
+                    for name in sys.modules
                 )
-        old_tokens = importlib.import_module(
-            "odoo.addons.marketing_center_web_ingress.services.tokens"
+            )
+
+    def test_native_helpers_remain_current_namespace_exports(self):
+        original = importlib.import_module(
+            "odoo.addons.marketing_center_website.models.crm.native_submission"
         )
-        new_tokens = importlib.import_module(
-            "odoo.addons.marketing_center_website.services.ingress.tokens"
+        shared = importlib.import_module(
+            "odoo.addons.marketing_center_website.services.acquisition"
         )
-        self.assertIs(
-            old_tokens.WEB_INGRESS_INTERNAL_TOKEN, new_tokens.WEB_INGRESS_INTERNAL_TOKEN
-        )
-        old_errors = importlib.import_module(
-            "odoo.addons.marketing_center_web_ingress.services.errors"
-        )
-        new_errors = importlib.import_module(
-            "odoo.addons.marketing_center_website.services.ingress.errors"
-        )
-        self.assertIs(
-            old_errors.WebIngressSerializationFailure,
-            new_errors.WebIngressSerializationFailure,
-        )
-        contracts = importlib.import_module(
-            "odoo.addons.marketing_center_website.services.ingress.contracts"
-        )
-        self.assertEqual(
-            contracts.parse_web_ingress_payload.__module__, contracts.__name__
-        )
+        for name in ("safe_page", "acquisition_values", "utc_iso"):
+            self.assertIs(getattr(original, name), getattr(shared, name))
