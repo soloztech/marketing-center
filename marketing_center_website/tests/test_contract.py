@@ -1,3 +1,4 @@
+import ast
 from pathlib import Path
 
 from odoo.modules.module import get_manifest, get_module_path, get_resource_path
@@ -104,14 +105,34 @@ class TestMarketingWebsiteContract(SavepointCase):
         self.assertIn("token_hash = fields.Char", grant)
 
     def test_public_route_is_read_only_and_does_not_call_ingress_service(self):
-        controller = self._resource_text("controllers", "website_ingress.py")
-        route_body = controller.split("def public_config", 1)[1]
-        for forbidden in (".create(", ".write(", "._ingest_payload("):
-            with self.subTest(forbidden=forbidden):
-                self.assertNotIn(forbidden, route_body)
-        self.assertIn('methods=["GET"]', controller)
-        self.assertIn('"Cache-Control": "no-store, max-age=0"', controller)
-        self.assertIn("request.env.user._is_public()", controller)
+        helpers = {
+            "website_ingress.py": {
+                "_public_binding",
+                "_ingress_configuration",
+                "_config_response",
+                "public_config",
+            },
+            "website_consent.py": {"_binding", "_configuration", "configuration"},
+            "website_bootstrap.py": {"configuration"},
+        }
+        for filename, expected in helpers.items():
+            controller = self._resource_text("controllers", filename)
+            functions = {
+                node.name: ast.get_source_segment(controller, node)
+                for node in ast.walk(ast.parse(controller))
+                if isinstance(node, ast.FunctionDef) and node.name in expected
+            }
+            self.assertEqual(set(functions), expected)
+            for name, body in functions.items():
+                for forbidden in (".create(", ".write(", "._ingest_payload("):
+                    with self.subTest(
+                        filename=filename, function=name, forbidden=forbidden
+                    ):
+                        self.assertNotIn(forbidden, body)
+            self.assertIn('methods=["GET"]', controller)
+        ingress = self._resource_text("controllers", "website_ingress.py")
+        self.assertIn('"Cache-Control": "no-store, max-age=0"', ingress)
+        self.assertIn("request.env.user._is_public()", ingress)
 
     def test_configuration_mutations_share_database_row_locks(self):
         binding = self._resource_text("models", "website_ingress_binding.py")

@@ -165,10 +165,12 @@ if (channel) {
 
 export async function submitConsent(granted) {
     const sequence = ++serial;
-    invalidateBootstrap(true);
+    // Native cookie choices cannot revoke an independently configured legal
+    // basis. Fence a grant only when an individual-consent policy is known.
+    invalidateBootstrap(!granted || choice?.available === true);
     pending = null;
     let utmsCleared = false;
-    if (granted) {
+    if (granted && choice?.available === true) {
         if (choice)
             choice = {
                 ...choice,

@@ -42,7 +42,7 @@ export function loadBootstrap(refresh = false) {
                 if (requestedGeneration !== generation || value?.schema_version !== 1) {
                     return null;
                 }
-                if (individualCaptureBlocked) {
+                if (individualCaptureBlocked && value.consent?.available === true) {
                     // A new GET may precede the withdrawal POST in another tab.
                     // Only a confirmed decision can lift this local fence.
                     const consent = {...value.consent, granted: false};

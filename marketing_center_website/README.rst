@@ -10,7 +10,11 @@ Architecture
 
 * One website has at most one binding, and an active binding points to one
   active ingress endpoint in the same company.
-* ``GET /marketing/website-ingress/config`` resolves the current website and
+* ``GET /marketing/website/bootstrap-config`` resolves the current website once
+  and returns a versioned envelope with separate ingress and consent sections.
+  Its readers share one request per configuration generation. Both historical
+  configuration GET routes remain compatible and read-only.
+  ``GET /marketing/website-ingress/config`` resolves the current website and
   returns only ``enabled``, the relative ingress path, its browser-visible
   public routing key and the current configuration revision. The GET route
   creates no event or touchpoint.  Every landing POST must echo that revision;
@@ -316,5 +320,8 @@ messages continue normally instead of being replaced by a generic handoff.
 Administrative destinations/messages are not advertised in configuration.
 
 The ingress implementation lives in dedicated internal packages. Its public
-routes, models and historical Python imports remain compatible. See
+routes, models and historical XML identifiers remain compatible. Retired addon
+Python import aliases are removed; integrations import the owning addon directly.
+The native Website form adapter loads only when an eligible form is present;
+Odoo owns form submission and the adapter handles only confirmed receipts. See
 ``docs/web-ingress.rst`` and the repository ``docs/web-ingress-fusion.md``.

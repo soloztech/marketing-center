@@ -72,10 +72,11 @@ function tab(fetch, bus = [], cookies = {optional: true}, noticeBar = null) {
       body: {classList: {contains: () => false}},
       getElementById: (id) => (id === "website_cookies_bar" ? noticeBar : null),
       addEventListener(name, fn) {
-        handlers.set(name, fn);
+        handlers.set(name, [...(handlers.get(name) || []), fn]);
       },
       dispatchEvent(event) {
         events.push(event);
+        for (const fn of handlers.get(event.type) || []) fn(event);
       },
     },
     window: {
@@ -109,13 +110,14 @@ function tab(fetch, bus = [], cookies = {optional: true}, noticeBar = null) {
     deleted,
     cookieWrites,
     clickRevoke() {
-      handlers.get("click")({
-        isTrusted: true,
-        preventDefault() {
-          /* Browser API stub; no side effect needed in this fixture. */
-        },
-        target: {closest: () => ({})},
-      });
+      for (const handler of handlers.get("click") || [])
+        handler({
+          isTrusted: true,
+          preventDefault() {
+            /* Browser API stub; no side effect needed in this fixture. */
+          },
+          target: {closest: () => ({})},
+        });
     },
   };
 }

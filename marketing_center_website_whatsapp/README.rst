@@ -19,7 +19,12 @@ installation. On Website Settings, select an enabled action from that Website as
 ``Regra padrão do WhatsApp``. This reuses its destination and conversation routing
 on every current or future public page without creating a rule for each URL.
 An existing active page action takes precedence, including its disabled linking
-setting; ambiguous page rules fail closed. Archived page actions are ignored.
+setting; ambiguous page rules fail closed. Archived page actions are ignored
+for new rendering. An already open tab may resolve its archived marker only
+when the current default has exactly the same Website, company, binding,
+destination, original message, account and policy settings on the same page.
+The new receipt and code belong to the effective default; existing history
+keeps its original action. Other archived or conflicting markers fail closed.
 Clearing the Website default leaves existing page-specific rules in place.
 An action belonging to another Website/company cannot be used as the default.
 

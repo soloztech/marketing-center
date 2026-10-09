@@ -168,6 +168,25 @@ for (const pathname of ["/blog", "/jobs", "/contactus-thank-you"]) {
     envelope.ingress.ingest_path,
   ]);
 }
+// The native bar may be enabled on a legacy site using an independent legal
+// basis. Accept must not disable its already authorized ingress for this page.
+{
+  const calls = [];
+  const independent = {
+    ...envelope,
+    consent: {available: false, granted: false, capture_allowed: false},
+  };
+  const p = page(async (path) => {
+    calls.push(path);
+    return reply(independent);
+  }, "legacy");
+  await p.loadConsent();
+  assert.equal(await p.submitConsent(true), false, "no individual grant POST");
+  assert.equal((await p.loadConfig()).enabled, true);
+  assert.equal(await p.captureLandingEntry(), true);
+  assert.equal(calls.filter((path) => path === envelope.ingress.ingest_path).length, 1);
+  assert.equal(calls.includes("/marketing/website-consent/decision"), false);
+}
 {
   const p = page(async () => {
     throw Error("offline");
