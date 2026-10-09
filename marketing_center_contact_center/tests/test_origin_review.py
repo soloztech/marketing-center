@@ -470,3 +470,72 @@ class TestAutomaticOriginReview(MarketingContactCenterCrmFixture):
             "eligible",
         )
         self.assertEqual(lead.probability, 100)
+
+    def test_human_bounded_period_cannot_credit_return_while_still_closed(self):
+        for path in ("include", "split"):
+            with self.subTest(path=path), self.cr.savepoint():
+                lead, channel, binding, row = self._automatic("bounded-return-" + path)
+                with trap_jobs():
+                    lead.write({"probability": 100})
+                    boundary = row.origin_first_closed_at
+                    row = (
+                        row.with_env(self.env)
+                        .with_user(self.user)
+                        ._confirm_scope(row.scope_start, boundary)
+                    )
+                point = self._point(
+                    binding,
+                    "bounded-evidence-" + path,
+                    boundary + datetime.timedelta(seconds=1),
+                )
+                self.assertEqual(row.scope_decision_mode, "human")
+                self.assertFalse(row._crm_origin_pending_reason(point.occurred_at))
+                self.assertTrue(row._crm_origin_is_return(point.occurred_at))
+
+                def confirm():
+                    wizard = (
+                        self.env["contact.center.crm.origin.review"]
+                        .with_user(self.user)
+                        .create(
+                            {
+                                "lead_id": lead.id,
+                                "channel_id": channel.id,
+                                "evidence_key": point.canonical_key,
+                                "decision": "include",
+                                "scope_start": row.scope_start,
+                                "scope_end": point.occurred_at
+                                + datetime.timedelta(seconds=1),
+                            }
+                        )
+                    )
+                    with trap_jobs():
+                        if path == "include":
+                            wizard.action_confirm()
+                        else:
+                            action = wizard.action_split_period()
+                            action["context"][
+                                "default_scope_end"
+                            ] = point.occurred_at + datetime.timedelta(seconds=1)
+                            scope = (
+                                self.env["contact.center.crm.scope"]
+                                .with_user(self.user)
+                                .with_context(**action["context"])
+                                .create({})
+                            )
+                            scope.action_confirm()
+
+                with self.assertRaisesRegex(
+                    ValidationError, "Reopen"
+                ), self.cr.savepoint():
+                    confirm()
+                self.assertEqual(lead._conversation_links(), row)
+                with trap_jobs():
+                    lead.write({"probability": 10})
+                confirm()
+                current = lead._conversation_links()
+                self.assertEqual(
+                    current._crm_origin_evidence_scope(
+                        point.occurred_at, point.canonical_key
+                    ),
+                    "eligible",
+                )

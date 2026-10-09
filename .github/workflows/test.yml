@@ -48,7 +48,7 @@ jobs:
     name: ${{ matrix.name }}
     env:
       PIP_CONSTRAINT: ${{ github.workspace }}/constraints.txt
-      PEER_REF: ${{ inputs.peer_ref || 'fc680f0c579600cf7945d7c4e76e92f8823cc2ca' }}
+      PEER_REF: ${{ inputs.peer_ref || 'f9a4ff9b8215856f55b29f130d62353a1fb45fd8' }}
     strategy:
       fail-fast: false
       matrix:
@@ -94,7 +94,7 @@ jobs:
           peer_root="${GITHUB_WORKSPACE}/.ci-private-dependency/contact-center"
           test "$(git -C "$peer_root" rev-parse HEAD)" = "$PEER_REF"
           git -C "$peer_root" merge-base --is-ancestor \
-            fc680f0c579600cf7945d7c4e76e92f8823cc2ca "$PEER_REF"
+            f9a4ff9b8215856f55b29f130d62353a1fb45fd8 "$PEER_REF"
       - name: Install private Contact Center addon dependencies
         shell: bash
         run: |
