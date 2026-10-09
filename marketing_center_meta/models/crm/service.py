@@ -7,7 +7,7 @@ from odoo.addons.marketing_center_base.services.serialization import (
     acquire_advisory_xact_lock,
 )
 
-from .tokens import MARKETING_META_CRM_WRITE_TOKEN
+from .tokens import MARKETING_META_CRM_WRITE_TOKEN, META_REVIEW_TOKEN
 
 META_LEAD_SUBMISSION_AUTHORITY = "meta.lead_submission"
 _EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
@@ -175,6 +175,10 @@ class MarketingCenterMetaCrmService(models.AbstractModel):
             or len(projection) != 1
         ):
             raise ValidationError(_("A single valid Meta CRM projection is required."))
+        # Internal direct calls carry the same non-RPC gate capability as jobs.
+        self.env["marketing.crm.service"]._crm_cross_source_check_gate(
+            projection.company_id
+        )
         projection.route_id._lock_crm_configuration()
         self.env.cr.execute(
             "SELECT id FROM marketing_center_meta_crm_projection "
@@ -184,24 +188,70 @@ class MarketingCenterMetaCrmService(models.AbstractModel):
         projection.invalidate_recordset(
             ["state", "lead_id", "assertion_id", "route_id", "submission_id"]
         )
-        if projection.state == "done":
+        if projection.state in {"done", "review", "dismissed"}:
             return True
         submission = self._validated_submission(projection.submission_id)
         route = submission.route_id
         if not route._crm_accepts_submission(submission):
             projection._mark_skipped()
             return True
-        lead = (
+        values = self._lead_values(projection)
+        human = self.env.context.get("meta_crm_review_token") is META_REVIEW_TOKEN
+        decision = (
+            self.env.context["meta_crm_review_decision"]
+            if human
+            else self.env["marketing.crm.service"]._crm_cross_source_admit_meta(
+                projection, values
+            )
+        )
+        if decision["decision"] == "review":
+            projection._internal_write(
+                {
+                    "state": "review",
+                    "admission_decision": "review",
+                    "review_reason": decision["reason"],
+                    "review_candidate_ids": [
+                        Command.set(decision.get("candidate_ids", []))
+                    ],
+                    "queue_job_uuid": False,
+                    "processed_at": fields.Datetime.now(),
+                    "last_error_class": False,
+                    "last_error_message": False,
+                }
+            )
+            projection._admission_signal()
+            return True
+        Lead = (
             self.env["crm.lead"]
             .sudo()
             .with_context(
                 allowed_company_ids=[projection.company_id.id],
                 mail_create_nosubscribe=True,
+                mail_auto_subscribe_no_notify=True,
                 tracking_disable=True,
             )
             .with_company(projection.company_id)
-            .create(self._lead_values(projection))
         )
+        if decision["decision"] == "reuse":
+            lead = Lead.browse(decision["lead_id"]).exists()
+            lead = lead._contact_center_lock_conversation_graph(
+                touch_leads=True, touch_channels=True
+            )
+            # Repeat under the graph; a manual edit or closure can invalidate
+            # coentry between the probe and acquiring native graph locks.
+            checked = (
+                decision
+                if human
+                else self.env["marketing.crm.service"]._crm_cross_source_admit_meta(
+                    projection, values
+                )
+            )
+            if checked["decision"] != "reuse" or checked["lead_id"] != lead.id:
+                raise ValidationError(
+                    _("Commercial admission changed; review this entry.")
+                )
+        else:
+            lead = Lead.create(values)
         source_ref = "meta:lead-submission:%s" % submission.public_ref
         assertion = (
             self.env["marketing.crm.service"]
@@ -220,6 +270,10 @@ class MarketingCenterMetaCrmService(models.AbstractModel):
         projection._internal_write(
             {
                 "state": "done",
+                "admission_decision": "reused"
+                if decision["decision"] == "reuse"
+                else "created",
+                "identity_state": decision.get("identity") or False,
                 "lead_id": lead.id,
                 **self.env["marketing.crm.service"]._lead_snapshot_values(lead),
                 "assertion_id": assertion.id,
@@ -229,6 +283,8 @@ class MarketingCenterMetaCrmService(models.AbstractModel):
                 "last_error_message": False,
             }
         )
+        if decision["decision"] == "reuse" or decision.get("identity") == "unverified":
+            projection._admission_signal(lead)
         return True
 
     @api.model

@@ -243,8 +243,32 @@ class MarketingContactCenterCrmService(models.AbstractModel):
             touchpoint = attribution_link.marketing_touchpoint_id
             for conversation_link in conversation_links:
                 # Re-evaluate AFTER the graph lock, including replays and revisions.
-                if not conversation_link._scope_contains(touchpoint.occurred_at):
+                if (
+                    not conversation_link._scope_contains(touchpoint.occurred_at)
+                    and not conversation_link.automatic_lineage
+                ):
                     continue
+                if (
+                    conversation_link.automatic_lineage
+                    and conversation_link.scope_state == "confirmed"
+                ):
+                    pending = (
+                        conversation_link._crm_origin_evidence_scope(
+                            touchpoint.occurred_at, touchpoint.canonical_key
+                        )
+                        == "pending"
+                    )
+                    reason = (
+                        conversation_link._crm_origin_pending_reason(
+                            touchpoint.occurred_at
+                        )
+                        if pending
+                        else False
+                    )
+                    if reason and conversation_link.origin_review_reason != reason:
+                        conversation_link._service().write(
+                            {"origin_review_reason": reason}
+                        )
                 assertion_ref = self._assertion_reference(conversation_link, touchpoint)
                 pair = (CONTACT_CENTER_CONVERSATION_AUTHORITY, assertion_ref)
                 if pair in seen:

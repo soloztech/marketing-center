@@ -1,3 +1,5 @@
+# Cooperative ORM policy and projection extensions have separate responsibilities.
+# pylint: disable=consider-merging-classes-inherited
 """One optional classifier for native CRM UTM fields, across acquisition channels."""
 import hashlib
 import json
@@ -93,6 +95,7 @@ class CrmLeadNativeUtm(models.Model):
         STATES, default="pending", readonly=True, copy=False
     )
     marketing_utm_reason = fields.Char(readonly=True, copy=False)
+    marketing_origin_review_pending = fields.Boolean(readonly=True, copy=False)
     marketing_utm_manual = fields.Boolean(readonly=True, copy=False)
     marketing_utm_default_json = fields.Json(readonly=True, copy=False)
     marketing_utm_baseline_json = fields.Json(readonly=True, copy=False)
@@ -106,11 +109,20 @@ class CrmLeadNativeUtm(models.Model):
         "marketing.attribution.crm.effective.link", "lead_id", readonly=True
     )
 
+    def _marketing_scope_review_allows_classification(self, eligible):
+        self.ensure_one()
+        return False
+
+    def _marketing_scope_review_requires_valid_support(self):
+        self.ensure_one()
+        return False
+
     @api.model
     def _native_utm_protected_fields(self):
         return {
             "marketing_utm_state",
             "marketing_utm_reason",
+            "marketing_origin_review_pending",
             "marketing_utm_manual",
             "marketing_utm_default_json",
             "marketing_utm_baseline_json",
@@ -463,9 +475,40 @@ class MarketingCrmNativeUtmService(models.AbstractModel):
             {},
             before,
         )
+        # A pending new origin never preserves credit whose own support has
+        # disappeared. Withdrawal is independent of accepting the pending fact.
+        last = lead.marketing_utm_receipt_id
+        valid_previous = any(
+            {
+                "campaign_id": item.get("campaign_id") or False,
+                "source_id": item.get("utm_source_id") or False,
+                "medium_id": item.get("medium_id") or False,
+            }
+            == before
+            for item in ready
+        )
+        if (
+            pending_scope
+            and lead._marketing_scope_review_requires_valid_support()
+            and last
+            and not lead.marketing_utm_manual
+            and before == last.after_json
+            and not valid_previous
+        ):
+            _withdrawn_state, _withdrawn_reason, after = self._restore_owned_tuple(
+                lead,
+                "revoked",
+                "effective_evidence_removed",
+                before,
+                after,
+                candidates,
+                apply,
+            )
         if lead.marketing_utm_manual:
             state, reason = "manual", "native_fields_edited"
-        elif pending_scope:
+        elif pending_scope and not (
+            links and lead._marketing_scope_review_allows_classification(links)
+        ):
             state, reason = (
                 "scope_review",
                 "confirm_business_period_or_review_orphan_origin",
@@ -491,6 +534,10 @@ class MarketingCrmNativeUtmService(models.AbstractModel):
         )
         if apply:
             self._record(lead, state, reason, before, after, evidence)
+            if lead.marketing_origin_review_pending != bool(pending_scope):
+                lead._native_utm_write(
+                    {"marketing_origin_review_pending": bool(pending_scope)}
+                )
         return {
             "state": state,
             "reason": reason,

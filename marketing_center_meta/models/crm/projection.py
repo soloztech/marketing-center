@@ -1,15 +1,55 @@
+import datetime
 import uuid
+from contextlib import contextmanager
 
 from psycopg2 import OperationalError
+from psycopg2.errors import DeadlockDetected, LockNotAvailable, SerializationFailure
 
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 
+from odoo.addons.marketing_center_base.models.crm.dedup_policy import (
+    CrmDedupUnavailable,
+)
 from odoo.addons.queue_job.exception import RetryableJobError
 
 from .tokens import MARKETING_META_CRM_WRITE_TOKEN
 
 _ACTIVE_JOB_STATES = ("pending", "enqueued", "started", "wait_dependencies")
+_DECIDED_STATES = {"done", "review", "dismissed"}
+REVIEW_REASONS = [
+    "ambiguous",
+    "company_review",
+    "inaccessible",
+    "phone_variant_review",
+    "closed_business_review",
+    "business_scope_review",
+    "receipt_without_target",
+]
+ADMISSION_FIELDS = {
+    "admission_decision",
+    "identity_state",
+    "review_reason",
+    "review_candidate_ids",
+    "review_decision_ref",
+    "reviewer_id",
+    "decided_at",
+    "technical_hold_reason",
+    "technical_hold_since",
+    "next_technical_retry_at",
+    "signal_activity_id",
+    "signal_message_id",
+    "comparison_exact",
+    "comparison_variant",
+    "comparison_version",
+    "comparison_source_at",
+    "comparison_policy_revision",
+    "comparison_erased_at",
+    "technical_release_ref",
+    "admission_signals_json",
+    "decision_actor_ref",
+    "resolution_decision",
+}
 
 
 def _internal(recordset):
@@ -17,6 +57,20 @@ def _internal(recordset):
         recordset.env.context.get("marketing_meta_crm_write_token")
         is MARKETING_META_CRM_WRITE_TOKEN
     )
+
+
+@contextmanager
+def bounded_admission_locks(cr):
+    cr.execute("SHOW lock_timeout")
+    previous = cr.fetchone()[0]
+    cr.execute("SET LOCAL lock_timeout = '250ms'")
+    try:
+        yield
+    except Exception:
+        # The surrounding savepoint restores the setting with the transaction.
+        raise
+    else:
+        cr.execute("SELECT set_config('lock_timeout', %s, true)", [previous])
 
 
 class MarketingCenterMetaCrmProjection(models.Model):
@@ -67,6 +121,8 @@ class MarketingCenterMetaCrmProjection(models.Model):
             ("done", "Done"),
             ("failed", "Failed"),
             ("skipped", "Skipped"),
+            ("review", "Revisão comercial"),
+            ("dismissed", "Revisão encerrada"),
         ],
         required=True,
         default="pending",
@@ -95,8 +151,95 @@ class MarketingCenterMetaCrmProjection(models.Model):
     processed_at = fields.Datetime(readonly=True, copy=False, index=True)
     last_error_class = fields.Char(readonly=True, copy=False, size=128)
     last_error_message = fields.Char(readonly=True, copy=False, size=512)
+    admission_decision = fields.Selection(
+        [
+            ("created", "Criado"),
+            ("reused", "Reutilizado"),
+            ("review", "Revisão"),
+            ("dismissed", "Encerrado"),
+        ],
+        readonly=True,
+        copy=False,
+    )
+    identity_state = fields.Selection(
+        [
+            ("exact_phone", "Telefone completo"),
+            ("unverified", "Identidade não verificada"),
+        ],
+        readonly=True,
+        copy=False,
+    )
+    review_reason = fields.Selection(
+        [(reason, reason) for reason in REVIEW_REASONS], readonly=True, copy=False
+    )
+    review_candidate_ids = fields.Many2many(
+        "crm.lead",
+        "marketing_meta_crm_review_candidate_rel",
+        "projection_id",
+        "lead_id",
+        readonly=True,
+        copy=False,
+    )
+    review_decision_ref = fields.Char(readonly=True, copy=False, size=36)
+    reviewer_id = fields.Many2one(
+        "res.users", readonly=True, copy=False, ondelete="set null"
+    )
+    decided_at = fields.Datetime(readonly=True, copy=False)
+    technical_hold_reason = fields.Selection(
+        [
+            ("bridge_missing", "Ponte indisponível"),
+            ("bridge_error", "Proteção temporariamente indisponível"),
+        ],
+        readonly=True,
+        copy=False,
+        index=True,
+    )
+    technical_hold_since = fields.Datetime(readonly=True, copy=False)
+    next_technical_retry_at = fields.Datetime(readonly=True, copy=False, index=True)
+    technical_release_ref = fields.Char(readonly=True, copy=False, size=36)
+    signal_activity_id = fields.Many2one(
+        "mail.activity", readonly=True, copy=False, ondelete="set null"
+    )
+    signal_message_id = fields.Many2one(
+        "mail.message", readonly=True, copy=False, ondelete="set null"
+    )
+    comparison_exact = fields.Char(size=64, index=True, readonly=True, copy=False)
+    comparison_variant = fields.Char(size=64, index=True, readonly=True, copy=False)
+    comparison_version = fields.Integer(readonly=True, copy=False)
+    comparison_source_at = fields.Datetime(index=True, readonly=True, copy=False)
+    comparison_policy_revision = fields.Integer(readonly=True, copy=False)
+    comparison_erased_at = fields.Datetime(readonly=True, copy=False)
 
     _sql_constraints = [
+        (
+            "admission_state",
+            "CHECK ((state='done' AND assertion_id IS NOT NULL AND "
+            "COALESCE(lead_model,'')='crm.lead' AND COALESCE(lead_res_id,0)>0 AND "
+            "lead_display_ref IS NOT NULL)"
+            " OR (state<>'done' AND assertion_id IS NULL AND lead_id IS NULL AND "
+            "COALESCE(lead_res_id,0)=0))",
+            "The Meta CRM completion scope is incomplete.",
+        ),
+        (
+            "review_decision",
+            "CHECK ((state<>'review' OR review_reason IS NOT NULL) AND "
+            "(state<>'dismissed' OR (review_decision_ref IS NOT NULL AND "
+            "COALESCE(decision_actor_ref,0)>0 AND decided_at IS NOT NULL)) AND "
+            "(technical_hold_reason IS NULL OR (state='pending' AND "
+            "technical_hold_since IS NOT NULL AND next_technical_retry_at IS NOT "
+            "NULL)))",
+            "The Meta CRM review or technical hold is incomplete.",
+        ),
+        (
+            "comparison_receipt",
+            "CHECK ((comparison_exact IS NULL AND comparison_variant IS NULL) OR "
+            "(comparison_exact IS NOT NULL AND length(comparison_exact)=64 AND "
+            "(comparison_variant IS NULL OR length(comparison_variant)=64) AND "
+            "COALESCE(comparison_version,0)=1 AND "
+            "comparison_source_at IS NOT NULL AND COALESCE(comparison_policy_revision,0)>0 AND "
+            "comparison_erased_at IS NULL))",
+            "The Meta CRM comparison receipt is incomplete.",
+        ),
         (
             "public_ref_unique",
             "unique(public_ref)",
@@ -136,7 +279,7 @@ class MarketingCenterMetaCrmProjection(models.Model):
             "last_error_class",
             "last_error_message",
         }
-        if set(values) - mutable:
+        if set(values) - (mutable | ADMISSION_FIELDS):
             raise AccessError(_("Meta CRM projection identity is immutable."))
         return super().write(values)
 
@@ -237,7 +380,7 @@ class MarketingCenterMetaCrmProjection(models.Model):
         )
         row = self.env.cr.fetchone()
         self.invalidate_recordset(["state"])
-        if not row or row[0] == "done":
+        if not row or row[0] in _DECIDED_STATES or self.technical_hold_reason:
             return False
         self._internal_write(
             {
@@ -252,10 +395,13 @@ class MarketingCenterMetaCrmProjection(models.Model):
 
     def _enqueue(self, retry_terminal=False):
         for projection in self.sudo().exists().sorted("id"):
-            if projection.state == "done":
+            if projection.state in _DECIDED_STATES:
                 continue
-            if not projection.route_id._crm_accepts_submission(
-                projection.submission_id
+            if (
+                not projection.technical_hold_reason
+                and not projection.route_id._crm_accepts_submission(
+                    projection.submission_id
+                )
             ):
                 projection._mark_skipped()
                 continue
@@ -287,41 +433,85 @@ class MarketingCenterMetaCrmProjection(models.Model):
     def _job_project_to_crm(self):
         self.ensure_one()
         projection = self.sudo().exists()
-        if not projection or projection.state == "done":
+        if not projection or projection.state in _DECIDED_STATES:
             return True
-        attempt = projection._claim_current_job()
-        if not attempt:
-            return False
-        projection._internal_write(
-            {
-                "state": "processing",
-                "attempts": attempt,
-                "last_error_class": False,
-                "last_error_message": False,
-            }
-        )
+        attempt = 0
         try:
-            with self.env.cr.savepoint():
-                return self.env["marketing.center.meta.crm.service"]._project(
-                    projection
-                )
+            # Gate/fence BEFORE route, projection and claim; all admission work
+            # belongs to one savepoint, including claim accounting.
+            with self.env.cr.savepoint(), bounded_admission_locks(self.env.cr):
+                service = self.env["marketing.crm.service"]
+                with service._crm_cross_source_gate(projection.company_id) as guarded:
+                    guarded_projection = projection.with_context(**guarded.env.context)
+                    if (
+                        guarded_projection.technical_hold_reason
+                        and not guarded_projection.company_id.sudo()[
+                            "crm_cross_source_dedup_enabled"
+                        ]
+                    ):
+                        raise CrmDedupUnavailable("bridge_error")
+                    attempt = guarded_projection._claim_current_job()
+                    if not attempt:
+                        return False
+                    guarded_projection._internal_write(
+                        {
+                            "state": "processing",
+                            "attempts": attempt,
+                            "technical_hold_reason": False,
+                            "next_technical_retry_at": False,
+                            "technical_hold_since": False,
+                            "last_error_class": False,
+                            "last_error_message": False,
+                        }
+                    )
+                    result = (
+                        self.env["marketing.center.meta.crm.service"]
+                        .with_context(**guarded.env.context)
+                        ._project(guarded_projection)
+                    )
+                    self.env.flush_all()
+                    return result
+        except CrmDedupUnavailable as error:
+            projection.invalidate_recordset()
+            projection._internal_write(
+                {
+                    "state": "pending",
+                    "queue_job_uuid": False,
+                    "technical_hold_reason": error.reason,
+                    "technical_hold_since": projection.technical_hold_since
+                    or fields.Datetime.now(),
+                    "next_technical_retry_at": fields.Datetime.now()
+                    + datetime.timedelta(minutes=5),
+                }
+            )
+            projection._admission_signal()
+            return False
+        except (DeadlockDetected, LockNotAvailable, SerializationFailure):
+            raise RetryableJobError(
+                "Meta CRM projection contention",
+                seconds=2,
+                ignore_retry=True,
+            ) from None
         except OperationalError:
             if projection._queue_job_attempt_is_terminal():
                 projection._internal_write(
                     {
                         "state": "failed",
+                        "attempts": attempt,
                         "queue_job_uuid": False,
                         "processed_at": fields.Datetime.now(),
+                        "technical_hold_reason": False,
+                        "technical_hold_since": False,
+                        "next_technical_retry_at": False,
                         "last_error_class": "ConcurrentDatabaseRetryLimit",
                         "last_error_message": (
-                            "CRM projection exhausted its bounded concurrency "
-                            "retry policy."
+                            "CRM projection exhausted its bounded database retry policy."
                         ),
                     }
                 )
                 return False
             raise RetryableJobError(
-                "Meta CRM projection hit a concurrent database operation"
+                "Meta CRM projection hit a database operation"
             ) from None
         except (AccessError, UserError, ValidationError) as error:
             projection._internal_write(
@@ -329,6 +519,9 @@ class MarketingCenterMetaCrmProjection(models.Model):
                     "state": "failed",
                     "queue_job_uuid": False,
                     "processed_at": fields.Datetime.now(),
+                    "technical_hold_reason": False,
+                    "technical_hold_since": False,
+                    "next_technical_retry_at": False,
                     "last_error_class": type(error).__name__[:128],
                     "last_error_message": (
                         "CRM rejected the configured projection. Review the Lead "
@@ -337,6 +530,30 @@ class MarketingCenterMetaCrmProjection(models.Model):
                 }
             )
             return False
+
+    @api.model
+    def _cron_resume_technical_holds(self, limit=100):
+        """A technical outage is retried even after a policy was disabled."""
+        rows = self.sudo().search(
+            [
+                ("state", "=", "pending"),
+                ("technical_hold_reason", "!=", False),
+                ("next_technical_retry_at", "<=", fields.Datetime.now()),
+            ],
+            order="next_technical_retry_at, id",
+            limit=min(max(int(limit), 1), 100),
+        )
+        for row in rows:
+            row._internal_write(
+                {
+                    "next_technical_retry_at": fields.Datetime.now()
+                    + datetime.timedelta(minutes=5)
+                }
+            )
+            row.with_company(row.company_id).with_context(
+                allowed_company_ids=row.company_id.ids
+            )._enqueue()
+        return len(rows)
 
     def _claim_current_job(self):
         """Fence projection side effects to the exact persisted OCA job."""

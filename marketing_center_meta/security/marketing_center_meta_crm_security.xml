@@ -9,4 +9,18 @@
             eval="[(4, ref('marketing_center_base.group_marketing_center_admin'))]"
         />
     </record>
+    <record id="rule_crm_review_queue_owner_company" model="ir.rule">
+        <field name="name">CRM reviews: owner and active company</field>
+        <field name="model_id" ref="model_marketing_center_meta_crm_review_queue" />
+        <field
+            name="domain_force"
+        >[('create_uid', '=', user.id), ('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_crm_review_line_owner_company" model="ir.rule">
+        <field name="name">CRM review items: owner and active company</field>
+        <field name="model_id" ref="model_marketing_center_meta_crm_review_line" />
+        <field
+            name="domain_force"
+        >[('create_uid', '=', user.id), ('company_id', 'in', company_ids)]</field>
+    </record>
 </odoo>

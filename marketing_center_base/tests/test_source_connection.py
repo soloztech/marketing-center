@@ -27,7 +27,7 @@ class TestMarketingSourceConnection(SavepointCase):
         values = {
             "name": "Meta reader",
             "source_id": source.id,
-            "adapter_key": "meta.graph",
+            "adapter_key": "test.meta.reader",
             "purpose": "reader",
             "profile_public_ref": "profile-meta-lab-reader",
             "profile_revision": 3,

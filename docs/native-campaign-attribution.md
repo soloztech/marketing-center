@@ -247,3 +247,22 @@ Para um lead sem Campanha:
 UTMs textuais vazias no touchpoint podem coexistir com campanha nativa preenchida: elas
 descrevem o que foi capturado no evento; a classificação nativa descreve a associação
 posteriormente confirmada pelo sistema.
+
+## Entrada comercial automática
+
+Contact CRM pode confirmar automaticamente o período de um lead novo da caixa comercial,
+com corte e primeira entrada comprovados. Isso não altera o classificador: a origem
+ainda precisa de evidência elegível, catálogo/UTM inequívoco e ausência de edição
+manual. Reuso, períodos antigos e retorno após encerramento exigem revisão.
+
+A empresa pode habilitar a reconciliação Meta Lead Ads/WhatsApp para a nova coorte,
+janela padrão de 24 horas e gerente CRM responsável. O gate comum e recibos HMAC
+serializam criação/reuso nas duas ordens. Ambiguidade vai para a fila nativa CRM com
+campos comerciais limitados; ausência da ponte gera pendência técnica recuperável, sem
+criação desprotegida. Desligar a flag não libera pendências técnicas.
+
+A Jornada do próprio lead/conversa oferece ao vendedor nomes e datas sem conceder acesso
+ao cofre de Marketing. Decisões por evidência/geração preservam auditoria. Em linhagens
+automáticas, revisão pendente não conserva UTMs cuja autoridade foi retirada; evidência
+anterior ainda válida e edições manuais continuam respeitadas. Privacidade apaga os
+identificadores de comparação junto de sua evidência.

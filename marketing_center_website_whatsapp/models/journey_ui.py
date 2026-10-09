@@ -134,6 +134,20 @@ class JourneyApi(models.AbstractModel):
                     if link.scope_state == "confirmed"
                     else "scope_review"
                 )
+        if (
+            match
+            and link
+            and handoff.journey_touchpoint_id
+            and scope in {"eligible", "outside_period"}
+        ):
+            decision_scope = link._crm_origin_evidence_scope(
+                match.message_at, handoff.journey_touchpoint_id.canonical_key
+            )
+            scope = {
+                "eligible": "eligible",
+                "pending": "scope_review",
+                "ineligible": "outside_period",
+            }[decision_scope]
         return scope, privacy, collision
 
     @api.model
@@ -143,7 +157,7 @@ class JourneyApi(models.AbstractModel):
         scope, privacy, collision = self._handoff_scope(handoff, match, link)
         acquisition = handoff.acquisition_json or {}
         erased = privacy == "privacy_unavailable"
-        return {
+        result = {
             "type": "website_whatsapp",
             "at": stamp(handoff._acquisition_time()),
             "visit_at": stamp(handoff.visit_at),
@@ -170,6 +184,19 @@ class JourneyApi(models.AbstractModel):
             if erased
             else self._campaign(acquisition, handoff.company_id),
         }
+        if match and link and handoff.journey_touchpoint_id:
+            result["evidence_key"] = handoff.journey_touchpoint_id.canonical_key
+            result["can_review"] = False
+            try:
+                self.env["crm.lead"].browse(
+                    link.lead_id.id
+                )._journey_origin_review_context(
+                    match.channel_id.id, result["evidence_key"]
+                )
+                result["can_review"] = True
+            except (AccessError, ValidationError):
+                result["can_review"] = False
+        return result
 
     @api.model
     def _page(self, offset, limit):
@@ -569,6 +596,9 @@ class CrmLead(models.Model):
     def action_website_journey_match(self, match_id):
         self.ensure_one()
         self._journey_check()
+        self.env["marketing.attribution.effective.touchpoint"].check_access_rights(
+            "read"
+        )
         match_id = self.env["contact.center.ui.api"]._positive_id(
             match_id, _("associação")
         )
@@ -587,6 +617,9 @@ class CrmLead(models.Model):
 
     def action_website_journey_matches(self, channel_id):
         self.ensure_one()
+        self.env["marketing.attribution.effective.touchpoint"].check_access_rights(
+            "read"
+        )
         channel = self._journey_channel(channel_id)
         return {
             "type": "ir.actions.act_window",
@@ -606,19 +639,86 @@ class CrmLead(models.Model):
             return result
         if result["status"] == "restricted":
             result.update(status="ready", marketing_restricted=True)
+        offset = self.env.context.get("crm_journey_origin_offset", 0)
         matches = self.env["marketing.website.whatsapp.match"].search(
             [
                 ("channel_id", "=", channel.id),
                 ("company_id", "=", channel.contact_center_company_id.id),
             ],
             limit=21,
+            offset=offset,
             order="id desc",
         )
-        result["items"].extend(
-            self.env["marketing.website.whatsapp.journey.api"]._handoff_item(
-                row.handoff_id, row, link
+        if not self.env[
+            "marketing.attribution.effective.touchpoint"
+        ].check_access_rights("read", raise_exception=False):
+            result["marketing_restricted"] = True
+            for match in matches[:20].sudo():
+                handoff = match.handoff_id
+                point = handoff.journey_touchpoint_id
+                if not point:
+                    continue
+                item = self._journey_minimal_origin(point, link, match.message_at)
+                item.update(
+                    type="website",
+                    visit_at=stamp(handoff.visit_at),
+                    acquisition_at=stamp(
+                        captured_datetime(
+                            (handoff.acquisition_json or {}).get("acquisition_at")
+                        )
+                    ),
+                    clicked_at=stamp(handoff.clicked_at),
+                    message_at=stamp(match.message_at),
+                )
+                if (
+                    handoff._journey_privacy_status() != "ready"
+                    or not match._journey_claim_valid()
+                ):
+                    item.update(
+                        scope="ineligible",
+                        campaign_name=False,
+                        ad_name=False,
+                        source_name=False,
+                        medium_name=False,
+                        can_review=False,
+                    )
+                result["items"].append(item)
+        else:
+            result["items"].extend(
+                self.env["marketing.website.whatsapp.journey.api"]._handoff_item(
+                    row.handoff_id, row, link
+                )
+                for row in matches[:20]
             )
-            for row in matches[:20]
-        )
         result["website_has_more"] = len(matches) > 20
+        result["has_more"] = bool(result.get("has_more") or len(matches) > 20)
+        result["next_offset"] = offset + 20
         return result
+
+    def _journey_origin_credit(self, channel, link, evidence_key):
+        match = (
+            self.env["marketing.website.whatsapp.match"]
+            .sudo()
+            .search(
+                [
+                    ("company_id", "=", link.company_id.id),
+                    ("channel_id", "=", channel.id),
+                    (
+                        "handoff_id.journey_touchpoint_id.canonical_key",
+                        "=",
+                        evidence_key,
+                    ),
+                    ("state", "in", list(CLAIMED_STATES)),
+                ],
+                order="id desc",
+                limit=1,
+            )
+        )
+        if match:
+            return (
+                match.message_at
+                if match._journey_claim_valid()
+                and match.handoff_id._journey_privacy_status() == "ready"
+                else None
+            )
+        return super()._journey_origin_credit(channel, link, evidence_key)

@@ -165,7 +165,11 @@ class MarketingContactCenterCrmFixture(SavepointCase):
             )
         )
         link._service().write(
-            {"scope_state": "confirmed", "scope_start": "2026-01-01 00:00:00"}
+            {
+                "scope_state": "confirmed",
+                "scope_decision_mode": "human",
+                "scope_start": "2026-01-01 00:00:00",
+            }
         )
         if reconcile:
             link.company_id._job_marketing_contact_center_crm_conversation_link(link.id)
@@ -177,6 +181,7 @@ class MarketingContactCenterCrmFixture(SavepointCase):
         label,
         bind_source=True,
         reconcile=True,
+        occurred_at=None,
     ):
         digest = hashlib.sha256(label.encode("utf-8")).hexdigest()
         inbox = (
@@ -198,7 +203,7 @@ class MarketingContactCenterCrmFixture(SavepointCase):
             "provider_connection_id": self.connection.id,
             "inbox_event_id": inbox.id,
             "evidence_inbox_event_ids": [(6, 0, inbox.ids)],
-            "occurred_at": datetime.datetime(2026, 9, 1, 12, 0),
+            "occurred_at": occurred_at or datetime.datetime(2026, 9, 1, 12, 0),
             "captured_at": datetime.datetime(2026, 9, 1, 12, 1),
             "conversation_ref": binding.conversation_ref,
             "conversation_address_fingerprint": digest,

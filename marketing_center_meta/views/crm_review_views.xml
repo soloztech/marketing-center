@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_meta_crm_review_line_form" model="ir.ui.view">
+        <field name="name">marketing.meta.crm.review.line.form</field>
+        <field name="model">marketing.center.meta.crm.review.line</field>
+        <field name="arch" type="xml">
+            <form create="false" delete="false">
+                <sheet>
+                    <group>
+                        <field name="name" /><field name="phone" /><field
+                            name="email"
+                        />
+                        <field name="route_label" /><field name="team_label" /><field
+                            name="reason"
+                        />
+                        <field name="technical" invisible="1" />
+                        <field name="candidate_ids" invisible="1" />
+                    </group>
+                    <p
+                        attrs="{'invisible': [('technical', '=', True)]}"
+                    >Vincular confirma a mesma pessoa e o mesmo negócio. Criar demanda nova preserva os negócios existentes. Encerrar mantém a entrada e a auditoria, sem criar um lead.</p>
+                    <group attrs="{'invisible': [('technical', '=', True)]}">
+                        <field
+                            name="lead_id"
+                            options="{'no_create': True, 'no_open': True}"
+                            context="{'active_test': False}"
+                        />
+                    </group>
+                    <field name="confirmed" />
+                    <p
+                        attrs="{'invisible': [('technical', '=', False)]}"
+                    >A proteção aguarda recuperação e será tentada novamente automaticamente. A liberação individual só está disponível aos administradores após desativarem explicitamente a proteção da empresa.</p>
+                </sheet>
+                <footer>
+                    <button
+                        name="action_link"
+                        string="Vincular ao negócio"
+                        type="object"
+                        class="btn-primary"
+                        attrs="{'invisible': [('technical', '=', True)]}"
+                    />
+                    <button
+                        name="action_new"
+                        string="Confirmar demanda nova"
+                        type="object"
+                        attrs="{'invisible': [('technical', '=', True)]}"
+                    />
+                    <button
+                        name="action_dismiss"
+                        string="Encerrar sem criar"
+                        type="object"
+                        attrs="{'invisible': [('technical', '=', True)]}"
+                    />
+                    <button
+                        name="action_retry_technical"
+                        string="Tentar recuperação"
+                        type="object"
+                        attrs="{'invisible': [('technical', '=', False)]}"
+                    />
+                    <button
+                        name="action_release_technical"
+                        string="Liberar esta entrada"
+                        type="object"
+                        groups="base.group_system"
+                        attrs="{'invisible': [('technical', '=', False)]}"
+                    />
+                    <button string="Fechar" special="cancel" />
+                </footer>
+            </form>
+        </field>
+    </record>
+    <record id="view_meta_crm_review_queue_form" model="ir.ui.view">
+        <field name="name">marketing.meta.crm.review.queue.form</field>
+        <field name="model">marketing.center.meta.crm.review.queue</field>
+        <field name="arch" type="xml">
+            <form create="false" delete="false" edit="false">
+                <header>
+                    <button name="action_refresh" string="Atualizar" type="object" />
+                    <button name="action_previous" string="Anterior" type="object" />
+                    <button name="action_next" string="Próxima" type="object" />
+                </header>
+                <sheet>
+                    <group><field name="company_id" /><field name="offset" /><field
+                            name="total"
+                        /></group>
+                    <p
+                    >Abra uma entrada para revisar. A fila mostra apenas os campos comerciais submetidos e os candidatos permitidos pelos seus acessos atuais.</p>
+                    <field
+                        name="line_ids"
+                        context="{'form_view_ref': 'marketing_center_meta.view_meta_crm_review_line_form'}"
+                    >
+                        <tree create="false" delete="false">
+                            <field name="name" /><field name="phone" /><field
+                                name="email"
+                            />
+                            <field name="route_label" /><field name="reason" /><field
+                                name="technical"
+                            />
+                        </tree>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="action_meta_crm_review_queue" model="ir.actions.server">
+        <field name="name">Entradas a revisar</field>
+        <field name="model_id" ref="model_marketing_center_meta_crm_review_queue" />
+        <field name="state">code</field>
+        <field name="code">action = model.action_open()</field>
+        <field name="groups_id" eval="[(4, ref('sales_team.group_sale_manager'))]" />
+    </record>
+    <menuitem
+        id="menu_meta_crm_review_queue_crm"
+        name="Entradas a revisar"
+        parent="crm.crm_menu_root"
+        action="action_meta_crm_review_queue"
+        groups="sales_team.group_sale_manager"
+        sequence="25"
+    />
+    <menuitem
+        id="menu_meta_crm_review_queue_marketing"
+        name="Entradas a revisar"
+        parent="marketing_center_base.menu_marketing_center_root"
+        action="action_meta_crm_review_queue"
+        groups="sales_team.group_sale_manager"
+        sequence="16"
+    />
+</odoo>

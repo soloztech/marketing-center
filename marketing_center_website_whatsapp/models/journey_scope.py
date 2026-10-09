@@ -203,7 +203,7 @@ class EffectiveLink(models.Model):
             or row.website_journey_pending
         ):
             return "pending"
-        return "eligible" if row._scope_contains(match.message_at) else "ineligible"
+        return row._crm_origin_evidence_scope(match.message_at, self.canonical_key)
 
 
 class CrmLead(models.Model):

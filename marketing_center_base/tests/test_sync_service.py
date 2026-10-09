@@ -29,7 +29,7 @@ class TestMarketingSyncService(SavepointCase):
             {
                 "name": "Sync reader",
                 "source_id": cls.source.id,
-                "adapter_key": "meta.graph",
+                "adapter_key": "test.meta.reader",
                 "purpose": "reader",
                 "profile_public_ref": "profile-sync-reader",
                 "profile_revision": 2,

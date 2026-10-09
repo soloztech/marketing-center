@@ -14,6 +14,10 @@
                             attrs="{'invisible': [('marketing_utm_state', '=', 'scope_review')]}"
                         />
                         <field name="marketing_utm_manual" />
+                        <field
+                            name="marketing_origin_review_pending"
+                            string="Há origens para revisar na Jornada"
+                        />
                     </group>
                     <div
                         class="alert alert-info"
@@ -23,7 +27,7 @@
                         Confirm the business period in the Journey. If the conversation was deleted,
                         ask a Marketing administrator to make an explicit decision in the standard
                         Campaign, Source and Medium fields or use Undo automatic classification when available.
-                        Current values remain preserved while review is pending.
+                        For businesses with an automatic intake period, unsupported evidence is withdrawn even when another origin awaits review.
                     </div>
                     <p
                     >Campaign, Source and Medium remain in the standard Marketing fields. This history explains how acquisition evidence classified them.</p>

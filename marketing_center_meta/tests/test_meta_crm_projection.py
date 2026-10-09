@@ -22,6 +22,10 @@ class TestMarketingCenterMetaCrmProjection(SavepointCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        cls._setup_meta_crm_fixture()
+
+    @classmethod
+    def _setup_meta_crm_fixture(cls):
         suffix = uuid.uuid4().hex
         numeric_suffix = "%013d" % (uuid.uuid4().int % 10**13)
         cls.company = cls.env.company

@@ -11,3 +11,6 @@ from . import test_crm_bootstrap, test_convergence
 from . import test_legacy_imports
 
 from . import test_business_scope
+from . import test_cross_source_admission
+
+from . import test_origin_review

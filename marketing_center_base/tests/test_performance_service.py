@@ -28,7 +28,7 @@ class TestMarketingPerformanceService(SavepointCase):
             {
                 "name": "Performance reader",
                 "source_id": cls.source.id,
-                "adapter_key": "meta.graph",
+                "adapter_key": "test.meta.reader",
                 "purpose": "reader",
                 "profile_public_ref": "profile-performance-reader",
                 "profile_revision": 1,

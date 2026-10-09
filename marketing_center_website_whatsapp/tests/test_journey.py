@@ -1292,12 +1292,17 @@ class TestWebsiteWhatsappJourney(TestWebsiteWhatsappCorrelation):
         origins = result["items"][0]["origins"]
         self.assertTrue(origins["marketing_restricted"])
         self.assertEqual(origins["status"], "ready")
-        self.assertEqual(origins["items"][0]["match_id"], match.id)
-        self.assertEqual(origins["items"][0]["campaign"]["status"], "restricted")
-        self.assertEqual(
-            lead.with_user(self.agent).action_website_journey_match(match.id)["res_id"],
-            match.id,
-        )
+        item = origins["items"][0]
+        self.assertEqual(item["type"], "website")
+        self.assertNotIn("match_id", item)
+        self.assertNotIn("page_url", item)
+        self.assertNotIn("reference", item)
+        with self.assertRaises(AccessError):
+            lead.with_user(self.agent).action_website_journey_match(match.id)
+        with self.assertRaises(AccessError):
+            lead.with_user(self.agent).action_website_journey_matches(
+                match.channel_id.id
+            )
         self.outsider.groups_id |= self.env.ref(
             "sales_team.group_sale_salesman_all_leads"
         )
@@ -1479,7 +1484,11 @@ class TestWebsiteWhatsappJourney(TestWebsiteWhatsappCorrelation):
                 "items"
             ][0]["origins"]["items"]
             self.assertTrue(
-                any(origin["type"] == "website_whatsapp" for origin in own_origins)
+                any(
+                    origin["type"]
+                    == ("website_whatsapp" if marketing_admin else "website")
+                    for origin in own_origins
+                )
             )
 
     def test_journey_withdrawal_isolates_failure_and_retries_without_browser_cookie(

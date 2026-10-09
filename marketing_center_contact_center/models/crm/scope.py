@@ -32,10 +32,8 @@ class EffectiveLink(models.Model):
         )
         if not row or row.scope_state != "confirmed":
             return "pending"
-        return (
-            "eligible"
-            if row._scope_contains(self.touchpoint_id.sudo().occurred_at)
-            else "ineligible"
+        return row._crm_origin_evidence_scope(
+            self.touchpoint_id.sudo().occurred_at, self.canonical_key
         )
 
 
@@ -100,11 +98,10 @@ class CrmLead(models.Model):
         )
 
     def _journey_origins(self, channel, link):
-        model = self.env["marketing.attribution.crm.effective.link"]
-        if not model.check_access_rights("read", raise_exception=False) or not self.env[
-            "marketing.attribution.effective.touchpoint"
-        ].check_access_rights("read", raise_exception=False):
-            return {"status": "restricted", "items": []}
+        # Public Journey methods authorize the lead and current conversation.
+        if not link:
+            return {"status": "ready", "items": []}
+        model = self.env["marketing.attribution.crm.effective.link"].sudo()
         links = model.search(
             [
                 ("lead_id", "=", self.id),
@@ -114,7 +111,7 @@ class CrmLead(models.Model):
         partition = links._scope_partition()
         # No raw payload, identifiers or URLs; current channel authorization was checked by CRM.
         points = (
-            partition["eligible"]
+            (links if link.automatic_lineage else partition["eligible"])
             .mapped("touchpoint_id")
             .filtered(
                 lambda point: self.env["marketing.attribution.contact.center.link"]
@@ -135,16 +132,21 @@ class CrmLead(models.Model):
                 )
             )
         )
+        offset = self.env.context.get("crm_journey_origin_offset", 0)
+        points = points.sorted(
+            lambda point: (point.occurred_at, point.id), reverse=True
+        )
         return {
+            "has_more": len(points) > offset + 20,
+            "next_offset": offset + 20,
             "status": "scope_review"
             if self._journey_scope_review_pending(partition["pending"])
             else "ready",
             "items": [
-                {
-                    "type": point.touchpoint_type,
-                    "at": fields.Datetime.to_string(point.occurred_at),
-                }
-                for point in points[:3]
+                self._journey_minimal_origin(
+                    point.touchpoint_id, link, point.occurred_at
+                )
+                for point in points[offset : offset + 20]
             ],
         }
 

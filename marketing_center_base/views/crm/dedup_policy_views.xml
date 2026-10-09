@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_company_crm_admission_policy" model="ir.ui.view">
+        <field name="name">res.company.crm.admission.policy</field>
+        <field name="model">res.company</field>
+        <field name="inherit_id" ref="base.view_company_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Entrada comercial" groups="base.group_system">
+                    <p
+                    >A configuração exige administração do sistema, Marketing e Contact Center. A proteção atua nas novas entradas e conserva os recibos e as decisões existentes. Desligá-la permite novamente a criação independente por canal.</p>
+                    <group>
+                        <field name="crm_cross_source_reviewer_id" />
+                        <field name="crm_cross_source_window_hours" />
+                        <field name="crm_cross_source_dedup_enabled" />
+                        <field name="crm_cross_source_enabled_at" />
+                        <field name="crm_cross_source_revision" />
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

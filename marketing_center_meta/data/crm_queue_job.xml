@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <odoo noupdate="0">
+    <record id="ir_cron_meta_crm_technical_resume" model="ir.cron">
+        <field name="name">Marketing CRM: retomar proteção técnica</field>
+        <field name="model_id" ref="model_marketing_center_meta_crm_projection" />
+        <field name="state">code</field>
+        <field name="code">model._cron_resume_technical_holds()</field>
+        <field name="interval_number">5</field>
+        <field name="interval_type">minutes</field>
+        <field name="numbercall">-1</field>
+        <field name="doall" eval="False" />
+    </record>
     <record id="queue_job_channel_marketing_meta_crm" model="queue.job.channel">
         <field name="name">marketing_meta_crm</field>
         <field name="parent_id" ref="queue_job.channel_root" />
