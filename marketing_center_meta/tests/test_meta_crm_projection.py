@@ -282,6 +282,10 @@ class TestMarketingCenterMetaCrmProjection(SavepointCase):
                 "review_reason": False if technical else "ambiguous",
                 "technical_hold_reason": "bridge_missing" if technical else False,
                 "technical_hold_since": fields.Datetime.now() if technical else False,
+                "next_technical_retry_at": fields.Datetime.now()
+                + datetime.timedelta(minutes=5)
+                if technical
+                else False,
                 "queue_job_uuid": False,
             }
         )
