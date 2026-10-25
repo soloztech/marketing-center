@@ -49,9 +49,7 @@
       ]
     },
     "ir.model.relation": {
-      "marketing_center_meta_crm": [
-        "marketing_meta_lead_route_crm_tag_rel"
-      ]
+      "marketing_center_meta_crm": ["marketing_meta_lead_route_crm_tag_rel"]
     }
   },
   "xmlids": {
