@@ -231,8 +231,8 @@ class Company(models.Model):
             ):
                 raise ValidationError(
                     _(
-                        "Choose an active CRM manager from this company and install "
-                        "the Contact CRM bridge."
+                        "Choose an active CRM manager from this company and enable "
+                        "an available admission provider."
                     )
                 )
 

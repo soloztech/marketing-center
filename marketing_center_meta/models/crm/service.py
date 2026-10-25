@@ -239,7 +239,7 @@ class MarketingCenterMetaCrmService(models.AbstractModel):
             )
             lead.invalidate_recordset()
             # Repeat under the lock; a manual edit or closure can invalidate
-            # coentry between the probe and acquiring native graph locks.
+            # coentry between the probe and acquiring the native lead lock.
             checked = (
                 decision
                 if human

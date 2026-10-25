@@ -26,16 +26,6 @@ flowchart TD
     V --> G[Google: consulta exata do clique na conta habilitada]
     G --> E[Revisão enriquecida: conta, campanha, grupo e anúncio]
     M[Formulário Meta ou referência de anúncio] --> E
-    W2[Visita no site: campanha na URL ou UTM] --> K[Clique WhatsApp com referência]
-    K --> Msg[Mensagem recebida com referência ou confirmação humana]
-    Msg --> B2{Período confirmado do negócio?}
-    B2 -->|Horário da mensagem dentro da janela| E
-    B2 -->|Pendente, fora do período ou sem associação| Ctx[Contexto sem crédito ou revisão]
-    K --> Priv[Recusa ou retenção: remover dados privados e revogar crédito]
-    C[Contact Center: referência comprovada de anúncio] --> B{Período comercial confirmado?}
-    B -->|Sim, ocorrência dentro da janela| E
-    B -->|Pendente ou convergindo| Hold[Revisar período: preservar UTMs e recibo]
-    B -->|Fora da janela| Excluded[Sem crédito por essa associação]
     E --> R[Base: resolver identidade no catálogo externo]
     S[Sincronização do catálogo Google ou Meta] --> R
     R --> P{Política da fonte}
@@ -62,16 +52,14 @@ explícitos, sem promover contexto a crédito.
 
 ## Responsabilidade dos módulos
 
-| Módulo                               | Responsabilidade nesta etapa                                                                                                                                |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `google_api_base`                    | Transporte Google, credenciais, limites e erros normalizados.                                                                                               |
-| `meta_api_base`, `meta_webhook_base` | Transporte e recebimento Meta.                                                                                                                              |
-| `marketing_center_website`           | Ingresso web incorporado, observação e identificador protegido; captura, sessão, ações e vínculo da submissão nativa ao lead, incluindo UTMs padrão.        |
-| `marketing_center_website_whatsapp`  | Captura congelada de aquisição e clique, associação com a mensagem, ocorrência canônica, vínculo ao negócio por período da mensagem, Jornada e privacidade. |
-| `marketing_center_google`            | Consulta GCLID exata, enriquecimento de evidência e resolução das referências Google.                                                                       |
-| `marketing_center_meta`              | Submissões, referências e catálogo Meta; criação ou vínculo comercial conforme a rota.                                                                      |
-| `marketing_center_base`              | Evidência canônica, catálogo externo, política por fonte e escritor único das UTMs nativas, com reconciliação, preservação manual e recibos.                |
-| `marketing_center_contact_center`    | Vínculo entre evidência da conversa e CRM dentro do período comercial confirmado; sinais sem campanha identificada permanecem insuficientes.                |
+| Módulo                               | Responsabilidade nesta etapa                                                                                                                         |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `google_api_base`                    | Transporte Google, credenciais, limites e erros normalizados.                                                                                        |
+| `meta_api_base`, `meta_webhook_base` | Transporte e recebimento Meta.                                                                                                                       |
+| `marketing_center_website`           | Ingresso web incorporado, observação e identificador protegido; captura, sessão, ações e vínculo da submissão nativa ao lead, incluindo UTMs padrão. |
+| `marketing_center_google`            | Consulta GCLID exata, enriquecimento de evidência e resolução das referências Google.                                                                |
+| `marketing_center_meta`              | Submissões, referências e catálogo Meta; criação ou vínculo comercial conforme a rota.                                                               |
+| `marketing_center_base`              | Evidência canônica, catálogo externo, política por fonte e escritor único das UTMs nativas, com reconciliação, preservação manual e recibos.         |
 
 `marketing_center_web_ingress` foi incorporado ao Website; não é addon atual.
 
@@ -145,15 +133,11 @@ Referência técnica:
 
 ## Escrita, ambiguidades e reversão no CRM
 
-O trabalhador usa a partição elegível dos vínculos efetivos e revisões aceitas. Para
-Contact Center, a associação deve ter período confirmado, com início inclusivo e fim
-exclusivo, e a ocorrência efetiva precisa estar dentro da janela. Outras autoridades,
-como `website.form` e Meta, conservam sua elegibilidade independente. A autoridade
-`website.whatsapp` usa a mensagem recebida para testar a janela confirmada; a data de
-aquisição permanece a original, mesmo quando anterior ao negócio. Múltiplos touchpoints
+O trabalhador usa os vínculos admitidos e as revisões aceitas. Múltiplos touchpoints
 podem confirmar a mesma combinação de campanha, origem e meio. Combinações diferentes
-ficam em revisão; não há escolha automática por nome, primeiro clique ou último clique
-nesta etapa.
+ficam em revisão; não há escolha automática por nome, primeiro clique ou último clique.
+As pontes de conversa e de clique WhatsApp foram retiradas; a remoção não autoriza
+reclassificar as campanhas já gravadas no CRM.
 
 O preenchimento é permitido quando os campos estão vazios, quando há comprovação do
 padrão Website ou quando ainda contêm exatamente os valores da última aplicação
@@ -225,18 +209,16 @@ enquanto ela ainda enxerga o snapshot antigo.
 ## Atualização e diagnóstico
 
 Publique conjuntamente os dois repositórios com a nova API de período. Atualize Contact
-CRM/Kanban/Sales e Marketing Base/Contact/Google/Website-WhatsApp/Automation instalados;
-preserve as demais dependências e providers. O Website contém o antigo ingresso web.
-Respeite a preparação de propriedade caso a base ainda esteja na estrutura anterior. O
-serviço CRM do Base usa `queue_job`; sem runner, a convergência e a reconciliação
-permanecem pendentes. Testes locais não autorizam implantação.
+CRM e Marketing Base/Meta/Google/Website instalados; preserve as demais dependências e
+providers. O Website contém o antigo ingresso web. Respeite a preparação de propriedade
+caso a base ainda esteja na estrutura anterior. O serviço CRM do Base usa `queue_job`;
+sem runner, a convergência e a reconciliação permanecem pendentes. Testes locais não
+autorizam implantação.
 
 Para um lead sem Campanha:
 
-1. Confirme a existência do vínculo efetivo de aquisição. Para Contact Center, confira o
-   período na Jornada, a ocorrência dentro da janela e a conclusão da convergência.
-   `scope_review` conserva a campanha anterior até resolver a pendência; não significa
-   ausência de evidência.
+1. Confirme a existência do vínculo efetivo de aquisição e a autoridade que o admitiu. A
+   ausência de evidência não autoriza remover valores nativos ou ignorar uma revisão.
 2. Confira se há referência externa de campanha/anúncio ou consulta GCLID encontrada.
 3. Confira a resolução no catálogo da conta e empresa corretas.
 4. Confira modo, origem, meio e bloqueio da fonte/campanha.

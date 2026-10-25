@@ -1,8 +1,8 @@
 # Web ingress owned by Website
 
 `marketing_center_web_ingress` is folded into `marketing_center_website` 16.0.2.1.0. The
-repository has 13 addons. `marketing_center_website_whatsapp` stays separate because it
-integrates native Contact Center CRM.
+repository has 10 addons after retirement of the Contact Center, Website–WhatsApp and
+Automation bridges. Website retains its native forms and generic ingress.
 
 The provider-neutral parser, ledger, vault, admission/rate limits and generic
 `/marketing/web-ingress/<public_ref>` route remain intact in `models/ingress`,

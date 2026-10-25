@@ -13,18 +13,15 @@ every ancestor: with `root:1`, all children together run at most one job.
 
 The Marketing Center channels are:
 
-| Channel                             | Work                                         |
-| ----------------------------------- | -------------------------------------------- |
-| `root.meta_webhook`                 | Shared Meta webhook dispatch/reconciliation  |
-| `root.marketing_meta`               | Meta validation, catalog and Insights        |
-| `root.marketing_google`             | Google validation, catalog and metrics       |
-| `root.marketing_meta_crm`           | Lead Ads CRM projection                      |
-| `root.marketing_contact_center`     | Attribution, lifecycle and response episodes |
-| `root.marketing_contact_center_crm` | Conversation-to-CRM convergence              |
-| `root.marketing_website_crm`        | Website CRM evidence recovery                |
+| Channel                      | Work                                        |
+| ---------------------------- | ------------------------------------------- |
+| `root.meta_webhook`          | Shared Meta webhook dispatch/reconciliation |
+| `root.marketing_meta`        | Meta validation, catalog and Insights       |
+| `root.marketing_google`      | Google validation, catalog and metrics      |
+| `root.marketing_meta_crm`    | Lead Ads CRM projection                     |
+| `root.marketing_website_crm` | Website CRM evidence recovery               |
 
-Include the Contact Center's own channels in the same inventory. Limiting only Marketing
-Center's children does not reserve capacity for customer messages. Priorities order
+The independent Contact Center receiver does not use this queue. Priorities order
 waiting jobs; they do not preempt a running HTTP request. Channels are not dedicated
 worker pools.
 

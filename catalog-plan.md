@@ -7,7 +7,6 @@ and
 [migration guide](https://github.com/soloztech/content-center/blob/16.0/MIGRATION.md)
 remain available with source provenance.
 
-Use `content_center_base`, optionally `content_center_sale` and
-`content_center_contact_center`. The extraction preserves existing records and IDs
-through a validated ORM module rename; do not uninstall the legacy addons. The
-advertising catalog service remains in Marketing Center.
+Use `content_center_base`, optionally `content_center_sale`. The extraction preserves
+existing records and IDs through a validated ORM module rename; do not uninstall the
+legacy addons. The advertising catalog service remains in Marketing Center.
