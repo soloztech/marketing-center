@@ -84,11 +84,9 @@ before initializing its database, so dependency drift fails before addon tests.
 
 ## Current greenfield baseline
 
-The analytics/provider addons
-have separate versions in their manifests. The workflow pins the compatible
-Contact Center source SHA; `oca_dependencies.txt` is an alternative installation
-description, not the CI lock. Use the manifest and workflow from the same reviewed
-commit when assembling a release.
+The analytics/provider addons have separate versions in their manifests. CI validates
+the standalone suite against OCB and its declared dependencies. Use the manifest and
+workflow from the same reviewed commit when assembling a release.
 
 The [2026-09-12 implementation record](reviews/2026-09-12-review-fixes-implementation.md)
 tracks this candidate and its validation. The [2026-09-05 audit](reviews/2026-09-05-greenfield-audit.md)

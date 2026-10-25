@@ -44,7 +44,7 @@ idempotency and any external side effect.
 
 ## Retry exhaustion and recovery
 
-Marketing Contact Center and CRM bridge jobs now have eight attempts. Recognized
+Meta and Website CRM projection jobs have eight attempts. Recognized
 serialization/deadlock/lock contention, connection SQLSTATEs and temporary server
 unavailability can retry. Unclassified database operational errors fail visibly instead
 of looping forever. Known revision-uniqueness races retain their existing special

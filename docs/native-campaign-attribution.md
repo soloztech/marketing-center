@@ -1,9 +1,8 @@
 # Campanhas externas e atribuição nativa no CRM
 
-As integrações CRM fazem parte dos módulos proprietários desde a fusão de 06/10/2026.
-Para atualizar uma base com os cinco módulos antigos instalados, aplicar primeiro a
-[migração de propriedade](crm-integration-fusion.md); não executar diretamente `-u`
-sobre o código novo antes dessa preparação.
+As integrações CRM pertencem a Base, Meta e Website. A
+[fusão anterior](crm-integration-fusion.md) é um registro histórico; bases com
+módulos retirados exigem o plano de migração da versão que será publicada.
 
 Este guia descreve a classificação de aquisição disponível no código. Instalar ou
 atualizar os módulos não ativa a classificação: cada fonte começa em **Disabled**. A
@@ -41,14 +40,9 @@ flowchart TD
 O ingresso comercial continua independente: os adaptadores de formulário `website.form`
 e Meta determinam se a entrada vira Lead ou Oportunidade, conforme sua configuração. A
 atribuição não muda tipo, vendedor, equipe, estágio ou probabilidade. Também não cria um
-lead para uma submissão histórica que não tenha sido projetada pelo ingresso. A ponte
-`website.whatsapp` acompanha visita, clique, mensagem e negócio existente; não cria lead
-automaticamente nesta fase. O horário original da aquisição não é reescrito: a
-elegibilidade usa o horário da **mensagem** e o período confirmado, com início inclusivo
-e fim exclusivo. Recusa e retenção removem os dados privados e impedem crédito,
-preservando referências técnicas de campanha e auditoria conforme o contrato Base.
-Associação apenas sugerida, período em revisão e processamento pendente são estados
-explícitos, sem promover contexto a crédito.
+lead para uma submissão histórica que não tenha sido projetada pelo ingresso.
+As pontes de conversa e de clique WhatsApp foram retiradas. O Contact Center
+recebe texto no Discuss; essa recepção não produz atribuição de Marketing.
 
 ## Responsabilidade dos módulos
 
@@ -150,24 +144,11 @@ sido escolhido intencionalmente. Essa comprovação somente é registrada na ins
 formulário, com captura permitida e sem UTMs explícitas ou cookies UTM. Registros
 antigos com esse meio podem exigir revisão individual.
 
-O estado **Período comercial precisa de revisão** (`scope_review`) pausa a
-classificação, preservando os três campos UTM e o último recibo aplicado. Ele abrange
-associações legadas ou em revisão, suporte pendente de contexto, convergência ainda
-incompleta e origem órfã após exclusão de conversa. Não restaura o baseline nesse
-estado. Uma pendência desse tipo pode pausar o negócio inteiro, mesmo com outra origem
-elegível.
+Pendências de período provenientes das pontes retiradas são tratadas na migração.
+Uma decisão explícita nos campos nativos registra propriedade manual dos valores;
+essa edição não cria evidência de aquisição nem confirma uma origem sugerida.
 
-Para resolver, o agente autorizado confirma ou revisa o período pela **Jornada** do lead
-e aguarda a convergência. Se a conversa foi excluída, o administrador Marketing faz uma
-decisão explícita nos campos UTM ou usa **Undo automatic classification**, quando as
-pré-condições da reversão permitem. Esses dois caminhos administrativos marcam a
-classificação como manual; a Jornada deixa de solicitar a decisão sobre uma origem órfã
-já resolvida. Uma associação ainda em revisão, uma origem pendente ligada a uma conversa
-existente ou uma convergência em andamento continuam sinalizadas: decidir a UTM
-manualmente não confirma o período nem concede crédito a essas origens. As origens ainda
-inelegíveis continuam sem crédito, e a evidência órfã é preservada.
-
-Fora da pausa de revisão, evidência efetivamente revogada, ausente ou conflitante pode
+Evidência efetivamente revogada, ausente ou conflitante pode
 restaurar o estado anterior à primeira aplicação somente enquanto a rotina ainda detém
 os valores. Uma edição manual sempre prevalece. **Undo automatic classification** também
 restaura esse estado e evita reaplicação no próximo job. Desabilitar a fonte pausa a
@@ -208,12 +189,9 @@ enquanto ela ainda enxerga o snapshot antigo.
 
 ## Atualização e diagnóstico
 
-Publique conjuntamente os dois repositórios com a nova API de período. Atualize Contact
-CRM e Marketing Base/Meta/Google/Website instalados; preserve as demais dependências e
-providers. O Website contém o antigo ingresso web. Respeite a preparação de propriedade
-caso a base ainda esteja na estrutura anterior. O serviço CRM do Base usa `queue_job`;
-sem runner, a convergência e a reconciliação permanecem pendentes. Testes locais não
-autorizam implantação.
+Atualize os módulos proprietários instalados, com seus dependentes nativos e
+providers preservados. O serviço CRM do Base usa `queue_job`; sem runner, a
+reconciliação fica pendente. Alterações de código e banco exigem validação conjunta.
 
 Para um lead sem Campanha:
 
@@ -230,21 +208,10 @@ UTMs textuais vazias no touchpoint podem coexistir com campanha nativa preenchid
 descrevem o que foi capturado no evento; a classificação nativa descreve a associação
 posteriormente confirmada pelo sistema.
 
-## Entrada comercial automática
+## Revisão de entradas Meta
 
-Contact CRM pode confirmar automaticamente o período de um lead novo da caixa comercial,
-com corte e primeira entrada comprovados. Isso não altera o classificador: a origem
-ainda precisa de evidência elegível, catálogo/UTM inequívoco e ausência de edição
-manual. Reuso, períodos antigos e retorno após encerramento exigem revisão.
-
-A empresa pode habilitar a reconciliação Meta Lead Ads/WhatsApp para a nova coorte,
-janela padrão de 24 horas e gerente CRM responsável. O gate comum e recibos HMAC
-serializam criação/reuso nas duas ordens. Ambiguidade vai para a fila nativa CRM com
-campos comerciais limitados; ausência da ponte gera pendência técnica recuperável, sem
-criação desprotegida. Desligar a flag não libera pendências técnicas.
-
-A Jornada do próprio lead/conversa oferece ao vendedor nomes e datas sem conceder acesso
-ao cofre de Marketing. Decisões por evidência/geração preservam auditoria. Em linhagens
-automáticas, revisão pendente não conserva UTMs cuja autoridade foi retirada; evidência
-anterior ainda válida e edições manuais continuam respeitadas. Privacidade apaga os
-identificadores de comparação junto de sua evidência.
+As rotas Meta configuram a criação comercial. Para entradas já em revisão, o
+responsável comercial pode criar um negócio ou encerrar a entrada pela fila nativa.
+A resolução não exige acesso às credenciais de Marketing. Pendências técnicas
+permanecem bloqueadas após desativar a política e exigem liberação explícita por
+administrador com os papéis Sistema e Marketing.
