@@ -301,15 +301,10 @@ def _validate_original(env):
     consumers = dependencies.search(
         [("name", "in", list(OWNERS)), ("module_id.state", "=", "installed")]
     )
-    expected_consumer = (
-        "marketing_center_website_whatsapp",
-        "marketing_center_website_crm",
-    )
     # Legacy packages themselves cease to be runtime consumers after retirement.
     consumers = consumers.filtered(lambda row: row.module_id.name not in OWNERS)
     _require(
-        len(consumers) == 1
-        and (consumers.module_id.name, consumers.name) == expected_consumer,
+        not consumers,
         "unexpected installed legacy consumer",
     )
     installed = set(

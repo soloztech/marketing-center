@@ -39,7 +39,7 @@
                 <field name="resolved_touchpoint_count" />
                 <field name="unresolved_touchpoint_count" />
                 <field name="resolution_coverage" />
-                <field name="has_contact_center" />
+                
                 <field name="has_crm" />
                 <field name="has_sale" />
                 <field name="has_account" />
@@ -128,58 +128,6 @@
                                             class="small text-muted"
                                         >without a unique source</div>
                                     </div>
-                                </div>
-                                <div
-                                    class="mt-3"
-                                    t-if="record.has_contact_center.raw_value and record.general_capture_state.raw_value === 'disabled'"
-                                >
-                                    <div class="text-muted small">
-                                        <strong
-                                        >Conversations:</strong> not measured, capture is disabled
-                                        <t
-                                            t-if="record.general_capture_changed_at.raw_value"
-                                        >since <field
-                                                name="general_capture_changed_at"
-                                            /></t>
-                                        <t t-else="">since an unknown date</t>.
-                                        <t
-                                            t-if="record.cc_last_event_at.raw_value"
-                                        >Last recorded fact: <field
-                                                name="cc_last_event_at"
-                                            />.</t>
-                                    </div>
-                                </div>
-                                <div
-                                    class="mt-3"
-                                    t-if="record.has_contact_center.raw_value and record.general_capture_state.raw_value !== 'disabled'"
-                                >
-                                    <strong><field
-                                            name="conversation_started_count"
-                                        /></strong>
-                                    <span
-                                        class="text-muted"
-                                    > conversations started</span>
-                                    <span class="mx-1">·</span>
-                                    <strong><field
-                                            name="conversation_first_response_count"
-                                        /></strong>
-                                    <span
-                                        class="text-muted"
-                                    > with a first response</span>
-                                </div>
-                                <div
-                                    class="mt-1"
-                                    t-if="record.has_contact_center.raw_value and record.general_capture_state.raw_value !== 'disabled'"
-                                >
-                                    <strong><field
-                                            name="response_episode_started_count"
-                                        /></strong>
-                                    <span class="text-muted"> response episodes</span>
-                                    <span class="mx-1">·</span>
-                                    <strong><field
-                                            name="response_episode_answered_count"
-                                        /></strong>
-                                    <span class="text-muted"> answered episodes</span>
                                 </div>
                                 <div
                                     class="mt-1"
@@ -310,14 +258,14 @@
                                 </div>
                                 <div
                                     class="mt-1 text-muted small"
-                                    t-if="(record.has_contact_center.raw_value or record.has_sale.raw_value or record.has_account.raw_value) and record.general_capture_state.raw_value === 'enabled_in_window'"
-                                >Conversations, sales and financial facts: capture enabled, verified since <field
+                                    t-if="(record.has_sale.raw_value or record.has_account.raw_value) and record.general_capture_state.raw_value === 'enabled_in_window'"
+                                >Sales and financial facts: capture enabled, verified since <field
                                         name="general_capture_changed_at"
                                     />; earlier days in this window may be unmeasured.</div>
                                 <div
                                     class="mt-1 text-muted small"
-                                    t-if="(record.has_contact_center.raw_value or record.has_sale.raw_value or record.has_account.raw_value) and record.general_capture_state.raw_value === 'enabled_unknown_start'"
-                                >Conversations, sales and financial facts: capture enabled; start date unknown.</div>
+                                    t-if="(record.has_sale.raw_value or record.has_account.raw_value) and record.general_capture_state.raw_value === 'enabled_unknown_start'"
+                                >Sales and financial facts: capture enabled; start date unknown.</div>
                                 <div class="mt-3 small text-muted">
                                     Operational correlation and counts; no value has been credited to a campaign.
                                     Facts recorded in the last 30 days (UTC). Enabling capture or installing a module does not guarantee complete coverage of earlier periods; historical facts may be rebuilt when evidence exists.
@@ -514,7 +462,7 @@
             <form create="false" edit="false" delete="false">
                 <sheet>
                     <field name="row_kind" invisible="1" />
-                    <field name="has_contact_center" invisible="1" />
+                    
                     <field name="has_crm" invisible="1" />
                     <field name="has_sale" invisible="1" />
                     <field name="has_account" invisible="1" />
@@ -616,39 +564,6 @@
                                 class="oe_highlight"
                                 string="View daily performance"
                             />
-                        </page>
-                        <page
-                            string="Customer service"
-                            attrs="{'invisible': ['|', ('row_kind', '!=', 'summary'), ('has_contact_center', '=', False)]}"
-                        >
-                            <div
-                                class="alert alert-warning"
-                                role="status"
-                                attrs="{'invisible': [('general_capture_state', '!=', 'disabled')]}"
-                            >Not measured: capture is disabled. The numbers of this section are hidden instead of shown as zero.</div>
-                            <div
-                                class="alert alert-info"
-                                role="status"
-                                attrs="{'invisible': [('general_capture_state', '!=', 'enabled_in_window')]}"
-                            >Capture is verified as enabled only since a date inside this window; earlier days may be unmeasured.</div>
-                            <div
-                                class="alert alert-info"
-                                role="status"
-                                attrs="{'invisible': [('general_capture_state', '!=', 'enabled_unknown_start')]}"
-                            >Capture is enabled; its start date is unknown.</div>
-                            <group>
-                                <field name="general_capture_state" />
-                                <field name="general_capture_changed_at" />
-                                <field name="cc_last_event_at" />
-                            </group>
-                            <group
-                                attrs="{'invisible': [('general_capture_state', '=', 'disabled')]}"
-                            >
-                                <field name="conversation_started_count" />
-                                <field name="conversation_first_response_count" />
-                                <field name="response_episode_started_count" />
-                                <field name="response_episode_answered_count" />
-                            </group>
                         </page>
                         <page
                             string="CRM"

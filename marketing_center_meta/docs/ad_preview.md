@@ -54,7 +54,5 @@ Field definitions follow the official Meta Business SDK:
 - [AdCreative](https://github.com/facebook/facebook-python-business-sdk/blob/main/facebook_business/adobjects/adcreative.py)
 - [AdCreativeLinkData](https://github.com/facebook/facebook-python-business-sdk/blob/main/facebook_business/adobjects/adcreativelinkdata.py)
 
-The ORM regression suites in `marketing_center_meta/tests/test_ad_preview.py` and
-`marketing_center_contact_center/tests/test_ad_preview.py` use only synthetic
-credentials and mocked HTTP. Run them with `--test-tags marketing_ad_preview` alongside
-the updated Contact Center module.
+The ORM regression suite in `marketing_center_meta/tests/test_ad_preview.py` uses only
+synthetic credentials and mocked HTTP. Run it with `--test-tags marketing_ad_preview`.

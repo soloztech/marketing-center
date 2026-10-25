@@ -13,7 +13,7 @@ from ..services.dto import (
 class TestMarketingAttributionDTO(TransactionCase):
     def _dto(self, **overrides):
         values = {
-            "source_system": "contact_center",
+            "source_system": "external",
             "source_scope_ref": "connection:abc",
             "source_occurrence_ref": "message:123",
             "occurred_at": datetime.datetime(2026, 8, 29, 12, 30),
