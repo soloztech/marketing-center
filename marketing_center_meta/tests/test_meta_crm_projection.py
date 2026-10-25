@@ -2,6 +2,7 @@ import datetime
 import hashlib
 import json
 import uuid
+from contextlib import nullcontext
 from unittest.mock import patch
 
 from lxml import etree
@@ -376,6 +377,10 @@ class TestMarketingCenterMetaCrmProjection(SavepointCase):
             type(self.env["marketing.crm.service"]),
             "_crm_cross_source_capable",
             return_value=True,
+        ), patch.object(
+            type(self.env["marketing.crm.service"]),
+            "_crm_cross_source_gate",
+            return_value=nullcontext(self.env["marketing.crm.service"]),
         ):
             company.write(
                 {
