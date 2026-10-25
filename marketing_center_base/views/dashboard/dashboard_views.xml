@@ -39,7 +39,7 @@
                 <field name="resolved_touchpoint_count" />
                 <field name="unresolved_touchpoint_count" />
                 <field name="resolution_coverage" />
-                
+
                 <field name="has_crm" />
                 <field name="has_sale" />
                 <field name="has_account" />
@@ -462,7 +462,7 @@
             <form create="false" edit="false" delete="false">
                 <sheet>
                     <field name="row_kind" invisible="1" />
-                    
+
                     <field name="has_crm" invisible="1" />
                     <field name="has_sale" invisible="1" />
                     <field name="has_account" invisible="1" />
