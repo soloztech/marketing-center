@@ -1,7 +1,7 @@
 {
     "name": "Marketing Center",
     "summary": "Acquisition evidence, CRM attribution and management overview",
-    "version": "16.0.2.2.0",
+    "version": "16.0.2.2.1",
     "category": "Marketing",
     "author": "Soloz Technologies",
     "website": "https://github.com/soloztech/marketing-center",
@@ -31,7 +31,6 @@
         "data/crm/admission_monitor_cron.xml",
         "security/crm/native_utm_security.xml",
         "views/crm/native_utm_views.xml",
-        "views/crm/dedup_policy_views.xml",
         "views/crm/campaign_board_views.xml",
         "security/dashboard/marketing_center_dashboard_security.xml",
         "security/dashboard/ir.model.access.csv",

@@ -101,29 +101,6 @@ class Projection(models.Model):
                 lead.check_access_rule("write")
                 if not lead or lead.company_id != company:
                     raise AccessError(_("The candidate is unavailable."))
-                if "contact.center.crm.conversation.link" in self.env.registry:
-                    links = (
-                        self.env["contact.center.crm.conversation.link"]
-                        .sudo()
-                        .search([("lead_id", "=", lead.id), ("state", "=", "active")])
-                    )
-                    for channel in links.mapped("channel_id"):
-                        self.env["contact.center.ui.api"]._crm_channel(
-                            channel.id, mutate=True
-                        )
-                    lead._contact_center_lock_conversation_graph(
-                        touch_leads=True, touch_channels=True
-                    )
-                    lead.invalidate_recordset()
-                    lead.check_access_rule("read")
-                    lead.check_access_rule("write")
-                    current = service._crm_cross_source_review_candidates(
-                        projection, values
-                    )
-                    if lead.id not in current.ids:
-                        raise ValidationError(
-                            _("The candidate changed. Reload this review.")
-                        )
             elif decision == "new":
                 native.check_access_rights("create")
                 if not projection.route_id._crm_accepts_submission(

@@ -2,11 +2,6 @@ name: tests
 
 on:
   workflow_dispatch:
-    inputs:
-      peer_ref:
-        description: "Full Contact Center commit SHA for coordinated release validation"
-        required: false
-        type: string
   pull_request:
     branches:
       - "16.0*"
@@ -48,7 +43,6 @@ jobs:
     name: ${{ matrix.name }}
     env:
       PIP_CONSTRAINT: ${{ github.workspace }}/constraints.txt
-      PEER_REF: ${{ inputs.peer_ref || 'ab38a08acdb57278b5a3a6c6565721676c9e25cb' }}
     strategy:
       fail-fast: false
       matrix:
@@ -69,42 +63,6 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - name: Validate coordinated dependency revision
-        shell: bash
-        run: |
-          if ! [[ "$PEER_REF" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "peer_ref must be a full 40-character commit SHA."
-            exit 1
-          fi
-      - name: Checkout private Contact Center dependency
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          repository: soloztech/contact-center
-          # PRs use the validated compatible baseline; a manual release run
-          # selects the exact coordinated peer commit without rewriting the workflow.
-          ref: ${{ env.PEER_REF }}
-          fetch-depth: 0
-          path: .ci-private-dependency/contact-center
-          token: ${{ secrets.CROSS_REPO_READ_TOKEN }}
-          persist-credentials: false
-      - name: Verify Contact Center side panel compatibility
-        shell: bash
-        run: |
-          set -euo pipefail
-          peer_root="${GITHUB_WORKSPACE}/.ci-private-dependency/contact-center"
-          test "$(git -C "$peer_root" rev-parse HEAD)" = "$PEER_REF"
-          git -C "$peer_root" merge-base --is-ancestor \
-            ab38a08acdb57278b5a3a6c6565721676c9e25cb "$PEER_REF"
-      - name: Install private Contact Center addon dependencies
-        shell: bash
-        run: |
-          set -euo pipefail
-          sibling_parent="$(mktemp -d "${RUNNER_TEMP}/marketing-center-ci.XXXXXX")"
-          sibling_root="${sibling_parent}/contact-center"
-          mv "${GITHUB_WORKSPACE}/.ci-private-dependency/contact-center" "${sibling_root}"
-          python -m pip install --editable "${sibling_root}/setup/contact_center_base"
-          python -m pip install --editable "${sibling_root}/setup/contact_center_ui"
-          python -m pip install --editable "${sibling_root}/setup/contact_center_crm"
       - name: Install addons and dependencies
         run: oca_install_addons
       - name: Verify the pinned Odoo TLS runtime
@@ -139,15 +97,15 @@ jobs:
           name: Test log - ${{ matrix.name }}
           path: ${{ runner.temp }}/marketing-center-tests.log
           if-no-files-found: ignore
-      - name: Verify Marketing modules do not install Kanban
+      - name: Verify Marketing installs independently of Contact Center
         run: |
           python - <<'PYTHON'
           import os
           import psycopg2
           with psycopg2.connect(dbname=os.environ["PGDATABASE"]) as connection:
               with connection.cursor() as cursor:
-                  cursor.execute("SELECT (SELECT count(*) FROM ir_module_module WHERE name = 'contact_center_crm' AND state = 'installed') = 1 AND NOT EXISTS (SELECT 1 FROM ir_module_module WHERE name = 'contact_center_kanban' AND state = 'installed') AND NOT EXISTS (SELECT 1 FROM ir_model WHERE model = 'contact.center.case')")
-                  assert cursor.fetchone()[0], "CRM must install without Kanban or case models"
+                  cursor.execute("SELECT NOT EXISTS (SELECT 1 FROM ir_module_module WHERE name LIKE 'contact_center%' AND state = 'installed') AND NOT EXISTS (SELECT 1 FROM ir_model WHERE model LIKE 'contact.center.%')")
+                  assert cursor.fetchone()[0], "Marketing must install without Contact Center"
           PYTHON
       - name: Upload screenshots from JS tests
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

@@ -1,2 +1,1 @@
 queue https://github.com/OCA/queue.git 16.0
-contact-center https://github.com/soloztech/contact-center.git 16.0

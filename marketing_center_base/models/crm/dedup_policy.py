@@ -14,7 +14,6 @@ DEDUP_POLICY_TOKEN = object()
 DEDUP_GROUPS = (
     "base.group_system",
     "marketing_center_base.group_marketing_center_admin",
-    "contact_center_base.group_contact_center_admin",
 )
 POLICY_FIELDS = {
     "crm_cross_source_dedup_enabled",
@@ -39,19 +38,9 @@ class CrmDedupUnavailable(Exception):
         self.reason = reason
 
 
-def require_policy_admin(env, allow_missing_contact=False):
-    if not all(
-        (
-            allow_missing_contact
-            and group == "contact_center_base.group_contact_center_admin"
-            and not env.ref(group, raise_if_not_found=False)
-        )
-        or (env.ref(group, raise_if_not_found=False) and env.user.has_group(group))
-        for group in DEDUP_GROUPS
-    ):
-        raise AccessError(
-            _("System, Marketing and Contact Center administration are all required.")
-        )
+def require_policy_admin(env):
+    if not all(env.user.has_group(group) for group in DEDUP_GROUPS):
+        raise AccessError(_("System and Marketing administration are both required."))
 
 
 class Company(models.Model):
@@ -137,10 +126,7 @@ class Company(models.Model):
         self._crm_dedup_audit_guard([values])
         if not POLICY_FIELDS.intersection(values):
             return super().write(values)
-        require_policy_admin(
-            self.env,
-            allow_missing_contact=values.get("crm_cross_source_dedup_enabled") is False,
-        )
+        require_policy_admin(self.env)
         self.check_access_rights("write")
         self.check_access_rule("write")
         if any(company not in self.env.companies for company in self):
@@ -153,15 +139,13 @@ class Company(models.Model):
                 and not service._crm_cross_source_capable()
             ):
                 raise ValidationError(
-                    _(
-                        "Install the Contact CRM bridge before activating reconciliation."
-                    )
+                    _("Cross-source reconciliation is unavailable in this integration.")
                 )
             force = (
                 "disable"
                 if values.get("crm_cross_source_dedup_enabled") is False
                 and not service._crm_cross_source_capable()
-                else True
+                else service._crm_cross_source_capable()
             )
             with service._crm_cross_source_rpc_gate(company, force=force):
                 self.env.cr.execute(
@@ -191,10 +175,6 @@ class Company(models.Model):
                             "crm_cross_source_enabled_at"
                         ] = fields.Datetime.now() + datetime.timedelta(seconds=1)
                         for model, target in (
-                            (
-                                "contact.center.channel.binding",
-                                "crm_cross_source_binding_watermark",
-                            ),
                             (
                                 "marketing.center.meta.lead.submission",
                                 "crm_cross_source_submission_watermark",
@@ -281,8 +261,6 @@ class Service(models.AbstractModel):
         if force == "disable":
             # Emergency deactivation cannot depend on the unavailable bridge.
             # Existing held entries remain held until an audited per-entry release.
-            if "contact.center.crm.intake.gate" in self.env.registry:
-                self.env["contact.center.crm.intake.gate"]._acquire_company(company)
             yield self
             return
         if force or company.sudo().crm_cross_source_dedup_enabled:
@@ -308,24 +286,3 @@ class Service(models.AbstractModel):
     @api.model
     def _crm_cross_source_review_candidates(self, projection, values):
         return self.env["crm.lead"].browse()
-
-
-class Module(models.Model):
-    _inherit = "ir.module.module"
-
-    def button_uninstall(self):
-        if (self | self.downstream_dependencies()).filtered(
-            lambda module: module.name
-            in {"contact_center_crm", "marketing_center_contact_center"}
-        ) and self.env["res.company"].sudo().search_count(
-            [
-                ("crm_cross_source_dedup_enabled", "=", True),
-            ]
-        ):
-            raise ValidationError(
-                _(
-                    "Disable the cross-source admission policy explicitly before "
-                    "removing its bridge."
-                )
-            )
-        return super().button_uninstall()

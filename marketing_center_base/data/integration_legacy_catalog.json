@@ -49,22 +49,12 @@
       ]
     },
     "ir.model.relation": {
-      "marketing_center_meta_crm": ["marketing_meta_lead_route_crm_tag_rel"]
+      "marketing_center_meta_crm": [
+        "marketing_meta_lead_route_crm_tag_rel"
+      ]
     }
   },
   "xmlids": {
-    "marketing_center_contact_center_crm": {
-      "model_contact_center_attribution_touchpoint": "ir.model",
-      "model_contact_center_crm_conversation_link": "ir.model",
-      "model_crm_lead": "ir.model",
-      "model_marketing_attribution_contact_center_link": "ir.model",
-      "model_marketing_contact_center_crm_service": "ir.model",
-      "model_res_company": "ir.model",
-      "queue_job_channel_marketing_contact_center_crm": "queue.job.channel",
-      "queue_job_function_marketing_contact_center_crm_attribution_link": "queue.job.function",
-      "queue_job_function_marketing_contact_center_crm_bootstrap": "queue.job.function",
-      "queue_job_function_marketing_contact_center_crm_conversation_link": "queue.job.function"
-    },
     "marketing_center_crm": {
       "access_marketing_attribution_crm_effective_link_salesman": "ir.model.access",
       "access_marketing_attribution_crm_effective_link_system": "ir.model.access",

@@ -234,10 +234,11 @@ class MarketingCenterMetaCrmService(models.AbstractModel):
         )
         if decision["decision"] == "reuse":
             lead = Lead.browse(decision["lead_id"]).exists()
-            lead = lead._contact_center_lock_conversation_graph(
-                touch_leads=True, touch_channels=True
+            self.env.cr.execute(
+                "SELECT id FROM crm_lead WHERE id = %s FOR UPDATE NOWAIT", lead.ids
             )
-            # Repeat under the graph; a manual edit or closure can invalidate
+            lead.invalidate_recordset()
+            # Repeat under the lock; a manual edit or closure can invalidate
             # coentry between the probe and acquiring native graph locks.
             checked = (
                 decision
