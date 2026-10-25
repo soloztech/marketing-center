@@ -1,8 +1,8 @@
 # Campanhas externas e atribuição nativa no CRM
 
 As integrações CRM pertencem a Base, Meta e Website. A
-[fusão anterior](crm-integration-fusion.md) é um registro histórico; bases com
-módulos retirados exigem o plano de migração da versão que será publicada.
+[fusão anterior](crm-integration-fusion.md) é um registro histórico; bases com módulos
+retirados exigem o plano de migração da versão que será publicada.
 
 Este guia descreve a classificação de aquisição disponível no código. Instalar ou
 atualizar os módulos não ativa a classificação: cada fonte começa em **Disabled**. A
@@ -40,9 +40,9 @@ flowchart TD
 O ingresso comercial continua independente: os adaptadores de formulário `website.form`
 e Meta determinam se a entrada vira Lead ou Oportunidade, conforme sua configuração. A
 atribuição não muda tipo, vendedor, equipe, estágio ou probabilidade. Também não cria um
-lead para uma submissão histórica que não tenha sido projetada pelo ingresso.
-As pontes de conversa e de clique WhatsApp foram retiradas. O Contact Center
-recebe texto no Discuss; essa recepção não produz atribuição de Marketing.
+lead para uma submissão histórica que não tenha sido projetada pelo ingresso. As pontes
+de conversa e de clique WhatsApp foram retiradas. O Contact Center recebe texto no
+Discuss; essa recepção não produz atribuição de Marketing.
 
 ## Responsabilidade dos módulos
 
@@ -144,15 +144,15 @@ sido escolhido intencionalmente. Essa comprovação somente é registrada na ins
 formulário, com captura permitida e sem UTMs explícitas ou cookies UTM. Registros
 antigos com esse meio podem exigir revisão individual.
 
-Pendências de período provenientes das pontes retiradas são tratadas na migração.
-Uma decisão explícita nos campos nativos registra propriedade manual dos valores;
-essa edição não cria evidência de aquisição nem confirma uma origem sugerida.
+Pendências de período provenientes das pontes retiradas são tratadas na migração. Uma
+decisão explícita nos campos nativos registra propriedade manual dos valores; essa
+edição não cria evidência de aquisição nem confirma uma origem sugerida.
 
-Evidência efetivamente revogada, ausente ou conflitante pode
-restaurar o estado anterior à primeira aplicação somente enquanto a rotina ainda detém
-os valores. Uma edição manual sempre prevalece. **Undo automatic classification** também
-restaura esse estado e evita reaplicação no próximo job. Desabilitar a fonte pausa a
-classificação; não limpa em lote as UTMs já aplicadas.
+Evidência efetivamente revogada, ausente ou conflitante pode restaurar o estado anterior
+à primeira aplicação somente enquanto a rotina ainda detém os valores. Uma edição manual
+sempre prevalece. **Undo automatic classification** também restaura esse estado e evita
+reaplicação no próximo job. Desabilitar a fonte pausa a classificação; não limpa em lote
+as UTMs já aplicadas.
 
 O status da campanha na plataforma não invalida a atribuição: arquivar, remover ou
 excluir uma campanha no Gerenciador da Meta ou no Google Ads não desfaz a origem dos
@@ -189,9 +189,9 @@ enquanto ela ainda enxerga o snapshot antigo.
 
 ## Atualização e diagnóstico
 
-Atualize os módulos proprietários instalados, com seus dependentes nativos e
-providers preservados. O serviço CRM do Base usa `queue_job`; sem runner, a
-reconciliação fica pendente. Alterações de código e banco exigem validação conjunta.
+Atualize os módulos proprietários instalados, com seus dependentes nativos e providers
+preservados. O serviço CRM do Base usa `queue_job`; sem runner, a reconciliação fica
+pendente. Alterações de código e banco exigem validação conjunta.
 
 Para um lead sem Campanha:
 
@@ -210,8 +210,8 @@ posteriormente confirmada pelo sistema.
 
 ## Revisão de entradas Meta
 
-As rotas Meta configuram a criação comercial. Para entradas já em revisão, o
-responsável comercial pode criar um negócio ou encerrar a entrada pela fila nativa.
-A resolução não exige acesso às credenciais de Marketing. Pendências técnicas
-permanecem bloqueadas após desativar a política e exigem liberação explícita por
-administrador com os papéis Sistema e Marketing.
+As rotas Meta configuram a criação comercial. Para entradas já em revisão, o responsável
+comercial pode criar um negócio ou encerrar a entrada pela fila nativa. A resolução não
+exige acesso às credenciais de Marketing. Pendências técnicas permanecem bloqueadas após
+desativar a política e exigem liberação explícita por administrador com os papéis
+Sistema e Marketing.
