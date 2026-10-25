@@ -790,11 +790,6 @@ msgid "Currency"
 msgstr "Moeda"
 
 #. module: marketing_center_base
-#: model_terms:ir.ui.view,arch_db:marketing_center_base.view_marketing_dashboard_overview_form
-msgid "Customer service"
-msgstr "Atendimento"
-
-#. module: marketing_center_base
 #: model_terms:ir.ui.view,arch_db:marketing_center_base.view_marketing_dashboard_overview_search
 msgid "Data freshness"
 msgstr "Atualização"
@@ -855,11 +850,6 @@ msgstr "Possui financeiro"
 #: model:ir.model.fields,field_description:marketing_center_base.field_marketing_center_dashboard_overview__has_clicks
 msgid "Has Clicks"
 msgstr "Possui cliques"
-
-#. module: marketing_center_base
-#: model:ir.model.fields,field_description:marketing_center_base.field_marketing_center_dashboard_overview__has_contact_center
-msgid "Has Contact Center"
-msgstr "Possui central de atendimento"
 
 #. module: marketing_center_base
 #: model:ir.model.fields,field_description:marketing_center_base.field_marketing_center_dashboard_overview__has_cost
@@ -1469,17 +1459,17 @@ msgstr "CRM: captura ligada; data de início desconhecida."
 #. module: marketing_center_base
 #: model_terms:ir.ui.view,arch_db:marketing_center_base.view_marketing_dashboard_overview_kanban
 msgid ""
-"Conversations, sales and financial facts: capture enabled, verified since"
+"Sales and financial facts: capture enabled, verified since"
 msgstr ""
-"Conversas, vendas e fatos financeiros: captura ligada, verificada desde"
+"Vendas e fatos financeiros: captura ligada, verificada desde"
 
 #. module: marketing_center_base
 #: model_terms:ir.ui.view,arch_db:marketing_center_base.view_marketing_dashboard_overview_kanban
 msgid ""
-"Conversations, sales and financial facts: capture enabled; start date "
+"Sales and financial facts: capture enabled; start date "
 "unknown."
 msgstr ""
-"Conversas, vendas e fatos financeiros: captura ligada; data de início "
+"Vendas e fatos financeiros: captura ligada; data de início "
 "desconhecida."
 
 #. module: marketing_center_base

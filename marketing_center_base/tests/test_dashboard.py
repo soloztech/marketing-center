@@ -462,7 +462,7 @@ class TestMarketingCenterDashboard(SavepointCase):
             .get_views([(False, "kanban"), (False, "form")])["views"]
         )
         self.assertIn("não medido, a captura está desligada", views["kanban"]["arch"])
-        self.assertIn("Conversas, vendas e fatos financeiros", views["kanban"]["arch"])
+        self.assertIn("Vendas e fatos financeiros", views["kanban"]["arch"])
         self.assertIn("não garante cobertura completa", views["form"]["arch"])
         action = self.env.ref(
             "marketing_center_base.action_marketing_dashboard_overview"
