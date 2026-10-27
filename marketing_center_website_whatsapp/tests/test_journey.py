@@ -19,6 +19,14 @@ from .test_correlation import TestWebsiteWhatsappCorrelation
 
 
 class TestWebsiteWhatsappJourney(TestWebsiteWhatsappCorrelation):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        # The fixture's retained clicks must not expire as the calendar advances.
+        clock = patch.object(fields.Datetime, "now", return_value=cls.when)
+        clock.start()
+        cls.addClassCleanup(clock.stop)
+
     def _google_catalog(self):
         if "marketing.center.google.profile" not in self.env:
             self.skipTest("Optional Google catalog is not installed")
