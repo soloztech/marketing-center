@@ -89,9 +89,28 @@ class TestMarketingIntegrationFusionGuards(SavepointCase):
             owners[name] = row
         with patch.object(fusion, "catalog", return_value=catalog):
             assert_prepared(self.env)
+            whatsapp = owners["marketing_center_website_whatsapp"]
+            added = self.env["ir.module.module.dependency"].create(
+                [
+                    {
+                        "module_id": whatsapp.id,
+                        "name": name,
+                        "auto_install_required": False,
+                    }
+                    for name in ("marketing_center_contact_center", "queue_job")
+                ]
+            )
+            # update_list refreshes the P2 graph before persisted versions.
+            assert_prepared(self.env)
+            added[0].auto_install_required = True
+            with self.assertRaisesRegex(
+                ValidationError, "manifest dependencies differ"
+            ):
+                assert_prepared(self.env)
+            added[0].auto_install_required = False
             extra = self.env["ir.module.module.dependency"].create(
                 {
-                    "module_id": owners["marketing_center_website"].id,
+                    "module_id": whatsapp.id,
                     "name": "mail",
                     "auto_install_required": False,
                 }
@@ -101,6 +120,7 @@ class TestMarketingIntegrationFusionGuards(SavepointCase):
             ):
                 assert_prepared(self.env)
             extra.unlink()
+            added.unlink()
             # Native Odoo commits each owner's new version before the next
             # owner's pre-migration calls the guard. Base is upgraded first.
             for name, row in owners.items():
@@ -160,6 +180,47 @@ class TestMarketingIntegrationFusionGuards(SavepointCase):
         )
         with self.assertRaisesRegex(ValidationError, message):
             assert_prepared(self.env)
+
+    def test_compact_whatsapp_version_reaches_fresh_metadata_guard(self):
+        record = self.env.ref("marketing_center_base.action_marketing_leads")
+        self.env["ir.model.data"].create(
+            {
+                "module": "marketing_center_crm",
+                "name": "compact_version_orphan",
+                "model": record._name,
+                "res_id": record.id,
+            }
+        )
+        modules = {
+            name: SimpleNamespace(latest_version=version)
+            for name, version in VERSIONS.items()
+        }
+        modules["marketing_center_website_whatsapp"].latest_version = "16.0.1.4.0"
+        with patch.object(fusion, "_modules", return_value=modules):
+            with self.assertRaisesRegex(ValidationError, "orphan legacy metadata"):
+                assert_prepared(self.env)
+
+    def test_compact_whatsapp_version_reaches_migrated_catalog_guard(self):
+        modules = {
+            name: SimpleNamespace(latest_version=version)
+            for name, version in VERSIONS.items()
+        }
+        modules["marketing_center_website_whatsapp"].latest_version = "16.0.1.4.0"
+        modules.update(
+            {
+                name: SimpleNamespace(state="uninstallable", latest_version=version)
+                for name, version in fusion.LEGACY_VERSIONS.items()
+            }
+        )
+        with patch.object(fusion, "_modules", return_value=modules), patch.object(
+            fusion,
+            "_rows",
+            side_effect=ValidationError("reached canonical catalog guard"),
+        ):
+            with self.assertRaisesRegex(
+                ValidationError, "reached canonical catalog guard"
+            ):
+                assert_prepared(self.env)
 
     def test_fresh_install_does_not_claim_upgrade_checkpoints(self):
         # Isolate the fresh-hook contract even when run on a migrated QA database.

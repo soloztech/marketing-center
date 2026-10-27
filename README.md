@@ -5,11 +5,12 @@
 
 Provider-neutral marketing operations, attribution and native Odoo business-event
 integration for Odoo 16. The repository also hosts the small shared Google and Meta
-transport foundations used by the provider integrations.
+transport foundations used by Marketing Center and Contact Center.
 
 Physical co-location does not merge responsibilities: every directory remains an
 independent Odoo addon with its own manifest, dependencies, security and tests.
-The provider foundations remain independent of the functional Marketing addons.
+Installing `contact_center_meta` requires the Meta foundations from this repository,
+but does not require `marketing_center_base` or any functional Marketing Center addon.
 
 ## Shared provider foundations
 
@@ -55,7 +56,9 @@ release does not change those generic administrative workflows for other sites.
   Odoo Website adapter and native CRM forms;
 - `marketing_center_sale` and `marketing_center_account` —
   projections over native Odoo domains;
-- `marketing_center_sale_account` — optional sales/accounting integration;
+- `marketing_center_contact_center` — conversation and attribution integration;
+- `marketing_center_website_whatsapp` — Website to WhatsApp correlation;
+- `marketing_center_automation` and `marketing_center_sale_account` — optional business integrations;
 
 Install `marketing_center_base` for the unified application. It requires native
 `crm` and OCA `queue_job`. Select only the optional integrations you need. The
@@ -68,9 +71,10 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for boundaries and installation profiles 
 
 The independently installable content library lives in
 [soloztech/content-center](https://github.com/soloztech/content-center/tree/16.0).
-Install `content_center_base`, then optionally `content_center_sale`. Marketing Center
-continues to own advertising catalog integration and attribution; the library owns
-product/company content, FAQ and files. [Migration and provenance](catalog-plan.md).
+Install `content_center_base`, then optionally `content_center_sale` and
+`content_center_contact_center`. Marketing Center continues to own advertising
+catalog integration and attribution; the library owns product/company content,
+FAQ, files and conversation drafts. [Migration and provenance](catalog-plan.md).
 
 Install the repository Python dependencies with its versioned compatibility contract:
 
@@ -84,9 +88,11 @@ before initializing its database, so dependency drift fails before addon tests.
 
 ## Current greenfield baseline
 
-The analytics/provider addons have separate versions in their manifests. CI validates
-the standalone suite against OCB and its declared dependencies. Use the manifest and
-workflow from the same reviewed commit when assembling a release.
+The analytics/provider addons
+have separate versions in their manifests. The workflow pins the compatible
+Contact Center source SHA; `oca_dependencies.txt` is an alternative installation
+description, not the CI lock. Use the manifest and workflow from the same reviewed
+commit when assembling a release.
 
 The [2026-09-12 implementation record](reviews/2026-09-12-review-fixes-implementation.md)
 tracks this candidate and its validation. The [2026-09-05 audit](reviews/2026-09-05-greenfield-audit.md)
@@ -122,13 +128,14 @@ root was removed. See the
 The historical validation above does not establish the current production state.
 This review-fix candidate is local code and requires its own release evidence.
 
-CRM integrations are included in Base, Meta and Website. See [the integration ownership and migration guide](docs/crm-integration-fusion.md).
+CRM integrations are included in Base, Meta, Contact Center and Website. See [the integration ownership and migration guide](docs/crm-integration-fusion.md).
 
 The web ingress addon was folded into Website; see
 [the ownership migration](docs/web-ingress-fusion.md).
 
-As integrações Contact Center, Website–WhatsApp e Automation foram retiradas.
-São 10 addons: sete módulos Marketing e três fundações de transporte. CRM, formulários
-nativos, biblioteca de conteúdo e integrações financeiras permanecem independentes.
-A retirada não autoriza reclassificar campanhas de leads existentes; a migração
-preserva os campos nativos e os recibos de classificação.
+A elegibilidade comercial das origens Contact Center exige período confirmado no
+CRM. Vínculos antigos aguardam revisão, sem apagar UTM aplicado. As 13 unidades
+atuais são 10 addons Marketing e 3 fundações de transporte; a identidade e as
+mensagens continuam sob responsabilidade do Contact Center. As pontes financeiras
+opcionais ainda usam relações de documentos/eventos com CRM, sem gate de aquisição: atribuição de receita/ROAS não está
+habilitada por esta entrega.

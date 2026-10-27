@@ -34,10 +34,24 @@ com arquivos não commitados.
 Releases anteriores permanecem identificadas por seus commits. Rollback segue
 procedimento e autorização próprios, com origem e hashes registrados.
 
-## WhatsApp do Website após a simplificação
+## WhatsApp do Website: padrão herdado, exceção por página
 
-A ponte Website → Contact Center e a correlação por código foram retiradas. Não
-reinstalar os addons ou reintroduzir os campos de handoff e códigos de referência.
-Preservar o botão global flutuante, seus destinos, prefill e os formulários nativos.
-Links `wa.me` funcionam sem uma integração de atribuição com o Contact Center. A
-alteração não habilita trackers nem autoriza envios de mensagens.
+Por decisão do operador em 20/09/2026, a vinculação Site → WhatsApp deve ter uma
+configuração padrão por Website, reaproveitada nas páginas atuais e novas. Não criar
+ações ou copiar configuração para cada página apenas para habilitar o rastreamento. Usar
+`website.handoff_default_action_id`; uma ação específica ativa prevalece sobre o padrão,
+inclusive quando a captura específica estiver desligada. Reservar exceções para uma
+necessidade explícita de destino ou roteamento da página.
+
+Decisão de 06/10/2026: somente o botão global flutuante abre o WhatsApp comercial. Usar
+“Fale com a gente” nos convites e “Enviar mensagem” no envio dos formulários. A mensagem
+vem do href clicado, com uma linha “Meu código é XXXX”; novos códigos têm quatro
+caracteres. Prefixos legados e ações permanecem armazenados, e os códigos longos já
+emitidos continuam reconhecidos. Não recriar botões editoriais ou por documento/LP.
+Preservar destinos, prefill e formulários. Validar a mesma resolução no HTML e no
+endpoint, a página pública real, a empresa, o destino e a política de captura. Herança
+de WhatsApp não habilita outros trackers/formulários nem autoriza envios. Proximidade
+temporal permanece uma sugestão revisável, sem afirmar identidade. O QA deve incluir uma
+página criada depois do padrão e auditar URLs públicas únicas, conferindo exatamente um
+link comercial no botão flutuante; conferir somente o cadastro de ações não prova
+cobertura do site.

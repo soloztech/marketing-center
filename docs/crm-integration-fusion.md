@@ -1,10 +1,4 @@
-# Historical CRM integration extraction
-
-> Historical extraction procedure. The current suite has 10 addons and keeps CRM
-> integration in Base, Meta and Website. The Contact Center, Website–WhatsApp and
-> Automation bridges have been retired. Do not apply the old coordinated profiles below
-> or reinstall their providers. Current boundaries are in
-> [ARCHITECTURE.md](../ARCHITECTURE.md).
+# CRM integrations inside their functional owners
 
 Marketing Center now contains thirteen addons, after the subsequent
 [Web Ingress adoption by Website](web-ingress-fusion.md). The CRM and dashboard code

@@ -288,6 +288,8 @@ class MarketingAttributionCrmEffectiveLink(models.Model):
     def _assertion_scope(self, assertion):
         """Extension point: eligibility belongs to an authority assertion."""
         self.ensure_one()
+        if assertion.authority_key == "website.whatsapp":
+            return "pending"
         return "eligible"
 
     def _scope_partition(self):

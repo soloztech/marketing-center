@@ -17,41 +17,49 @@ OWNERS = {
     "marketing_center_crm": "marketing_center_base",
     "marketing_center_dashboard": "marketing_center_base",
     "marketing_center_meta_crm": "marketing_center_meta",
+    "marketing_center_contact_center_crm": "marketing_center_contact_center",
     "marketing_center_website_crm": "marketing_center_website",
 }
 LEGACY_VERSIONS = {
     "marketing_center_crm": "16.0.2.0.0",
     "marketing_center_dashboard": "16.0.2.0.0",
     "marketing_center_meta_crm": "16.0.1.1.1",
+    "marketing_center_contact_center_crm": "16.0.1.0.2",
     "marketing_center_website_crm": "16.0.1.6.2",
 }
 PREDECESSOR_VERSIONS = {
     "marketing_center_base": "16.0.2.0.0",
     "marketing_center_meta": "16.0.1.1.5",
+    "marketing_center_contact_center": "16.0.1.3.0",
     "marketing_center_website": "16.0.1.6.0",
+    "marketing_center_website_whatsapp": "16.0.1.2.0",
 }
 VERSIONS = {
     "marketing_center_base": "16.0.2.1.0",
     "marketing_center_meta": "16.0.2.0.0",
+    "marketing_center_contact_center": "16.0.2.0.0",
     "marketing_center_website": "16.0.2.0.0",
+    "marketing_center_website_whatsapp": "16.0.1.3.0",
 }
 # Checkpoints above identify the original ownership migration. Supported later
 # releases must be accepted both during prepared upgrades and on fresh graphs.
 SUCCESSOR_VERSIONS = {
-    "marketing_center_meta": ("16.0.2.1.0", "16.0.2.1.1"),
-    "marketing_center_base": (
-        "16.0.2.1.1",
-        "16.0.2.1.2",
-        "16.0.2.1.3",
-        "16.0.2.2.0",
-        "16.0.2.2.1",
-    ),
+    "marketing_center_meta": ("16.0.2.1.0",),
+    "marketing_center_base": ("16.0.2.1.1", "16.0.2.1.2", "16.0.2.1.3", "16.0.2.2.0"),
+    "marketing_center_contact_center": ("16.0.2.0.1", "16.0.2.1.0"),
     "marketing_center_website": (
         "16.0.2.1.0",
         "16.0.2.1.1",
         "16.0.2.2.0",
         "16.0.2.3.0",
         "16.0.2.4.0",
+    ),
+    "marketing_center_website_whatsapp": (
+        "16.0.1.3.1",
+        "16.0.1.4.0",
+        "16.0.1.5.0",
+        "16.0.1.6.0",
+        "16.0.1.7.0",
     ),
 }
 DEPENDENCIES = {
@@ -62,12 +70,22 @@ DEPENDENCIES = {
         "meta_webhook_base",
         "queue_job",
     ),
+    "marketing_center_contact_center": (
+        "contact_center_base",
+        "contact_center_crm",
+        "marketing_center_base",
+        "queue_job",
+    ),
     "marketing_center_website": (
         "marketing_center_base",
         "marketing_center_web_ingress",
         "queue_job",
         "website",
         "website_crm",
+    ),
+    "marketing_center_website_whatsapp": (
+        "contact_center_crm",
+        "marketing_center_website",
     ),
 }
 SUITE = "marketing_center_suite"
@@ -301,10 +319,15 @@ def _validate_original(env):
     consumers = dependencies.search(
         [("name", "in", list(OWNERS)), ("module_id.state", "=", "installed")]
     )
+    expected_consumer = (
+        "marketing_center_website_whatsapp",
+        "marketing_center_website_crm",
+    )
     # Legacy packages themselves cease to be runtime consumers after retirement.
     consumers = consumers.filtered(lambda row: row.module_id.name not in OWNERS)
     _require(
-        not consumers,
+        len(consumers) == 1
+        and (consumers.module_id.name, consumers.name) == expected_consumer,
         "unexpected installed legacy consumer",
     )
     installed = set(
@@ -482,6 +505,12 @@ def assert_prepared(env):
                 for dep in needed
             )
         allowed = [set(needed)]
+        if name == "marketing_center_website_whatsapp":
+            # update_list may refresh dependencies before the upgrade migrates
+            # persisted versions. Accept only the exact historical or P2 graph.
+            allowed.append(
+                set(needed) | {"marketing_center_contact_center", "queue_job"}
+            )
         current = dependencies.mapped("name")
         _require(
             set(current) in allowed

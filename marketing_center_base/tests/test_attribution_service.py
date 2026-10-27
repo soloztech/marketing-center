@@ -14,10 +14,10 @@ class TestMarketingAttributionService(SavepointCase):
 
     def _dto(self, **overrides):
         values = {
-            "source_system": "external",
+            "source_system": "contact_center",
             "source_scope_ref": "provider-connection-public-ref",
             "source_occurrence_ref": "message:provider-message-id",
-            "source_evidence_ref": "external-touchpoint-public-ref",
+            "source_evidence_ref": "contact-center-touchpoint-public-ref",
             "occurred_at": datetime.datetime(2026, 8, 29, 13, 0),
             "platform": "whatsapp",
             "channel": "whatsapp",
@@ -79,7 +79,9 @@ class TestMarketingAttributionService(SavepointCase):
         )
         second_a = self.service._ingest_touchpoint(
             self.company,
-            self._dto(source_evidence_ref="external-touchpoint-third-observation"),
+            self._dto(
+                source_evidence_ref="contact-center-touchpoint-third-observation"
+            ),
         )
 
         self.assertEqual(first_a.revision_sequence, 1)
@@ -126,12 +128,14 @@ class TestMarketingAttributionService(SavepointCase):
         first = self.service._ingest_touchpoint(self.company, self._dto())
         second = self.service._ingest_touchpoint(
             self.company,
-            self._dto(source_evidence_ref="external-touchpoint-second-observation"),
+            self._dto(
+                source_evidence_ref="contact-center-touchpoint-second-observation"
+            ),
         )
         mapped_again = self.service._ingest_touchpoint(
             self.company,
             self._dto(
-                source_evidence_ref="external-touchpoint-second-observation",
+                source_evidence_ref="contact-center-touchpoint-second-observation",
                 mapping_version=2,
             ),
         )

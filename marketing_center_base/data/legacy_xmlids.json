@@ -234,6 +234,7 @@
     "field_marketing_center_dashboard_overview__general_capture_state": "ir.model.fields",
     "field_marketing_center_dashboard_overview__has_account": "ir.model.fields",
     "field_marketing_center_dashboard_overview__has_clicks": "ir.model.fields",
+    "field_marketing_center_dashboard_overview__has_contact_center": "ir.model.fields",
     "field_marketing_center_dashboard_overview__has_cost": "ir.model.fields",
     "field_marketing_center_dashboard_overview__has_crm": "ir.model.fields",
     "field_marketing_center_dashboard_overview__has_performance_data": "ir.model.fields",

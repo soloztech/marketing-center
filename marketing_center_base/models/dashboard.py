@@ -193,6 +193,7 @@ class MarketingCenterDashboardOverview(models.Model):
     account_last_event_at = fields.Datetime(
         string="Last recorded financial fact", readonly=True
     )
+    has_contact_center = fields.Boolean(readonly=True)
     has_crm = fields.Boolean(readonly=True)
     has_sale = fields.Boolean(readonly=True)
     has_account = fields.Boolean(readonly=True)
@@ -589,6 +590,11 @@ class MarketingCenterDashboardOverview(models.Model):
             ),
             module_flags AS (
                 SELECT
+                    EXISTS (
+                        SELECT 1 FROM ir_module_module
+                        WHERE name = 'marketing_center_contact_center'
+                          AND state = 'installed'
+                    ) AS has_contact_center,
                     TRUE AS has_crm,
                     EXISTS (
                         SELECT 1 FROM ir_module_module
@@ -670,6 +676,7 @@ class MarketingCenterDashboardOverview(models.Model):
                             THEN 0.0
                         ELSE 100.0
                     END AS resolution_coverage,
+                    flags.has_contact_center,
                     flags.has_crm,
                     flags.has_sale,
                     flags.has_account,
@@ -745,6 +752,7 @@ class MarketingCenterDashboardOverview(models.Model):
                         WHEN COALESCE(touchpoint.total_count, 0) = 0 THEN 0.0
                         ELSE 100.0 * touchpoint.resolved_count / touchpoint.total_count
                     END AS resolution_coverage,
+                    flags.has_contact_center,
                     flags.has_crm,
                     flags.has_sale,
                     flags.has_account,
@@ -845,6 +853,7 @@ class MarketingCenterDashboardOverview(models.Model):
                         WHEN COALESCE(touchpoint.total_count, 0) = 0 THEN 0.0
                         ELSE 100.0 * touchpoint.resolved_count / touchpoint.total_count
                     END AS resolution_coverage,
+                    flags.has_contact_center,
                     flags.has_crm,
                     flags.has_sale,
                     flags.has_account,

@@ -139,25 +139,6 @@ class TestCrmNativeUtm(SavepointCase):
         self.assertFalse(entity.native_utm_campaign_id)
         self.assertFalse(self.lead.campaign_id)
 
-    def test_admitted_authorities_preserve_applied_classification(self):
-        _, point, original = self._point()
-        self.classifier._classify(self.lead, apply=True)
-        before = self.lead._native_utm_values()
-        with trap_jobs():
-            for authority in ("imported.acquisition", "confirmed.acquisition"):
-                self.crm._link_touchpoint_lead(
-                    point, self.lead, authority_key=authority, authority_ref="admitted"
-                )
-            self.crm._revoke_attribution_assertions(
-                original, "test", "test", "admitted-only"
-            )
-        effective = self.lead.marketing_utm_effective_link_ids
-        self.assertEqual(effective._scope_partition()["eligible"], effective)
-        self.assertFalse(effective._scope_partition()["pending"])
-        result = self.classifier._classify(self.lead, apply=False)
-        self.assertEqual(result["state"], "present")
-        self.assertEqual(result["after"], before)
-
     def test_existing_native_partial_tuple_is_preserved(self):
         entity, _, _ = self._point()
         lead = self.env["crm.lead"].create(

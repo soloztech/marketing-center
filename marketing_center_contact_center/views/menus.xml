@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <menuitem
+        id="menu_marketing_conversations"
+        name="Conversations"
+        parent="marketing_center_base.menu_marketing_center_root"
+        action="contact_center_base.action_contact_center_channels"
+        sequence="40"
+        groups="contact_center_base.group_contact_center_supervisor"
+    />
+</odoo>

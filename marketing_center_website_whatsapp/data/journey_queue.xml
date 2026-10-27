@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo noupdate="0">
+    <record id="queue_whatsapp_match" model="queue.job.function">
+        <field name="model_id" ref="base.model_res_company" />
+        <field name="method">_job_whatsapp_match</field>
+        <field
+            name="channel_id"
+            ref="marketing_center_contact_center.queue_job_channel_marketing_contact_center"
+        />
+        <field name="retry_pattern" eval="{1: 10, 2: 30, 3: 60, 4: 120, 5: 300}" />
+    </record>
+    <record id="queue_whatsapp_link" model="queue.job.function">
+        <field name="model_id" ref="base.model_res_company" />
+        <field name="method">_job_whatsapp_link</field>
+        <field
+            name="channel_id"
+            ref="marketing_center_contact_center.queue_job_channel_marketing_contact_center"
+        />
+        <field name="retry_pattern" eval="{1: 10, 2: 30, 3: 60, 4: 120, 5: 300}" />
+    </record>
+    <record id="queue_whatsapp_wake" model="queue.job.function">
+        <field name="model_id" ref="base.model_res_company" />
+        <field name="method">_job_whatsapp_wake</field>
+        <field
+            name="channel_id"
+            ref="marketing_center_contact_center.queue_job_channel_marketing_contact_center"
+        />
+        <field name="retry_pattern" eval="{1: 10, 2: 30, 3: 60, 4: 120, 5: 300}" />
+    </record>
+    <record id="queue_whatsapp_erasure" model="queue.job.function">
+        <field name="model_id" ref="base.model_res_company" />
+        <field name="method">_job_whatsapp_erasure</field>
+        <field
+            name="channel_id"
+            ref="marketing_center_contact_center.queue_job_channel_marketing_contact_center"
+        />
+        <field name="retry_pattern" eval="{1: 10, 2: 30, 3: 60, 4: 120, 5: 300}" />
+    </record>
+    <record id="queue_whatsapp_withdrawal" model="queue.job.function">
+        <field name="model_id" ref="base.model_res_company" />
+        <field name="method">_job_whatsapp_withdrawal</field>
+        <field
+            name="channel_id"
+            ref="marketing_center_contact_center.queue_job_channel_marketing_contact_center"
+        />
+        <field name="retry_pattern" eval="{1: 10, 2: 30, 3: 60, 4: 120, 5: 300}" />
+    </record>
+</odoo>

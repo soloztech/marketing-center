@@ -790,6 +790,11 @@ msgid "Currency"
 msgstr "Moeda"
 
 #. module: marketing_center_base
+#: model_terms:ir.ui.view,arch_db:marketing_center_base.view_marketing_dashboard_overview_form
+msgid "Customer service"
+msgstr "Atendimento"
+
+#. module: marketing_center_base
 #: model_terms:ir.ui.view,arch_db:marketing_center_base.view_marketing_dashboard_overview_search
 msgid "Data freshness"
 msgstr "Atualização"
@@ -850,6 +855,11 @@ msgstr "Possui financeiro"
 #: model:ir.model.fields,field_description:marketing_center_base.field_marketing_center_dashboard_overview__has_clicks
 msgid "Has Clicks"
 msgstr "Possui cliques"
+
+#. module: marketing_center_base
+#: model:ir.model.fields,field_description:marketing_center_base.field_marketing_center_dashboard_overview__has_contact_center
+msgid "Has Contact Center"
+msgstr "Possui central de atendimento"
 
 #. module: marketing_center_base
 #: model:ir.model.fields,field_description:marketing_center_base.field_marketing_center_dashboard_overview__has_cost
@@ -1459,17 +1469,17 @@ msgstr "CRM: captura ligada; data de início desconhecida."
 #. module: marketing_center_base
 #: model_terms:ir.ui.view,arch_db:marketing_center_base.view_marketing_dashboard_overview_kanban
 msgid ""
-"Sales and financial facts: capture enabled, verified since"
+"Conversations, sales and financial facts: capture enabled, verified since"
 msgstr ""
-"Vendas e fatos financeiros: captura ligada, verificada desde"
+"Conversas, vendas e fatos financeiros: captura ligada, verificada desde"
 
 #. module: marketing_center_base
 #: model_terms:ir.ui.view,arch_db:marketing_center_base.view_marketing_dashboard_overview_kanban
 msgid ""
-"Sales and financial facts: capture enabled; start date "
+"Conversations, sales and financial facts: capture enabled; start date "
 "unknown."
 msgstr ""
-"Vendas e fatos financeiros: captura ligada; data de início "
+"Conversas, vendas e fatos financeiros: captura ligada; data de início "
 "desconhecida."
 
 #. module: marketing_center_base
@@ -1491,8 +1501,13 @@ msgstr "Período comercial precisa de revisão"
 #. module: marketing_center_base
 #: model_terms:ir.ui.view,arch_db:marketing_center_base.view_crm_native_utm
 msgid ""
-"Ask a Marketing administrator to review the standard Campaign, Source and Medium fields\n"
-"                        or use Undo automatic classification when available."
+"Confirm the business period in the Journey. If the conversation was deleted,\n"
+"                        ask a Marketing administrator to make an explicit decision in the standard\n"
+"                        Campaign, Source and Medium fields or use Undo automatic classification when available.\n"
+"                        Current values remain preserved while review is pending."
 msgstr ""
-"Peça a um administrador de Marketing que revise os campos padrão Campanha, Origem e Mídia "
-"ou use Desfazer classificação automática quando disponível."
+"Confirme o período do negócio na Jornada. Se a conversa foi excluída, peça a"
+" um administrador de Marketing uma decisão explícita nos campos padrão "
+"Campanha, Origem e Mídia ou use Desfazer classificação automática quando "
+"disponível. Os valores atuais permanecem preservados enquanto a revisão está"
+" pendente."

@@ -32,7 +32,10 @@ class TestMarketingCenterCrmSecurityContract(SavepointCase):
         # This group fixture is rolled back by the native transaction case.
         optional = [
             self.env.ref(xmlid, raise_if_not_found=False)
-            for xmlid in ("marketing_center_base.group_marketing_center_admin",)
+            for xmlid in (
+                "contact_center_base.group_contact_center_admin",
+                "marketing_center_base.group_marketing_center_admin",
+            )
         ]
         self.env.ref("base.group_system").write(
             {
@@ -88,19 +91,3 @@ class TestMarketingCenterCrmSecurityContract(SavepointCase):
                     "crm_cross_source_window_hours": 48,
                 }
             )
-        user.write(
-            {
-                "groups_id": [
-                    Command.link(
-                        self.env.ref(
-                            "marketing_center_base.group_marketing_center_admin"
-                        ).id
-                    )
-                ],
-                "company_ids": [Command.link(company.id)],
-            }
-        )
-        company.with_user(user).with_context(allowed_company_ids=company.ids).write(
-            {"crm_cross_source_window_hours": 48}
-        )
-        self.assertEqual(company.crm_cross_source_window_hours, 48)

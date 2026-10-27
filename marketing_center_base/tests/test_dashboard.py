@@ -462,7 +462,7 @@ class TestMarketingCenterDashboard(SavepointCase):
             .get_views([(False, "kanban"), (False, "form")])["views"]
         )
         self.assertIn("não medido, a captura está desligada", views["kanban"]["arch"])
-        self.assertIn("Vendas e fatos financeiros", views["kanban"]["arch"])
+        self.assertIn("Conversas, vendas e fatos financeiros", views["kanban"]["arch"])
         self.assertIn("não garante cobertura completa", views["form"]["arch"])
         action = self.env.ref(
             "marketing_center_base.action_marketing_dashboard_overview"
@@ -636,6 +636,14 @@ class TestMarketingCenterDashboard(SavepointCase):
         summary = self._row("summary")
         module = self.env["ir.module.module"].sudo()
         expected = {
+            "has_contact_center": bool(
+                module.search_count(
+                    [
+                        ("name", "=", "marketing_center_contact_center"),
+                        ("state", "=", "installed"),
+                    ]
+                )
+            ),
             "has_crm": True,
             "has_sale": bool(
                 module.search_count(
@@ -715,6 +723,7 @@ class TestMarketingCenterDashboard(SavepointCase):
         )["views"]
         kanban = etree.fromstring(views["kanban"]["arch"])
         for name, state in (
+            ("conversation_started_count", "general_capture_state"),
             ("lead_created_count", "crm_capture_state"),
             ("proposal_sent_count", "general_capture_state"),
             ("invoice_posted_count", "general_capture_state"),
@@ -735,6 +744,7 @@ class TestMarketingCenterDashboard(SavepointCase):
                 )
         form = etree.fromstring(views["form"]["arch"])
         for name, state in (
+            ("conversation_started_count", "general_capture_state"),
             ("lead_created_count", "crm_capture_state"),
             ("proposal_sent_count", "general_capture_state"),
             ("invoice_posted_count", "general_capture_state"),
@@ -748,7 +758,7 @@ class TestMarketingCenterDashboard(SavepointCase):
         self.assertIn("not measured, capture is disabled", views["kanban"]["arch"])
         self.assertIn("Not measured", views["form"]["arch"])
 
-    def test_general_policy_notice_follows_sales_and_accounting(self):
+    def test_general_policy_notice_does_not_depend_on_contact_center(self):
         views = self.env["marketing.center.dashboard.overview"].get_views(
             [(False, "kanban"), (False, "form")]
         )["views"]
@@ -761,7 +771,7 @@ class TestMarketingCenterDashboard(SavepointCase):
                 )
                 self.assertEqual(len(nodes), 1)
                 guard = nodes[0].get("t-if")
-                for producer in ("has_sale", "has_account"):
+                for producer in ("has_contact_center", "has_sale", "has_account"):
                     self.assertIn(producer, guard)
                 # Not nested in a producer block: sales or accounting alone show it.
                 self.assertFalse(
@@ -771,7 +781,7 @@ class TestMarketingCenterDashboard(SavepointCase):
                         if "has_" in (ancestor.get("t-if") or "")
                     ]
                 )
-        for label in ("CRM:", "Sales:", "Financial facts:"):
+        for label in ("Conversations:", "CRM:", "Sales:", "Financial facts:"):
             self.assertIn(label, views["kanban"]["arch"])
         form = etree.fromstring(views["form"]["arch"])
         [notice] = form.xpath(

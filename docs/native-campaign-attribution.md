@@ -1,8 +1,9 @@
 # Campanhas externas e atribuição nativa no CRM
 
-As integrações CRM pertencem a Base, Meta e Website. A
-[fusão anterior](crm-integration-fusion.md) é um registro histórico; bases com módulos
-retirados exigem o plano de migração da versão que será publicada.
+As integrações CRM fazem parte dos módulos proprietários desde a fusão de 06/10/2026.
+Para atualizar uma base com os cinco módulos antigos instalados, aplicar primeiro a
+[migração de propriedade](crm-integration-fusion.md); não executar diretamente `-u`
+sobre o código novo antes dessa preparação.
 
 Este guia descreve a classificação de aquisição disponível no código. Instalar ou
 atualizar os módulos não ativa a classificação: cada fonte começa em **Disabled**. A
@@ -25,6 +26,16 @@ flowchart TD
     V --> G[Google: consulta exata do clique na conta habilitada]
     G --> E[Revisão enriquecida: conta, campanha, grupo e anúncio]
     M[Formulário Meta ou referência de anúncio] --> E
+    W2[Visita no site: campanha na URL ou UTM] --> K[Clique WhatsApp com referência]
+    K --> Msg[Mensagem recebida com referência ou confirmação humana]
+    Msg --> B2{Período confirmado do negócio?}
+    B2 -->|Horário da mensagem dentro da janela| E
+    B2 -->|Pendente, fora do período ou sem associação| Ctx[Contexto sem crédito ou revisão]
+    K --> Priv[Recusa ou retenção: remover dados privados e revogar crédito]
+    C[Contact Center: referência comprovada de anúncio] --> B{Período comercial confirmado?}
+    B -->|Sim, ocorrência dentro da janela| E
+    B -->|Pendente ou convergindo| Hold[Revisar período: preservar UTMs e recibo]
+    B -->|Fora da janela| Excluded[Sem crédito por essa associação]
     E --> R[Base: resolver identidade no catálogo externo]
     S[Sincronização do catálogo Google ou Meta] --> R
     R --> P{Política da fonte}
@@ -40,20 +51,27 @@ flowchart TD
 O ingresso comercial continua independente: os adaptadores de formulário `website.form`
 e Meta determinam se a entrada vira Lead ou Oportunidade, conforme sua configuração. A
 atribuição não muda tipo, vendedor, equipe, estágio ou probabilidade. Também não cria um
-lead para uma submissão histórica que não tenha sido projetada pelo ingresso. As pontes
-de conversa e de clique WhatsApp foram retiradas. O Contact Center recebe texto no
-Discuss; essa recepção não produz atribuição de Marketing.
+lead para uma submissão histórica que não tenha sido projetada pelo ingresso. A ponte
+`website.whatsapp` acompanha visita, clique, mensagem e negócio existente; não cria lead
+automaticamente nesta fase. O horário original da aquisição não é reescrito: a
+elegibilidade usa o horário da **mensagem** e o período confirmado, com início inclusivo
+e fim exclusivo. Recusa e retenção removem os dados privados e impedem crédito,
+preservando referências técnicas de campanha e auditoria conforme o contrato Base.
+Associação apenas sugerida, período em revisão e processamento pendente são estados
+explícitos, sem promover contexto a crédito.
 
 ## Responsabilidade dos módulos
 
-| Módulo                               | Responsabilidade nesta etapa                                                                                                                         |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `google_api_base`                    | Transporte Google, credenciais, limites e erros normalizados.                                                                                        |
-| `meta_api_base`, `meta_webhook_base` | Transporte e recebimento Meta.                                                                                                                       |
-| `marketing_center_website`           | Ingresso web incorporado, observação e identificador protegido; captura, sessão, ações e vínculo da submissão nativa ao lead, incluindo UTMs padrão. |
-| `marketing_center_google`            | Consulta GCLID exata, enriquecimento de evidência e resolução das referências Google.                                                                |
-| `marketing_center_meta`              | Submissões, referências e catálogo Meta; criação ou vínculo comercial conforme a rota.                                                               |
-| `marketing_center_base`              | Evidência canônica, catálogo externo, política por fonte e escritor único das UTMs nativas, com reconciliação, preservação manual e recibos.         |
+| Módulo                               | Responsabilidade nesta etapa                                                                                                                                |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `google_api_base`                    | Transporte Google, credenciais, limites e erros normalizados.                                                                                               |
+| `meta_api_base`, `meta_webhook_base` | Transporte e recebimento Meta.                                                                                                                              |
+| `marketing_center_website`           | Ingresso web incorporado, observação e identificador protegido; captura, sessão, ações e vínculo da submissão nativa ao lead, incluindo UTMs padrão.        |
+| `marketing_center_website_whatsapp`  | Captura congelada de aquisição e clique, associação com a mensagem, ocorrência canônica, vínculo ao negócio por período da mensagem, Jornada e privacidade. |
+| `marketing_center_google`            | Consulta GCLID exata, enriquecimento de evidência e resolução das referências Google.                                                                       |
+| `marketing_center_meta`              | Submissões, referências e catálogo Meta; criação ou vínculo comercial conforme a rota.                                                                      |
+| `marketing_center_base`              | Evidência canônica, catálogo externo, política por fonte e escritor único das UTMs nativas, com reconciliação, preservação manual e recibos.                |
+| `marketing_center_contact_center`    | Vínculo entre evidência da conversa e CRM dentro do período comercial confirmado; sinais sem campanha identificada permanecem insuficientes.                |
 
 `marketing_center_web_ingress` foi incorporado ao Website; não é addon atual.
 
@@ -127,11 +145,15 @@ Referência técnica:
 
 ## Escrita, ambiguidades e reversão no CRM
 
-O trabalhador usa os vínculos admitidos e as revisões aceitas. Múltiplos touchpoints
+O trabalhador usa a partição elegível dos vínculos efetivos e revisões aceitas. Para
+Contact Center, a associação deve ter período confirmado, com início inclusivo e fim
+exclusivo, e a ocorrência efetiva precisa estar dentro da janela. Outras autoridades,
+como `website.form` e Meta, conservam sua elegibilidade independente. A autoridade
+`website.whatsapp` usa a mensagem recebida para testar a janela confirmada; a data de
+aquisição permanece a original, mesmo quando anterior ao negócio. Múltiplos touchpoints
 podem confirmar a mesma combinação de campanha, origem e meio. Combinações diferentes
-ficam em revisão; não há escolha automática por nome, primeiro clique ou último clique.
-As pontes de conversa e de clique WhatsApp foram retiradas; a remoção não autoriza
-reclassificar as campanhas já gravadas no CRM.
+ficam em revisão; não há escolha automática por nome, primeiro clique ou último clique
+nesta etapa.
 
 O preenchimento é permitido quando os campos estão vazios, quando há comprovação do
 padrão Website ou quando ainda contêm exatamente os valores da última aplicação
@@ -144,15 +166,28 @@ sido escolhido intencionalmente. Essa comprovação somente é registrada na ins
 formulário, com captura permitida e sem UTMs explícitas ou cookies UTM. Registros
 antigos com esse meio podem exigir revisão individual.
 
-Pendências de período provenientes das pontes retiradas são tratadas na migração. Uma
-decisão explícita nos campos nativos registra propriedade manual dos valores; essa
-edição não cria evidência de aquisição nem confirma uma origem sugerida.
+O estado **Período comercial precisa de revisão** (`scope_review`) pausa a
+classificação, preservando os três campos UTM e o último recibo aplicado. Ele abrange
+associações legadas ou em revisão, suporte pendente de contexto, convergência ainda
+incompleta e origem órfã após exclusão de conversa. Não restaura o baseline nesse
+estado. Uma pendência desse tipo pode pausar o negócio inteiro, mesmo com outra origem
+elegível.
 
-Evidência efetivamente revogada, ausente ou conflitante pode restaurar o estado anterior
-à primeira aplicação somente enquanto a rotina ainda detém os valores. Uma edição manual
-sempre prevalece. **Undo automatic classification** também restaura esse estado e evita
-reaplicação no próximo job. Desabilitar a fonte pausa a classificação; não limpa em lote
-as UTMs já aplicadas.
+Para resolver, o agente autorizado confirma ou revisa o período pela **Jornada** do lead
+e aguarda a convergência. Se a conversa foi excluída, o administrador Marketing faz uma
+decisão explícita nos campos UTM ou usa **Undo automatic classification**, quando as
+pré-condições da reversão permitem. Esses dois caminhos administrativos marcam a
+classificação como manual; a Jornada deixa de solicitar a decisão sobre uma origem órfã
+já resolvida. Uma associação ainda em revisão, uma origem pendente ligada a uma conversa
+existente ou uma convergência em andamento continuam sinalizadas: decidir a UTM
+manualmente não confirma o período nem concede crédito a essas origens. As origens ainda
+inelegíveis continuam sem crédito, e a evidência órfã é preservada.
+
+Fora da pausa de revisão, evidência efetivamente revogada, ausente ou conflitante pode
+restaurar o estado anterior à primeira aplicação somente enquanto a rotina ainda detém
+os valores. Uma edição manual sempre prevalece. **Undo automatic classification** também
+restaura esse estado e evita reaplicação no próximo job. Desabilitar a fonte pausa a
+classificação; não limpa em lote as UTMs já aplicadas.
 
 O status da campanha na plataforma não invalida a atribuição: arquivar, remover ou
 excluir uma campanha no Gerenciador da Meta ou no Google Ads não desfaz a origem dos
@@ -189,14 +224,19 @@ enquanto ela ainda enxerga o snapshot antigo.
 
 ## Atualização e diagnóstico
 
-Atualize os módulos proprietários instalados, com seus dependentes nativos e providers
-preservados. O serviço CRM do Base usa `queue_job`; sem runner, a reconciliação fica
-pendente. Alterações de código e banco exigem validação conjunta.
+Publique conjuntamente os dois repositórios com a nova API de período. Atualize Contact
+CRM/Kanban/Sales e Marketing Base/Contact/Google/Website-WhatsApp/Automation instalados;
+preserve as demais dependências e providers. O Website contém o antigo ingresso web.
+Respeite a preparação de propriedade caso a base ainda esteja na estrutura anterior. O
+serviço CRM do Base usa `queue_job`; sem runner, a convergência e a reconciliação
+permanecem pendentes. Testes locais não autorizam implantação.
 
 Para um lead sem Campanha:
 
-1. Confirme a existência do vínculo efetivo de aquisição e a autoridade que o admitiu. A
-   ausência de evidência não autoriza remover valores nativos ou ignorar uma revisão.
+1. Confirme a existência do vínculo efetivo de aquisição. Para Contact Center, confira o
+   período na Jornada, a ocorrência dentro da janela e a conclusão da convergência.
+   `scope_review` conserva a campanha anterior até resolver a pendência; não significa
+   ausência de evidência.
 2. Confira se há referência externa de campanha/anúncio ou consulta GCLID encontrada.
 3. Confira a resolução no catálogo da conta e empresa corretas.
 4. Confira modo, origem, meio e bloqueio da fonte/campanha.
@@ -208,10 +248,21 @@ UTMs textuais vazias no touchpoint podem coexistir com campanha nativa preenchid
 descrevem o que foi capturado no evento; a classificação nativa descreve a associação
 posteriormente confirmada pelo sistema.
 
-## Revisão de entradas Meta
+## Entrada comercial automática
 
-As rotas Meta configuram a criação comercial. Para entradas já em revisão, o responsável
-comercial pode criar um negócio ou encerrar a entrada pela fila nativa. A resolução não
-exige acesso às credenciais de Marketing. Pendências técnicas permanecem bloqueadas após
-desativar a política e exigem liberação explícita por administrador com os papéis
-Sistema e Marketing.
+Contact CRM pode confirmar automaticamente o período de um lead novo da caixa comercial,
+com corte e primeira entrada comprovados. Isso não altera o classificador: a origem
+ainda precisa de evidência elegível, catálogo/UTM inequívoco e ausência de edição
+manual. Reuso, períodos antigos e retorno após encerramento exigem revisão.
+
+A empresa pode habilitar a reconciliação Meta Lead Ads/WhatsApp para a nova coorte,
+janela padrão de 24 horas e gerente CRM responsável. O gate comum e recibos HMAC
+serializam criação/reuso nas duas ordens. Ambiguidade vai para a fila nativa CRM com
+campos comerciais limitados; ausência da ponte gera pendência técnica recuperável, sem
+criação desprotegida. Desligar a flag não libera pendências técnicas.
+
+A Jornada do próprio lead/conversa oferece ao vendedor nomes e datas sem conceder acesso
+ao cofre de Marketing. Decisões por evidência/geração preservam auditoria. Em linhagens
+automáticas, revisão pendente não conserva UTMs cuja autoridade foi retirada; evidência
+anterior ainda válida e edições manuais continuam respeitadas. Privacidade apaga os
+identificadores de comparação junto de sua evidência.

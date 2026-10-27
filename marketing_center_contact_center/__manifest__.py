@@ -1,0 +1,28 @@
+{
+    "name": "Marketing Center - Contact Center Bridge",
+    "summary": "Project Contact Center acquisition evidence into Marketing Center",
+    "version": "16.0.2.1.0",
+    "category": "Marketing",
+    "author": "Soloz Technologies",
+    "website": "https://github.com/soloztech/marketing-center",
+    "license": "AGPL-3",
+    "depends": [
+        "contact_center_base",
+        "marketing_center_base",
+        "queue_job",
+        "contact_center_crm",
+    ],
+    "data": [
+        "views/menus.xml",
+        "security/marketing_center_contact_center_security.xml",
+        "security/ir.model.access.csv",
+        "data/queue_job.xml",
+        "views/attribution_link_views.xml",
+        "views/response_episode_views.xml",
+        "data/crm_queue_job.xml",
+    ],
+    "post_init_hook": "post_init_hook",
+    "installable": True,
+    "application": False,
+    "uninstall_hook": "uninstall_hook",
+}

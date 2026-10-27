@@ -14,16 +14,31 @@
                             name="reason"
                         />
                         <field name="technical" invisible="1" />
+                        <field name="candidate_ids" invisible="1" />
                     </group>
                     <p
                         attrs="{'invisible': [('technical', '=', True)]}"
-                    >Criar demanda nova preserva os negócios existentes. Encerrar mantém a entrada e a auditoria, sem criar um lead.</p>
+                    >Vincular confirma a mesma pessoa e o mesmo negócio. Criar demanda nova preserva os negócios existentes. Encerrar mantém a entrada e a auditoria, sem criar um lead.</p>
+                    <group attrs="{'invisible': [('technical', '=', True)]}">
+                        <field
+                            name="lead_id"
+                            options="{'no_create': True, 'no_open': True}"
+                            context="{'active_test': False}"
+                        />
+                    </group>
                     <field name="confirmed" />
                     <p
                         attrs="{'invisible': [('technical', '=', False)]}"
                     >A proteção aguarda recuperação e será tentada novamente automaticamente. A liberação individual só está disponível aos administradores após desativarem explicitamente a proteção da empresa.</p>
                 </sheet>
                 <footer>
+                    <button
+                        name="action_link"
+                        string="Vincular ao negócio"
+                        type="object"
+                        class="btn-primary"
+                        attrs="{'invisible': [('technical', '=', True)]}"
+                    />
                     <button
                         name="action_new"
                         string="Confirmar demanda nova"
@@ -69,7 +84,7 @@
                             name="total"
                         /></group>
                     <p
-                    >Abra uma entrada para criar uma demanda nova ou encerrar sem criar. A fila mostra apenas os campos comerciais submetidos permitidos pelos seus acessos atuais.</p>
+                    >Abra uma entrada para revisar. A fila mostra apenas os campos comerciais submetidos e os candidatos permitidos pelos seus acessos atuais.</p>
                     <field
                         name="line_ids"
                         context="{'form_view_ref': 'marketing_center_meta.view_meta_crm_review_line_form'}"
